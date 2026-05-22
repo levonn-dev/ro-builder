@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "ro-builder",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

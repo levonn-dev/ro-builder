@@ -1,0 +1,22 @@
+{{- if .Values.sidecar.autoscaling.enabled -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ro-builder.sidecarName" . }}
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "sidecar" "root" .) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ro-builder.sidecarName" . }}
+  minReplicas: {{ .Values.sidecar.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.sidecar.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.sidecar.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

@@ -1,0 +1,76 @@
+# docker-compose for ro-builder. Spins up both services with the
+# correct wiring; equivalent to `task run:sidecar` + `task run:api`
+# but containerized and one-command.
+#
+# Usage:
+#   task docker:up        # build + start in background
+#   task docker:logs      # tail logs
+#   task docker:down      # stop + remove
+#
+# .env at the repo root supplies LLM_API_KEY (and any other LLM_*
+# overrides). docker-compose picks it up automatically.
+
+services:
+  sidecar:
+    build:
+      context: .
+      dockerfile: docker/sidecar.Dockerfile
+    container_name: ro-builder-sidecar
+    restart: unless-stopped
+    expose:
+      - "7401"
+    # Healthcheck: the sidecar's own readiness probe (POST /score with
+    # an empty body) is the same one scripts/e2e.sh uses. Once it
+    # returns 200, the api can safely depend on it.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - |
+          fetch('http://localhost:7401/score', {
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: '{}'
+          }).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: ro-builder-api
+    restart: unless-stopped
+    depends_on:
+      sidecar:
+        condition: service_healthy
+    ports:
+      - "${API_HOST_PORT:-8080}:8080"
+    # SIDECAR_URL is set in the Dockerfile to the compose service name.
+    # Every other knob is forwarded from .env here; vars not listed are
+    # NOT visible inside the container even if they're set on the host.
+    # Keep this list in sync with .env.example as new LLM_* / GENERATION_*
+    # knobs are added.
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-}
+      GENERATION_WORKERS: ${GENERATION_WORKERS:-}
+      GENERATION_QUEUE_CAP: ${GENERATION_QUEUE_CAP:-}
+      GENERATION_POLL_INTERVAL: ${GENERATION_POLL_INTERVAL:-}
+      GENERATION_SHUTDOWN_TIMEOUT: ${GENERATION_SHUTDOWN_TIMEOUT:-}
+      GENERATION_MAX_ITERS: ${GENERATION_MAX_ITERS:-}
+      LOG_LEVEL: ${LOG_LEVEL:-}
+      LOG_FORMAT: ${LOG_FORMAT:-}
+    volumes:
+      - buildlibrary:/data
+
+volumes:
+  buildlibrary:
+    name: ro-builder-buildlibrary

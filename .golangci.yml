@@ -1,0 +1,104 @@
+version: "2"
+
+# Conservative starter set: defaults plus a few high-signal additions.
+# Bumping the linter list is cheap; chasing a wave of cosmetic flags isn't.
+# When adding a new linter, run it in isolation first to scope the cleanup
+# (e.g., `golangci-lint run --no-config --enable=gocritic ./...`).
+
+run:
+  timeout: 3m
+  go: "1.26"
+
+linters:
+  default: standard  # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose      # http response bodies must be closed
+    - misspell       # common English misspellings in comments/strings
+    - unparam        # unused function parameters
+    - gocritic       # opinionated checks; high signal, low noise
+    - revive         # successor to golint; flags exported-without-doc, etc.
+    - copyloopvar    # loop-var aliasing (Go 1.22+ semantics make some forms unnecessary)
+
+  settings:
+    gocritic:
+      disabled-checks:
+        # ifElseChain: switch-vs-if-else is a style call; gocritic over-fires
+        # on small chains where switch would be heavier than the if-else it
+        # replaces.
+        - ifElseChain
+    misspell:
+      # rocalc / iRO mob and item names that English spell-checkers flag.
+      # Don't "fix" these; they're vendor-canonical strings used in id
+      # mapping comments and would break the round-trip with rocalc data.
+      ignore-rules:
+        - zealotus
+        - zherlthsh
+        - aniversary
+        - stilleto
+        - cutlas
+    errcheck:
+      # Stdlib io.Closer / db.Close patterns that are universally idiomatic
+      # to discard. Anything else (Write, Marshal, custom returns) still
+      # requires an explicit `_ = ...` to mark intent.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*net/http.Response.Body).Close
+        - (io.ReadCloser).Close
+    revive:
+      rules:
+        # Defer enforcing exported-doc rules; adding them retroactively is
+        # a separate task. Leave the rest of revive's default ruleset on.
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+
+  exclusions:
+    # Test files are allowed to be looser; fixture builders, table-driven
+    # tests, and intentionally-unused vars in setup are common patterns
+    # that don't need the strict checks.
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - unparam
+          - gocritic
+      # cmd/build-rocalc-mapping and cmd/enrich-mapping-rms are run-only
+      # tools; stricter checks add noise without improving the binaries
+      # users actually deploy.
+      - path: cmd/(build-rocalc-mapping|enrich-mapping-rms|verify-mapping|build-catalog)/
+        linters:
+          - errcheck
+          - gocritic
+          - misspell
+      # Tokenizer's internal helper signatures are kept symmetric with the
+      # token-cursor API even when individual call sites only use a subset
+      # of the result tuple; hand-fixing each would just defer the next
+      # parser change.
+      - path: internal/data/sources/hercules/tokenizer\.go
+        linters:
+          - unparam
+      # ctx is plumbed through fetchClassSkillsForPrompt so future tools
+      # backing the prompt can use it (e.g., a sidecar /class-skills probe);
+      # accepting the unused arg today keeps the call site stable.
+      - path: internal/orchestrator/orchestrator\.go
+        linters:
+          - unparam
+      # gates.Inputs is the standard signature for every gate evaluator;
+      # we accept it for symmetry even when a particular gate only reads
+      # subset of its fields.
+      - path: internal/scoring/gates/
+        linters:
+          - unparam
+      # Generated code is owned by oapi-codegen; lint findings here are
+      # the generator's problem, not ours. Re-running the generator will
+      # overwrite anything we manually fix.
+    paths:
+      - internal/api/oapi/oapi.gen.go
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

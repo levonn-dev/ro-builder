@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ro-builder.fullname" . }}-env
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "shared" "root" .) | nindent 4 }}
+data:
+  # Wiring values that depend on the chart's resource names. The api
+  # binary reads these via envFrom on the api Deployment. Sidecar-specific
+  # env (SIDECAR_WORKERS, PORT) lives on the sidecar Deployment directly;
+  # putting it here would be dead weight since the api never reads it.
+  ADDR: ":8080"
+  SIDECAR_URL: "http://{{ include "ro-builder.sidecarName" . }}:7401"
+  BUILDLIBRARY_PATH: "/data/buildlibrary.db"
+
+  # Pass-through env from values.yaml. Empty strings are intentional;
+  # the binary's own default kicks in for any key set to "" here.
+  {{- range $k, $v := .Values.env }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}

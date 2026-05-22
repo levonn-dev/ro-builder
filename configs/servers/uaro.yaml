@@ -1,0 +1,745 @@
+# UARO server profile.
+# All factual claims sourced from https://wiki.uaro.net/ as of 2026-05-02.
+# When updating, re-fetch the source pages and cite the URL in a comment
+# above the changed block.
+
+key: uaro
+name: uaRO
+mode: pre-renewal
+episode: "13.1: Ash Vacuum"
+emulator: hercules
+source_url: https://wiki.uaro.net/
+
+# Source: https://wiki.uaro.net/Server_Info/
+rates:
+  base: 5
+  job: 5
+  drop: 5
+  card_drop: 5    # multiplier; effective normal card rate 0.05%
+  mvp_card: 1     # effective MVP card rate 0.01%
+  mvp_drop: 3
+  notes:
+    - "Weekend rates (Sat 00:00; Sun 23:59 server time): x7.5 base, x7.5 job, x5 drop"
+    - "Quest EXP x2 standard, x5 for select quests"
+    - "Pet/Homunculus intimacy x3"
+
+# Source: https://wiki.uaro.net/Server_Info/
+caps:
+  max_base_level: 99
+  max_job_level: 70
+  max_stat: 99
+  max_aspd: 190
+  instant_cast_dex: 150
+  min_skill_delay_ms: 200
+  min_item_delay_ms: 100
+  party_share_range: 15
+
+# Source: https://wiki.uaro.net/Class_Changes/
+class_changes:
+  - class: taekwon_kid
+    summary: "Fame ranking with monthly decay; mission rebalanced; expanded gear"
+    rules:
+      - "Fame decays 10% per month (vs permanent in official)"
+      - "Top 20 ranked at level 90: infinite combos, tripled max HP/SP"
+      - "Use @taekwon to check standings"
+      - "Taekwon Mission: 1 SP cost (vs 10), 5% reset chance (vs 1%), 0.5s cast (vs 1s)"
+      - "Now equippable: Swordsman Medal of Honor (acc 2720)"
+
+  - class: star_gladiator
+    rules:
+      - "Feeling/Hatred maps memorized permanently; NPC Salvia (Prontera West inn) resets for fee"
+      - "Miracle proc rate raised to 0.1% (vs 0.02%); 1h duration; lost on logout/map change"
+
+  - class: soul_linker
+    max_job_level: 70
+    rules:
+      - "Max job level 70 (vs 50); HP/SP pools unchanged"
+      - "Soul Link lvl 5 lasts 10 minutes (vs 5)"
+      - "Esma SP cost halved: 4–40 for lvl 1–10 (vs 8–80)"
+      - "Eska no longer affects Boss-type monsters"
+      - "Now equippable: Thorn Staff of Darkness [1] (1636)"
+
+  - class: knight
+    rules:
+      - "Bowling Bash range/knockback doubled (2 cells)"
+      - "Brandish Spear knockback halved (1 cell)"
+
+  - class: paladin
+    rules:
+      - "Shield swap no longer interrupts skills"
+      - "Devotion restricted to guild members outside Battlegrounds"
+      - "Grand Cross hits all mobs on same cell at 100%"
+      - "Gospel buffs reset on relog"
+
+  - class: high_wizard
+    rules:
+      - "Ice Wall banned on MVP maps"
+      - "Sightrasher 7×7 (down from 15×15), blocks obstacles"
+      - "Amplify Magic Power affects Meteor Storm / Storm Gust / LoV ticks"
+      - "Storm Gust 10×10 radius"
+
+  - class: professor
+    rules:
+      - "Abracadabra restricted from towns"
+      - "Auto Spell triggers level 5 bolts"
+      - "Mind Breaker adds debuff icon"
+
+  - class: blacksmith
+    rules:
+      - "Cart Revolution assumes max weight"
+      - "Power Thrust / Maximum Power Thrust no longer break weapons"
+      - "Adrenaline Rush works with one-handed swords"
+
+  - class: alchemist
+    rules:
+      - "Twilight Alchemy: brews up to 300, requires Soul Link, 2s cooldown"
+      - "Bioethics now active: swap homunculi for 1 embryo"
+
+  - class: priest
+    rules:
+      - "Warp Portal banned on MVP maps"
+      - "Magnus Exorcismus affects more races/elements; damage continues during stun/petrify/freeze"
+      - "Mace Mastery adds +1 critical per level"
+
+  - class: champion
+    rules:
+      - "Asura Strike SP regenerates on relog"
+
+  - class: assassin_cross
+    rules:
+      - "Enchant Deadly Poison duration 90s (vs 60s)"
+      - "Create Deadly Poison: 10 SP, no HP loss, mass-produces up to 300"
+
+  - class: stalker
+    rules:
+      - "Backstab usable like most attacks"
+      - "Plagiarism NPC available for skill copying"
+      - "Preserve infinite duration, toggleable, persists through logout"
+      - "Reject Sword reflects limited to wearer's HP"
+      - "Chase Walk delay 5s (vs 10s)"
+
+  - class: clown
+    rules:
+      - "Song buffs persist 20s after leaving area"
+      - "Loki's Veil banned on MVP maps"
+      - "Wand of Hermode performable solo"
+      - "Arrow Vulcan cast delay 2s (vs 3s)"
+
+  - class: gypsy
+    summary: "Same as Clown"
+    rules:
+      - "Song buffs persist 20s after leaving area"
+      - "Loki's Veil banned on MVP maps"
+      - "Wand of Hermode performable solo"
+      - "Arrow Vulcan cast delay 2s (vs 3s)"
+
+  - class: super_novice
+    rules:
+      - "+2000 carry weight, +10 DEX passive"
+      - "Breakthrough skill: +50 ATK/MATK, +2000 HP, +200 SP, +20% healing"
+      - "Super Blessing grants Inc Agi/Blessing"
+      - "Angel Help Me restores 500 HP/100 SP per second in 15×15, 20s, 300s cooldown"
+      - "Removed: Inc Agi, Blessing, Enlarge Weight Limit, Identify, Transcendence, Owl's Eye"
+      - "Doridori affects HP regen, adds status icon"
+
+  - class: ninja
+    rules:
+      - "Throw Zeny: 2s cast (vs 5s), 25 SP (vs 50), halved cost in WoE"
+      - "Throw Kunai: 0.5s cast (vs 1s), 12 cell range (vs 9)"
+      - "Final Strike: 30–50 SP (vs 55–100)"
+      - "Throw Huuma Shuriken: 1.5s cast (vs 2s), 10–30 SP (vs 20–40), 12 cell range"
+
+  - class: gunslinger
+    rules:
+      - "Flip the Coin: 100% success (vs 10–30%), 1 SP (vs 2)"
+      - "Triple Action: 12 SP (vs 20)"
+      - "Adjustment: 1 coin (vs 2), 10 SP (vs 15), 60s duration (vs 20s)"
+      - "Rapid Shower: 0.75s delay (vs 1s), 12–20 SP (vs 22–40), scaled ammo"
+      - "Full Buster: 2s max delay, 35 SP (vs 40–65)"
+
+# Source: https://wiki.uaro.net/Item_Changes/
+item_changes:
+  - id: 1636
+    name: "Thorn Staff of Darkness"
+    notes:
+      - "Now equippable by Soul Linker"
+      - "Now slotted"
+
+  - id: 5509
+    name: "Sting Hat"
+    notes:
+      - "Added drop from Sting"
+
+  - id: 5564
+    name: "Crown of Deceit"
+    notes:
+      - "INT +3"
+      - "Cast time -10%"
+      - "Added drop from Fallen Bishop"
+
+  - id: 18597
+    name: "Mercury Riser [1]"
+    notes:
+      - "ASPD +3%, Critical +3"
+      - "+7/+8: ASPD +2%, Critical +2"
+      - "+9 and above: additional ASPD +2%, Critical +2"
+
+  - id: 18754
+    name: "Blood Sucker"
+    notes:
+      - "1% chance to absorb 3% of physical damage as HP"
+      - "Disables natural HP/SP recovery"
+
+  - id: 5388
+    name: "Snake Head [0]"
+    notes:
+      - "0.9% drop from Evil Snake Lord MVP"
+
+  - id: 5389
+    name: "Angel Spirit [0]"
+    notes:
+      - "2.25% drop from Valkyrie Randgris MVP"
+
+  - id: 5325
+    name: "Robo Eye [0]"
+    notes:
+      - "2.1% drop from Vesper MVP"
+
+  - id: 5481
+    name: "Hermode Cap [1]"
+    notes:
+      - "15% drop from Assassin Cross Eremes"
+
+  - id: 2720
+    name: "Swordsman Medal of Honor"
+    notes:
+      - "Now equippable by Taekwon"
+
+  - id: 2790
+    name: "Bradium Brooch [1]"
+    notes:
+      - "0.05% drop from Bradium Golem"
+
+  - id: 5592
+    name: "Sigrun's Wings [0]"
+    notes:
+      - "0.9% drop from Gryphon"
+
+  - name: "Isilla Card"
+    notes:
+      - "Now applies to both AoE and Single Target magic"
+
+# Source: https://wiki.uaro.net/Item_Changes/; "Extended Classes Gear" section.
+# Trans-only gear that the Extended classes (Taekwon path + Ninja + Gunslinger)
+# can equip. Aliases (taekwon, taekwon_master) listed alongside canonical keys
+# so a request that uses either form still matches the filter.
+gear_grants:
+  - classes:
+      - taekwon_kid
+      - taekwon
+      - star_gladiator
+      - taekwon_master
+      - soul_linker
+      - ninja
+      - gunslinger
+    description: "Trans-only gear extended to Expanded classes"
+    items:
+      - "Armor of Naga [1]"
+      - "Bison Horn [1]"
+      - "Black Leather Boots"
+      - "Divine Cloth [1]"
+      - "Dragon Breath [1]"
+      - "Expert Ring [1]"
+      - "Magic Bible Vol. 1"
+      - "Nydhorgg's Shadow Garb [1]"
+      - "Orleans's Glove [1]"
+      - "Orleans's Gown [1]"
+      - "Orleans's Server [1]"
+      - "Platinum Shield"
+      - "Ring of Flame Lord"
+      - "Ring of Resonance"
+      - "Shadow Walk"
+      - "Shield of Naga [1]"
+      - "Sprint Mail [1]"
+      - "Sprint Ring"
+      - "Sprint Shoes [1]"
+      - "Thorny Buckler [1]"
+      - "Tidal Shoes [1]"
+      - "Valkyrian Armor [1]"
+      - "Valkyrian Helm [1]"
+      - "Valkyrian Manteau [1]"
+      - "Valkyrian Shoes [1]"
+      - "Vesper Core 01"
+      - "Vesper Core 02"
+      - "Vesper Core 03"
+      - "Vesper Core 04"
+      - "Vital Tree Shoes"
+      - "Wool Scarf [1]"
+
+# Source: https://wiki.uaro.net/PvP_Arena/
+pvp_arena:
+  min_base_level: 80
+  player_cap: 50
+  banned_skills:
+    - Endure
+    - Kyrie Eleison
+    - Pneuma
+    - Safety Wall
+  notes:
+    - "MVP cards disabled"
+    - "Combat scrolls blocked"
+    - "Allowed consumables: White Potion, Blue Potion, Condensed White Potion, Siege Potions"
+    - "30s re-entry delay after death"
+    - "Scoring: +10 kill (clamped 70–130% by level), -3 death; max 3 kills per victim per session"
+
+# Source: https://wiki.uaro.net/WoE/
+woe:
+  schedule: "Saturday 16:00 UTC, 1 hour"
+  member_cap: 36
+  min_participants: 10
+  banned_skills:
+    - Loki's Veil
+    - High Jump
+    - Assumptio
+  banned_items:
+    - Yggdrasil Berry
+    - Yggdrasil Seed
+    - Pumpkin Pie
+    - Kafra Card
+  notes:
+    - "All MVP cards have no effect inside WoE castles"
+    - "Mini-boss cards with no effect: Ghostring, Angeling, Deviling, Maya Purple"
+    - "Alliances limited to one guild"
+
+# Source: https://wiki.uaro.net/Pre_Trans_WoE/
+pre_trans_woe:
+  schedule: "Sunday 15:00 UTC, 1 hour"
+  member_cap: 24
+  min_participants: 16
+  banned_classes:
+    - Extended (Taekwon, Soul Linker, Ninja, Gunslinger)
+    - Trans
+    - Baby
+  banned_skills:
+    - Loki's Veil
+    - High Jump
+    - Assumptio
+  banned_items:
+    - Yggdrasil Berry
+    - Yggdrasil Seed
+    - Speed Potion
+    - Grace Moon Cake
+    - Proof Potions (Fire/Cold/Earth/Thunder)
+    - Buche De Noel
+    - All stat-boosting foods
+  notes:
+    - "MVP cards have no effect"
+    - "Trans/Extended buffs auto-removed on entry"
+    - "Dispel does NOT remove Snare effects"
+    - "Quagmire does not affect friendly guild members"
+    - "Max 25 traps per player (oldest removed when exceeded)"
+    - "Alliances removed within castles during active Pre-Trans WoE"
+
+# Sources:
+#   https://wiki.uaro.net/Repeatable_Quests/ ; quest table below
+#   https://wiki.uaro.net/Hunting_Mission/   ; Hobota system note
+#   https://wiki.uaro.net/Beginner_Guide/    ; early-grind suggestions in notes
+leveling_content:
+  notes:
+    - "Hunting Missions: Hobota NPC (in inns) assigns 3 monsters across 4 difficulty tiers (Beginner/Intermediate/Advanced/Elite). One mission per account every 8 hours, soloable or in party. Rewards: zeny, EXP (with weekend/manual bonuses), Mission Points. Party bonus: +1 MP per 2 members. MP shop currently sells Roulette Gold Coins (40 MP)."
+    - "Repeatable quests below have BOTH item turn-in and monster hunt versions at the same NPC/location/level range; the quest list captures both via Kinds. Hunt versions accept 50/100/150 monster targets; reward shown is for the 50-target hunt."
+    - "Common early-grind spots not tied to quests: Spores (south of Payon, lvl 15-35) with mercenary support; Wolves (2 maps south of Payon, lvl 35-50); Payon Cave 1F (aggressive, lvl 35-50)."
+    - "Mid-game grind alternatives: Hode field (moc_fild17 208/346, watch for Frilldoras), Toy Factory 2 (Cruiser/Myst Case cards), Geographers, Orc Ladies (orcsd_d entrance), Sandman, Dokebi."
+    - "Class hint from beginner guide: bow classes can one-hit Hill Winds with Double Strafe for solid income; melee classes struggle there due to range."
+
+  quests:
+    - npc: Langry
+      location: gef_fild07
+      level_min: 2
+      level_max: 20
+      target: Fabre
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Fluff: 770 base / 60 job EXP"
+        - "Hunt 50 Fabre: 770 base / 60 job EXP"
+
+    - npc: Halgus
+      location: gef_fild04
+      level_min: 2
+      level_max: 20
+      target: Pupa
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Chrysalis: 770 base / 60 job EXP"
+        - "Hunt 50 Pupa: 770 base / 60 job EXP"
+
+    - npc: Gregor
+      location: moc_fild02
+      level_min: 10
+      level_max: 30
+      target: Peco Peco
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Bill of Birds: 8,000 base / 4,000 job EXP"
+        - "Hunt 50 Peco Peco: 8,000 base / 4,000 job EXP"
+
+    - npc: Laertes
+      location: prt_fild04
+      level_min: 15
+      level_max: 45
+      target: Creamy
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Powder of Butterfly: 5,900 base / 2,250 job EXP"
+        - "Hunt 50 Creamy: 5,900 base / 2,250 job EXP"
+
+    - npc: Nutters
+      location: mjolnir_01
+      level_min: 18
+      level_max: 60
+      target: Coco
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Acorn: 7,200 base / 7,810 job EXP"
+        - "Hunt 50 Coco: 7,200 base / 7,810 job EXP"
+
+    - npc: Yullo
+      location: mjolnir_01
+      level_min: 24
+      level_max: 60
+      target: Caramel
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Porcupine Quill: 20,850 base / 12,544 job EXP"
+        - "Hunt 50 Caramel: 20,850 base / 12,544 job EXP"
+
+    - npc: Private Jeremy
+      location: moc_fild11
+      level_min: 25
+      level_max: 60
+      target: Golem
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Stone Heart: 28,000 base / 18,000 job EXP"
+        - "Hunt 50 Golem: 28,000 base / 18,000 job EXP"
+
+    - npc: Shone
+      location: moc_fild17
+      level_min: 25
+      level_max: 60
+      target: Hode
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Earthworm Peeling: 39,438 base / 28,120 job EXP"
+        - "Hunt 50 Hode: 31,550 base / 22,500 job EXP"
+
+    - npc: Lemly
+      location: moc_fild17
+      level_min: 30
+      level_max: 65
+      target: Frilldora
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 25 Frill: 60,000 base / 46,000 job EXP"
+        - "Hunt 50 Frilldora: 60,000 base / 46,000 job EXP"
+
+    - npc: Li
+      location: pay_fild10
+      level_min: 35
+      level_max: 70
+      target: Dokebi
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 50 Dokebi Horns: 84,000 base / 72,000 job EXP"
+        - "Hunt 50 Dokebi: 84,000 base / 72,000 job EXP"
+
+    - npc: Lella
+      location: ayo_fild01
+      level_min: 36
+      level_max: 65
+      target: Leaf Cat
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 50 Huge Leaf: 51,480 base / 63,024 job EXP"
+        - "Hunt 50 Leaf Cat: 51,480 base / 63,024 job EXP"
+
+    - npc: Cuir
+      location: cmd_fild01
+      level_min: 45
+      level_max: 80
+      target: Alligator
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 20 Anolian Skin: 137,900 base / 86,600 job EXP"
+        - "Hunt 50 Alligator: 137,900 base / 86,600 job EXP"
+
+    - npc: Gandolf
+      location: lhz_dun01
+      level_min: 45
+      level_max: 80
+      target: Remover
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Remover: 550,000 base / 340,000 job EXP"
+
+    - npc: Local Villager
+      location: ein_fild01
+      level_min: 60
+      level_max: 74
+      target: Demon Pungus
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 50 Bacillus: 500,532 base / 288,904 job EXP"
+        - "Hunt 50 Demon Pungus: 500,532 base / 288,904 job EXP"
+
+    - npc: Lilla
+      location: um_fild01
+      level_min: 60
+      level_max: 85
+      target: Dryad
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 50 Sharp Leaf: 524,970 base / 283,670 job EXP"
+        - "Hunt 50 Dryad: 524,970 base / 283,670 job EXP"
+
+    - npc: Shea
+      location: tur_dun03
+      level_min: 60
+      level_max: 85
+      target: Assaulter
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Assaulter: 850,000 base / 550,000 job EXP"
+
+    - npc: Vegetable Farmer
+      location: ein_fild06
+      level_min: 70
+      level_max: 85
+      target: Goat
+      kinds: [ turn-in, hunt ]
+      rewards:
+        - "Turn-in 50 Antelope Horn: 516,978 base / 310,310 job EXP"
+        - "Hunt 50 Goat: 1,033,956 base / 620,620 job EXP"
+
+    - npc: Henry
+      location: ice_dun03
+      level_min: 70
+      level_max: 95
+      target: Ice Titan
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Ice Titan: 3,640,000 base / 2,600,000 job EXP"
+
+    - npc: Monica
+      location: geffen
+      level_min: 70
+      level_max: 98
+      target: Succubus
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Succubus: 5,300,000 base / 3,800,000 job EXP"
+
+    - npc: Coal Miner
+      location: mag_dun02
+      level_min: 75
+      level_max: 97
+      target: Deleter
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Deleter: 1,550,936 base / 930,932 job EXP"
+
+    - npc: Jotun Tribesman
+      location: mag_dun01
+      level_min: 75
+      level_max: 97
+      target: Lava Golem
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Lava Golem: 1,939,200 base / 1,162,800 job EXP"
+
+    - npc: Miner
+      location: beach_dun
+      level_min: 75
+      level_max: 97
+      target: Medusa
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Medusa: 2,062,800 base / 1,409,100 job EXP"
+
+    - npc: Ptero
+      location: abyss_03
+      level_min: 75
+      level_max: 97
+      target: Gold Acidus
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Gold Acidus: 2,570,000 base / 1,630,000 job EXP"
+
+    - npc: Kirby
+      location: nyd_dun01
+      level_min: 75
+      level_max: 98
+      target: Draco
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Draco: 3,700,000 base / 2,800,000 job EXP"
+
+    - npc: Emmerich
+      location: thor_v03
+      level_min: 75
+      level_max: 98
+      target: Salamander
+      kinds: [ hunt ]
+      rewards:
+        - "Hunt 50 Salamander: 8,600,000 base / 6,200,000 job EXP"
+
+# Source: https://wiki.uaro.net/Old_Glast_Heim/; entry / monster IDs only.
+#
+# UARO ported the renewal "Old Glast Heim" (OGH) instance to pre-renewal
+# as an open-world map (no instance cooldown). Entry: NPC Hugin in
+# Glast Heim at /navi glast_01 204/273. Required level: 99. The wiki
+# documents which monsters spawn but does NOT publish UARO's adapted
+# combat stats; only the iRO mob IDs.
+#
+# The HP/Atk/Def/MDef/Race/Element/Size below are sourced verbatim from
+# the rAthena renewal mob_db (db/re/mob_db.yml). UARO almost certainly
+# scaled these for pre-renewal balance; these are the BEST AVAILABLE
+# starting values, not authoritative. Refine with UARO-provided numbers
+# (Discord, in-game observations, future wiki publication) when known.
+#
+# Atk convention: rAthena renewal's `Attack` and `Attack2` fields don't
+# follow the pre-renewal `[min, max]` convention; for boss-style mobs
+# Attack > Attack2 (physical vs magical, possibly). Below uses
+# atk_min = min(Attack, Attack2), atk_max = max(...) so the pre-re calc
+# treats them as a damage range.
+custom_mobs:
+  # Floor 1 + Floor 2 trash mobs
+  - { id: 2464, name: "Corrupted Steward",       lv: 130, hp: 135600,  atk_min: 444,  atk_max: 2364, def: 15,  mdef: 15,  race: "RC_Undead", element: "Ele_Undead", element_lv: 1, size: "Size_Medium" }
+  - id: 2465
+    name: "Corrupted Monk"
+    lv: 133
+    hp: 100168
+    atk_min: 999
+    atk_max: 2787
+    def: 80
+    mdef: 200
+    race: "RC_Undead"
+    element: "Ele_Undead"
+    element_lv: 4
+    size: "Size_Large"
+    threats:
+      applies_status: [ blind, curse ]
+      casts_skills: [ NPC_BLINDATTACK, NPC_CURSEATTACK, NPC_ENERGYDRAIN ]
+  - { id: 2466, name: "Chamberlain in Pain",     lv: 132, hp: 208100,  atk_min: 666,  atk_max: 2965, def: 30,  mdef: 30,  race: "RC_Undead", element: "Ele_Undead", element_lv: 2, size: "Size_Medium" }
+  - { id: 2467, name: "Maggot",                  lv: 133, hp: 80811,   atk_min: 1246, atk_max: 1257, def: 121, mdef: 36,  race: "RC_Insect", element: "Ele_Earth",  element_lv: 2, size: "Size_Small" }
+  - { id: 2468, name: "Corrupted Palace Guard",  lv: 135, hp: 184080,  atk_min: 138,  atk_max: 3167, def: 89,  mdef: 15,  race: "RC_Undead", element: "Ele_Dark",   element_lv: 2, size: "Size_Medium" }
+  - { id: 2469, name: "Wandering Archer",        lv: 136, hp: 144370,  atk_min: 167,  atk_max: 3891, def: 63,  mdef: 40,  race: "RC_Undead", element: "Ele_Dark",   element_lv: 2, size: "Size_Medium" }
+  - { id: 2470, name: "Corrupt Abysmal Knight",  lv: 142, hp: 225789,  atk_min: 122,  atk_max: 3200, def: 102, mdef: 50,  race: "RC_Undead", element: "Ele_Dark",   element_lv: 4, size: "Size_Large" }
+  - id: 2471
+    name: "Suffered Khalitzburg"
+    lv: 143
+    hp: 236851
+    atk_min: 100
+    atk_max: 2800
+    def: 125
+    mdef: 10
+    race: "RC_Undead"
+    element: "Ele_Undead"
+    element_lv: 1
+    size: "Size_Large"
+    threats:
+      applies_status: [ stun ]   # Khalitzburg lineage; auto-attack stun proc, lore-known
+      casts_skills: [ ]
+  - { id: 2473, name: "1st Commander of Death",  lv: 145, hp: 950033,  atk_min: 1009, atk_max: 3321, def: 80,  mdef: 150, race: "RC_Undead", element: "Ele_Undead", element_lv: 2, size: "Size_Medium" }
+  - { id: 2474, name: "2nd Commander of Death",  lv: 145, hp: 848011,  atk_min: 1488, atk_max: 3090, def: 80,  mdef: 180, race: "RC_Undead", element: "Ele_Undead", element_lv: 2, size: "Size_Medium" }
+  # MVPs; 16h spawn timer, 1h variance per the wiki
+  - id: 2475
+    name: "Corrupted Soul (MVP)"
+    lv: 150
+    hp: 1820000
+    atk_min: 3887
+    atk_max: 3887
+    def: 333
+    mdef: 333
+    race: "RC_Demon"
+    element: "Ele_Earth"
+    element_lv: 3
+    size: "Size_Large"
+    threats:
+      applies_status: [ stun, curse, silence, stone_curse ]
+      casts_skills: [ NPC_WIDESTUN, NPC_WIDECURSE, NPC_WIDESILENCE, NPC_WIDESTONE, NPC_EARTHQUAKE, NPC_HELLJUDGEMENT, NPC_EVILLAND, AS_SONICBLOW ]
+  - id: 2476
+    name: "Amdarais (MVP)"
+    lv: 150
+    hp: 4290000
+    atk_min: 3900
+    atk_max: 5290
+    def: 30
+    mdef: 40
+    race: "RC_Undead"
+    element: "Ele_Undead"
+    element_lv: 4
+    size: "Size_Large"
+    threats:
+      applies_status: [ stun, curse ]
+      casts_skills: [ NPC_STUNATTACK, NPC_CURSEATTACK, NPC_HELLJUDGEMENT, NPC_DARKSTRIKE, NPC_GRANDDARKNESS, NPC_DRAGONFEAR, NPC_MENTALBREAKER ]
+
+quality_gates:
+  # Tiered HIT% gates. Fractions match combat.hit (0.95 = 95%).
+  # Below 80% half your swings whiff; below 95% the farming economy
+  # breaks; below 100% scales arrow/SP cost per kill (every guide
+  # implicitly aims for 100% on the active farm target).
+  hit:
+    normal_fail_hard: 0.80
+    normal_fail: 0.95
+    normal_warn: 1.00
+    mvp_fail_hard: 0.85
+    mvp_fail: 0.95
+
+  # FLEE gate fires only when the build's mitigation is dodge-driven
+  # (calc shows aveWithDodge << ave). Pre-re cap is 95%; -20% in WoE.
+  flee:
+    fail: 0.90
+    warn: 0.95
+    woe_penalty: 0.20
+
+  # EHP multiplier: maxHp must absorb at least this many copies of the
+  # target's biggest single hit. 2× for normal MVP melee, 2.5× for
+  # magic-burst content (Storm Gust / Meteor Storm / Magnus Exorcismus
+  # tier).
+  ehp_multiplier:
+    normal: 1.5
+    mvp_melee: 2.0
+    mvp_magic_burst: 2.5
+
+  ttk_mvp_max_sec: 300       # beyond 5 minutes MVP regen / status timers undermine the kill
+  cast_time_warn_ms: 2000    # any allocated cast skill > 2s effective cast → warn
+  cast_time_fail_ms: 4000    # > 4s effective cast → fail (build can't use the skill in combat)
+
+  # Per-scenario-type status_immunity priority. fail = build must clear
+  # immunity (gate emits fail severity if uncovered); warn = LLM should
+  # know but build can ship; statuses outside both lists are skipped
+  # entirely. WoE folds into pvp.
+  #
+  # PvM/MVP rationale: frozen and stun shut down farming entirely
+  # (frozen = SG/Frost mobs lock you, stun = Khalitzburg/Bongun-tier
+  # interrupt cycles). Sleep doesn't matter for PvM/MVP; most
+  # sleep-applying mobs hit you to wake you. Stone curse, curse,
+  # silence are real but recoverable.
+  #
+  # PvP/WoE rationale: sleep promotes to fail because PvP players
+  # don't auto-attack you out of sleep. Blind and poison promote to
+  # warn (precast + ranged dmg matters more in WoE; getting blinded
+  # by a Sniper is a real loss).
+  status_priority:
+    pvm:
+      fail: [ frozen, stun ]
+      warn: [ stone_curse, curse, silence ]
+    pvp:
+      fail: [ frozen, stun, sleep ]
+      warn: [ stone_curse, curse, blind, silence, poison ]
+
+notes:
+  - "Anti-cheat: Gepard 3.0"
+  - "Vendor sale prices reduced for: Green Salad (-60%), Crystal Mirror (-13%), Frozen Rose (-17%), Witherless Rose (-73%), Khukri (-79%), Diamond Ring (-44%), Gold Ring (-50%), Stiletto (-26%); affects zeny generation from drops"
+  - "OGH (Old Glast Heim) is a UARO custom dungeon: renewal instance ported to pre-renewal as an open-world map. Entry NPC: Hugin at /navi glast_01 204/273. Required level: 99. Custom mobs documented under custom_mobs (ids 2464-2476). MVP rewards: Ancient Golden Coin (0.09% from Corrupted Soul / Amdarais) trades for slotted Temporal Boots; White Knight Card / Khalitzburg Knight Card available via card-trade."

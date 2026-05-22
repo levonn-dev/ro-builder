@@ -1,0 +1,22 @@
+# oapi-codegen configuration. Run via `go generate ./internal/api/oapi/`
+# (or `task oapi:gen`). The generator runs as a Go tool; see go.mod's
+# tool directive; so no separate install step is needed.
+#
+# Output: oapi.gen.go; types + std-http-server interface + strict-server
+# wrapper. The strict variant gives us typed request/response objects
+# (one type per status code) so handlers don't have to write to
+# ResponseWriter directly for routing/decoding.
+
+package: oapi
+output: oapi.gen.go
+
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+  embedded-spec: true   # exposes GetSwagger() for runtime spec validation if needed
+
+output-options:
+  # Skip the embedded prune step; spec is small and we want the full
+  # schema available for tooling (e.g., a future /openapi.yaml endpoint).
+  skip-prune: true

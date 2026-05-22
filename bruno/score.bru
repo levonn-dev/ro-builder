@@ -1,0 +1,51 @@
+meta {
+  name: score
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/score
+  body: json
+  auth: inherit
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "build": {
+      "class": "swordsman",
+      "level": {"base": 50, "job": 30},
+      "stats": {"str": 60, "agi": 30, "vit": 40, "int": 1, "dex": 30, "luk": 1}
+    },
+    "scenario": {"target": 1002}
+  }
+}
+
+docs {
+  Calc-direct path. Caller specifies the entire build; the sidecar
+  returns derived stats and (because scenario.target is set) a combat
+  sim against Poring (mob id 1002).
+
+  Same body as `scripts/e2e.sh`'s /score smoke test; bounds picked so a
+  zero-state regression (lvl-1 Novice defaults) wouldn't pass the test
+  assertions.
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("derived stats present and non-trivial", function() {
+    const d = res.getBody().derived;
+    expect(d).to.be.an("object");
+    expect(d.maxHp).to.be.greaterThan(1000);
+    expect(d.aspd).to.be.greaterThan(100);
+  });
+  test("calc_version stamped", function() {
+    expect(res.getBody().calc_version).to.be.a("string").and.not.empty;
+  });
+}

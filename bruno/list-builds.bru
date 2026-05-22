@@ -1,0 +1,34 @@
+meta {
+  name: list-builds
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/builds?limit=10
+  body: none
+  auth: inherit
+}
+
+params:query {
+  limit: 10
+  ~class: taekwon_kid
+  ~server: uaro
+}
+
+docs {
+  Recent saved trajectories, most recent first. Filter via the optional
+  query params (uncomment by removing the leading `~`):
+    - `class`; restrict to one class
+    - `server`; restrict to one server profile
+    - `limit`; 1..50, default 5
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("builds is an array (not null)", function() {
+    expect(res.getBody().builds).to.be.an("array");
+  });
+}

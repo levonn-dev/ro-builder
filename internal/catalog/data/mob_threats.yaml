@@ -1,0 +1,61 @@
+# Hand-authored mob threat tags. Loaded by cmd/build-catalog AFTER the
+# computed pass that joins rAthena's pre-re mob_skill_db.txt against each
+# skill's StatusChange field in the catalog. This overlay layers on top
+# with REPLACE semantics: any mob present here overrides the computed
+# entry entirely.
+#
+# Use sparingly; the goal is to layer in things the computed pass can't
+# see, NOT to duplicate data already in mob_skill_db. Specifically:
+#
+#   1. Auto-attack status procs that are baked into the engine for
+#      high-tier MVPs but never appear in mob_skill_db (Eddga / Atroce
+#      stun; Lord of Death / Beelzebub curse).
+#   2. Corrections where the computed data is wrong or incomplete for
+#      a server-specific reason.
+#
+# DO NOT add entries that just restate what mob_skill_db × skill_db
+# already produces; those flow through the computed pass automatically
+# and are kept in sync as upstream emulator data updates.
+#
+# Status keys must come from data.AllImmunities:
+#   frozen, stun, sleep, stone_curse, curse, silence, blind, poison, confusion
+#
+# Replace semantics matter for the entries below: each YAML entry must
+# list the FULL desired set (computed values + the auto-attack additions),
+# because the overlay replaces rather than merges. If LoD's computed set
+# is [stun] and the auto-attack adds curse, write [stun, curse] here.
+
+mobs:
+  # MVPs with engine-baked auto-attack status procs not in mob_skill_db.
+
+  - id: 1115    # Eddga
+    threats:
+      # mob_skill_db gives no SC_X-applying skills (SM_MAGNUM, AM_DEMONSTRATION,
+      # MG_FIREBALL, NPC_BLEEDING, NPC_POWERUP); Eddga's stun is purely an
+      # auto-attack proc baked into the engine for high-tier physical MVPs.
+      applies_status: [stun]
+      casts_skills: [SM_MAGNUM, AM_DEMONSTRATION, MG_FIREBALL, NPC_POWERUP, NPC_BLEEDING]
+
+  - id: 1785    # Atroce
+    threats:
+      # Same reasoning as Eddga; none of Atroce's listed skills (SM_MAGNUM,
+      # NPC_PULSESTRIKE, KN_TWOHANDQUICKEN, NPC_BLEEDING) apply SC_STUN; the
+      # stun is from auto-attack proc.
+      applies_status: [stun]
+      casts_skills: [SM_MAGNUM, NPC_PULSESTRIKE, KN_TWOHANDQUICKEN, NPC_BLEEDING]
+
+  - id: 1373    # Lord of Death
+    threats:
+      # Computed gives [stun] from NPC_STUNATTACK. Overlay adds curse
+      # (LoD's signature auto-attack proc; coma is folded into curse for
+      # our gate set since coma isn't in data.AllImmunities).
+      applies_status: [stun, curse]
+      casts_skills: [NPC_STUNATTACK, NPC_DARKSTRIKE, NPC_HELLJUDGEMENT, NPC_GRANDDARKNESS, KN_BRANDISHSPEAR]
+
+  - id: 1873    # Beelzebub
+    threats:
+      # Computed gives [silence, sleep] from NPC_WIDESILENCE + NPC_WIDESLEEP.
+      # Overlay adds curse (auto-attack proc; Beelzebub's iconic dispel +
+      # curse pressure).
+      applies_status: [silence, sleep, curse]
+      casts_skills: [LK_SPIRALPIERCE, NPC_HELLJUDGEMENT, NPC_PULSESTRIKE, NPC_WIDESILENCE, NPC_WIDESLEEP, NPC_VAMPIRE_GIFT]

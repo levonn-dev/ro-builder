@@ -1,0 +1,13 @@
+{{- if gt (int .Values.sidecar.replicas) 1 -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ro-builder.sidecarName" . }}
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "sidecar" "root" .) | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "ro-builder.selectorLabels" (dict "component" "sidecar" "root" .) | nindent 6 }}
+{{- end }}

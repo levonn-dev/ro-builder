@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ro-builder.apiName" . }}
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "api" "root" .) | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    # Recreate; the PVC is RWO, so the new pod can't bind the volume
+    # until the old one releases it. RollingUpdate would deadlock.
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ro-builder.selectorLabels" (dict "component" "api" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ro-builder.selectorLabels" (dict "component" "api" "root" .) | nindent 8 }}
+      annotations:
+        # Roll the deployment when the ConfigMap or Secret changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        # The Secret is external to the chart (created by the
+        # sealed-secrets controller decrypting a SealedSecret applied out of
+        # band), so we hash its live data via `lookup`. Returns "" on first
+        # install before the controller has produced the Secret; that's
+        # fine; the pod still comes up, and on the next rotation `lookup`
+        # picks up the new data and rolls the deployment.
+        checksum/secret: {{ (lookup "v1" "Secret" .Release.Namespace .Values.secrets.externalSecretName).data | toYaml | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "ro-builder.apiName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: api
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "ro-builder.fullname" . }}-env
+            - secretRef:
+                name: {{ .Values.secrets.externalSecretName }}
+          volumeMounts:
+            - name: buildlibrary
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: {{ .Values.api.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: {{ .Values.api.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: buildlibrary
+          persistentVolumeClaim:
+            claimName: {{ include "ro-builder.apiName" . }}-buildlibrary

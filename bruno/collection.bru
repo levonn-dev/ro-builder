@@ -1,0 +1,40 @@
+docs {
+  # ro-builder API
+
+  Hand-curated [Bruno](https://www.usebruno.com/) collection mirroring
+  `api/openapi.yaml`. The OpenAPI spec is the contract; this collection
+  is one consumer of it. When the spec changes, update the matching
+  request body or response handling here.
+
+  ## Requests
+    1. `score`; calc-direct sample (Swordsman vs Poring)
+    2. `generate`; enqueues an async LLM-driven build generation (TK
+       PvM defaults from `scripts/generate.sh`); returns 202 + an id
+       that the post-response script stashes as `generationId` and
+       `savedBuildId`
+    3. `generation-status`; polls `/generations/{id}`; re-run until
+       `status` is `completed` or `failed`
+    4. `get-saved-build`; pulls the enriched saved trajectory and
+       renders a rocalc-style endgame view (mirrors `generate.sh`)
+    5. `list-builds`; recent saved trajectories
+
+  ## Environments
+    - `local`; `http://localhost:8080` (matches `task run:api` and
+      `task docker:up` defaults)
+
+  ## Typical flow
+    1. Run `generate` → enqueues; the id flows into both `generationId`
+       and `savedBuildId` automatically.
+    2. Run `generation-status` repeatedly (every ~30s) until it reports
+       `status=completed` (success) or `status=failed` (gave up).
+    3. Run `get-saved-build` to render the endgame trajectory with
+       catalog-resolved item / card / skill names.
+
+    Bruno's "Run Folder" runs them once each in sequence; useful for a
+    quick smoke, though you'll usually want to re-run step 2 a few
+    times while the worker is busy.
+}
+
+auth {
+  mode: none
+}

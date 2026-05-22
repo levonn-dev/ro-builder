@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="keywords" content="Ragnarok Online Classic Calc, by kurimet">
+<meta name="description" content="A Ragnarok Online Classic (Pre-Renewal) Calculator, updated by Kurimet, able to simulate characters in PvM, PvP and MvP environments.">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="shortcut icon" href="images/icon.gif" type="image/x-icon">
+<link rel="canonical" href="https://rocalc.com" />
+<link rel="stylesheet" type="text/css" href="style.css">
+<base target="_blank">
+<title>Ragnarok Online Classic Calc</title>
+
+<!--<script type="text/javascript">
+window.onerror=function(){
+	alert('Wild bug appeared!\nPlease report this error via e-mail (at the top).\nIf calc stopped working, then reload webpage.\n\n?Un bug salvaje apareci?!\nPor favor informa de este error enviandome un e-mail.\nEs posible que la calculadora haya dejado de funcionar, en ese caso recargue la p?gina web.');
+	return true;
+}
+</script>-->
+
+</head>
+
+<body onload="LoadTheme()">
+<form name="calcForm">
+<!--<div id="calcoptions">
+<p class="point" onclick="options()">OPTIONS (click to show/hide)</p>
+<input type="checkbox" name="autocalc" onClick="auto()" checked disabled>Auto-Calculate<br>
+<input type="checkbox" name="restrict" onClick="restric()" checked disabled>Equip Job Restrictions<br>
+<input type="checkbox" name="restrict2" onClick="restric2()" checked>Card Slot Restrictions<br>
+Calc's theme: <select id="theme" onChange="themes()"><option value="0">Original</option><option value="1">Blue</option><option value="2">Cake</option><option value="3">Nifelheim</option><option value="4">Dark</option></select><br>
+</div>-->
+<h1>Ragnarok Online Classic Calc</h1>
+<div class="main">
+<h2 style="text-align:center; font-size:1.10em; margin:0; padding:0; font-weight:100;">A Ragnarok Online Classic (pre-Renewal) calculator, updated by Kurimet, able to simulate characters in PvM, PvP and MvP environments.<BR>Report bugs and suggestions to: <span class="mail"></span></h2>
+<br>
+<table><tr><td class="data">
+[<a href="features-EN.html">Noteworthy features</a>] [<a href="features-ES.html">Caracter&iacute;sticas destacables</a>]<br>
+[<a href="faq-EN.html">Frequently asked questions</a>] [<a href="faq-ES.html">Preguntas frecuentes</a>]<br>
+<BR>
+<!--<p onclick="LoadChangelog()" style="cursor:pointer;">Click here to display last Changelog.</p>-->
+<b>Changelog 2026-04-06:</b> (broken update? Check a <a href='https://rocalc.com/v2025-10-25'>previous version</a>)
+<br>&#8226; Fixed Super Novice Spirit
+<br>&#8226; Removed "Gremlin", "Hodremlin" and "Nightmare Terror" monsters from "Geffen Dungeon".
+<br>&#8226; Added "Hunter Fly" monster to "Geffen Dungeon".
+<br>&#8226; Added Whitesmith weapon refinement to "Refinement Cost &amp; Success Rate" in "Other Info".
+<!--<br>&#8226; Moved "Minimum delay between active skills" to OPTIONS.
+<br>&#8226; Added "Potion healing amount" in "Other Info".-->
+<br>
+<br>
+<b>Changelog 2025-10-25:</b> (broken update? Check a <a href='https://rocalc.com/pre2025-08-10'>previous version</a>)
+<br>&#8226; Fixed "Ghostring Card" reduction against some enemy skills when "iRO (classic)" server was selected.
+<br>&#8226; Fixed monster's "Clashing Spiral"/"Spiral Pierce" skill damage.
+<br>
+<br><b onclick="LoadChangelog()" style="cursor:pointer;">Changelog 2025-08-10: (click to show/hide)</b>
+<span id="changelog">
+<BR><BR><BR><BR><BR><b style="font-size:20px;">YOUR INTERNET BROWSER HASN'T LOADED THIS WEBSITE CORRECTLY</b>
+<BR>If this message doesn't disappear, you can try to: 
+<BR>&#8226; Press Ctrl+F5 to fully load this webside again on desktop browsers.
+<BR>or
+<BR>&#8226; Use an Incognito tab.
+<BR>or
+<BR>&#8226; Clear browser's cache files from rocalc.com (beware that this will delete your "Local Save" characters).
+<BR><BR><BR></span>
+<BR><BR>
+[<a href="changelog-EN.html">Read all changelogs</a>] [<a href="changelog-ES.html">Leer todos los cambios</a>]<br>
+</td><td style="vertical-align:bottom; width:201px;">
+<p style="font-size:20px;">OPTIONS</p>
+Calc's theme: <select id="theme" onChange="themes()"><option value="0">Original</option><option value="1">Blue</option><option value="2">Cake</option><option value="3">Nifelheim</option><option value="5">Dark</option><option value="4">Darker</option><option value="6">Darkest</option></select><br>
+RO server: <select id="server" onChange="servers() | SaveTheme()"><option value="0">iRO (classic)</option><option value="10">Private (classic)<!-- (eAthena)--></option><!--<option value="20">Private (rAthena)</option><option value="30">Private (hercules)</option><option value="50">iRO (renewal)</option><option value="60">jRO (renewal)</option><option value="70">kRO (renewal)</option>--></select><br>
+Server's max ASPD: <select id="maxASPD" onChange="StAllCalc() | calc()"><option value="0">190</option><option value="1">191</option><option value="2">192</option><option value="3">193</option><option value="4">194</option><option value="5">195</option></select><br>
+<!--<input type="checkbox" id="autocalc" onClick="auto()" checked disabled><S>Auto-Calculate</S><br>-->
+<input type="checkbox" id="restrict_jobequip" onClick="ClickJob() | StAllCalc() | StCalc()" checked>Equipment job restrictions (this will clear equip, cards, and stats)<br>
+<input type="checkbox" id="restrict_lvlequip" onClick="WeaponSet() | ClickWeaponType(0) | WeaponSet2()" disabled><S>Equipment Level restrictions</S><br>
+<!--<input type="checkbox" id="restrict_lvlequip" onClick="ClickJob() | StAllCalc() | StCalc()" checked disabled><S>Equip Level Restrictions</S><br>-->
+<input type="checkbox" id="restrict_equipslot" onClick="StAllCalc() | calc()"><span class=name>Equipment slot restrictions<span class=nametext>This disables shield / left hand when using a two-handed weapon, and mid/lower headgear when equipping a headgear that uses more than 1 headgear slot.</span></span><br>
+<input type="checkbox" id="restrict_cardslot" onClick="restrictCardslot(0)"><span class=name>Equipment Card slot restrictions<span class=nametext>With this enabled, this calc will only allow to select the same amount of cards that the corresponding item allows to attach.</span></span><br>
+<input type="checkbox" id="all_card" onClick="allCard()">All Cards everywhere (with bugs)<br>
+</td></tr></table>
+</div>
+<br>
+
+<h3><img src="images/save.png" alt="(icon)" style="margin:0 19px 0 0; vertical-align:middle;">Save & Load</h3>
+<div class="main">
+
+<!--<input type="button" value="Save Cookie" onclick="SaveCookie()">
+<select name="A_SaveSlot">
+<option value="num00">Save1: No Data</option><option value="num01">Save2: No Data</option><option value="num02">Save3: No Data</option><option value="num03">Save4: No Data</option><option value="num04">Save5: No Data</option><option value="num05">Save6: No Data</option><option value="num06">Save7: No Data</option><option value="num07">Save8: No Data</option><option value="num09">Save9: No Data</option><option value="num10">Save10: No Data</option><option value="num11">Save11: No Data</option><option value="num12">Save12: No Data</option><option value="num13">Save13: No Data</option><option value="num14">Save14: No Data</option><option value="num15">Save15: No Data</option><option value="num16">Save16: No Data</option><option value="num17">Save17: No Data</option><option value="num18">Save18: No Data</option><option value="num19">Save19: No Data</option></select>
+<input type="button" value="Old Load" onclick="LoadCookie()">
+<input type="button" value="Old Delete" onclick="delCookie()">
+<br>-->
+<input type="text" name="SlotName" placeholder="(You may name this Local Save Slot)" style="width:26%;">
+<!--<input type="button" value="Local Save" onclick="SaveLocal()" title="Local Saves are located in your device, just like cookies.">-->
+<button type="button" onclick="SaveLocal()"><span class=name style="text-decoration: none;">Local Save<span class=nametext>Local Saves are located in your device, just like cookies.</span></span></button>
+<select name="A_SaveSlotLocal" style="height:21px; width:200px;"></select>
+<input type="button" value="Local Load" onclick="LoadLocal()">
+<input type="button" value="Delete selected save" onclick="delLocal()" style="margin-left:30px;">
+<br>
+<input type="button" value="Save as URL  & copy to Clipboard" onclick="URLOUT()"> <a id="saveURL"></a><input type="text" name="URL_TEXT" placeholder="(When clicking 'Save as URL' button, your character's URL will apear here)" style="width:68%;">
+<br>
+<input type="button" value="Load URL from another calc" onclick="URLIN(1)"> <input type="text" id="otherURL_TEXT" placeholder="(Paste here a saved character URL from another ragnarok calc, then press the 'Load URL from another calc' button)" style="width:73%;">
+</div>
+<br>
+
+
+<h3><img src="images/char.gif" alt="(icon)" style="margin:0 19px 0 0; vertical-align:middle;">Your Character</h3>
+<div class="main">
+
+<table class="tborder" style="font-weight: bold; margin-right:0; min-width:759px; max-width:930px;"><tr><td class="subheader">Stats</td><td colspan="2" class="subheader" style="font-weight: 400;"> ( remaining Status Points: <b><span id="A_STPOINT">48</span> </b>)</td></tr>
+<tr>
+<td class="data"><table>
+<tr class="thin"><td class="right">Base Lvl</td><td><select name="A_BaseLV" onChange="StCalc(1)|StAllCalc()|WeaponSet2(1)"></select> (auto-adjust<input name="BLVauto" checked="checked" type="checkbox">)</td></tr>
+<tr class="thin"><td class="right">Job Lvl</td><td><select name="A_JobLV" onChange="StAllCalc()"></select></td></tr>
+<tr><td class="right">Class</td><td><select name="A_JOB" onChange="ClickJob(this[this.selectedIndex].value) | StAllCalc() | StCalc() | restrictCardslot(0)" style="width:134px" ></select></td></tr>
+<tr><td class="right">Adopted</td><td><input name="A_adopted" onClick="calc()" type="checkbox"></td></tr>
+<tr><td class="right">Race & Size</td><td><span id="A_BodySIZE">Demi-Human & Medium</span></td></tr>
+<tr><td class="right">Body Element</td><td id="A_BodyELEMENT"></td></tr>
+</table></td>
+<td class="data"><table class="thin">
+<tr><td class="center" style="font-weight:lighter;">STR</td><td><select name="A_STR" onChange="StCalc() | StAllCalc()"></select><span id="A_STRp"> + 0</span></td></tr>
+<tr><td class="center" style="font-weight:lighter;">AGI</td><td><select name="A_AGI" onChange="StCalc() | StAllCalc()"></select><span id="A_AGIp"> + 0</span></td></tr>
+<tr><td class="center" style="font-weight:lighter;">VIT</td><td><select name="A_VIT" onChange="StCalc() | StAllCalc()"></select><span id="A_VITp"> + 0</span></td></tr>
+<tr><td class="center" style="font-weight:lighter;">INT</td><td><select name="A_INT" onChange="StCalc() | StAllCalc()"></select><span id="A_INTp"> + 0</span></td></tr>
+<tr><td class="center" style="font-weight:lighter;">DEX</td><td><select name="A_DEX" onChange="StCalc() | StAllCalc()"></select><span id="A_DEXp"> + 0</span></td></tr>
+<tr><td class="center" style="font-weight:lighter;">LUK</td><td><select name="A_LUK" onChange="StCalc() | StAllCalc()"></select><span id="A_LUKp"> + 0</span></td></tr>
+</table></td>
+<td><table>
+<tr>
+<td class="right">Max HP</td><td class="data" id="A_MaxHP"></td>
+<td class="right">DEF</td><td class="data" id="A_totalDEF"></td>
+<td class="right">HIT</td><td id="A_HIT"></td>
+</tr><tr>
+<td class="right">Max SP</td><td class="data" id="A_MaxSP"></td>
+<td class="right">MDEF</td><td class="data" id="A_MDEF"></td>
+<td class="right">Perfect Hit</td><td id="A_PefHIT"></td>
+</tr><tr>
+<td class="right">HP Regen</td><td class="data" id="A_HPR"></td>
+<td class="right">Real MDEF</td><td class="data" id="A_RealMDEF"></td>
+<td class="right">Critical</td><td id="A_CRI"></td>
+</tr><tr>
+<td class="right">SP Regen</td><td class="data" id="A_SPR"></td>
+<td class="right">ATK</td><td class="data" id="A_ATK2"></td>
+<td class="right">Critical Shield</td><td id="A_CRITSHIELD"></td>
+</tr><tr>
+<td class="right">ASPD</td><td class="data" id="A_ASPD"></td>
+<td class="right">Real ATK</td><td class="data" id="A_RealATK"></td>
+<td class="right">Flee</td><td id="A_FLEE"></td>
+</tr><tr>
+<td class="right">Mov. Speed</td><td class="data" id="A_MovSPEED"></td>
+<td class="right">MATK</td><td class="data" id="A_MATK"></td>
+<td class="right">WOE Flee</td><td id="A_WoeFLEE"></td>
+</tr><tr>
+<td class="right">Weight</td><td class="data" id="A_Weight"></td>
+<td class="right">Cast Time</td><td class="data" id="A_cTime"></td>
+<td class="right">Perfect Dodge</td><td id="A_LUCKY"></td>
+</tr><tr>
+<td class="right"></td><td class="data"></td>
+<td class="right">Cast Delay</td><td class="data" id="A_cDelay"></td>
+<td class="right"></td><td></td>
+</tr>
+</table></td>
+</tr>
+</table>
+
+
+<table class="tborder" onMouseOver="FirstNovis()" style="margin-right:0">
+<tr><td class="subheader" colspan="3">
+Equipment &amp; Cards <select id="episode" onChange="ClickJob()" style="width: 120px; visibility: hidden;"><option value="0">All</option><option value="13">Until episode 13.3: El Dicastes</option><option value="12">Until episode 12: Nightmare of Midgard, Destruction of Morocc</option><option value="11">Until episode 11: The Religious Nation, Arunafeltz</option><option value="10">Until episode 10: The Republic of Schwarzwald</option><option value="9">Until episode 9: Rebirth Job System</option><option value="8">Until episode 8: Niflheim ~ City of the Dead</option></select>
+
+<div class="right"><select name="A_Arrow" onChange="calc()"></select></div>
+<!--<div class="right"><select name="A_equipshort" onchange="SetEquipShort()|StAllCalc()|ActiveSkillSetPlus()"></select>&nbsp;&nbsp;<select name="A_cardshort" onchange="Setm_CardShort()|StAllCalc()|ActiveSkillSetPlus()"></select></div>-->
+</td></tr>
+
+<tr class="tequip"><td>
+<table><tr>
+<td>Weapon<!-- Type-->:<!-- <select name="A_WeaponType" onChange="ClickWeaponType(this[this.selectedIndex].value) | StAllCalc()|restrictCardslot(1)"></select>--></td>
+</tr><tr>
+<!--<td><select name="A_weapon1" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(1)"></select></td>-->
+<td id="A_w1"><select name="A_weapon1" onchange="ClickWeaponType(this[this.selectedIndex].value) | StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(1)"><option value="0">(No Weapon)</option></select></td>
+</tr><tr>
+<td>Refine: <select disabled name="A_Weapon_refine" onchange="StAllCalc()"></select></td>
+</tr><tr>
+<td>Attribute: <select name="A_Weapon_element" onchange="calc()"></select></td>
+</tr><tr>
+<td><select name="A_cardshort" onchange="Setm_CardShort()|Click_Card()|ActiveSkillSetPlus()"></select></td>
+</tr><tr>
+<td><select name="A_weapon1_card1" onchange="Click_Card(this[this.selectedIndex].value)"></select></td>
+</tr><tr>
+<td><select name="A_weapon1_card2" onchange="Click_Card(this[this.selectedIndex].value)"></select></td>
+</tr><tr>
+<td><select name="A_weapon1_card3" onchange="Click_Card(this[this.selectedIndex].value)"></select></td>
+</tr><tr>
+<td><select name="A_weapon1_card4" onchange="Click_Card(this[this.selectedIndex].value)"></select></td>
+</tr></table>
+</td>
+
+<td id="leftweapon" style="border-left:1px solid #999; border-right:1px solid #999;">
+<table class="tequip">
+<tr><td id="A_SobWeaponName"></td></tr>
+<tr><td id="A_w2"><select name="A_weapon2"></select></td></tr>
+<tr><td id="A_weapon2refine"></td></tr>
+<tr><td>&nbsp;</td></tr>
+<tr><td id="A_weapon2_cardshort"></td></tr>
+<tr><td id="nA_weapon2_c1"></td></tr>
+<tr><td id="nA_weapon2_c2"></td></tr>
+<tr><td id="nA_weapon2_c3"></td></tr>
+<tr><td id="nA_weapon2_c4"></td></tr>
+</table>
+</td>
+
+<td>
+<table class="tequip"><tr>
+<td>
+<select name="A_HEAD_REFINE" onchange="StAllCalc()"></select>
+<select name="A_head1" style="width:200px" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(2)"></select>
+<select name="A_head1_card" onchange="StAllCalc()|Card(this[this.selectedIndex].value)"></select>
+</td>
+
+</tr><tr style=" height:10px;">
+<td style="padding-left:49px;">
+<select name="A_head2" style="width:200px;" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(3)"></select>
+<select name="A_head2_card" onchange="StAllCalc()|Card(this[this.selectedIndex].value)"></select>
+</td>
+
+</tr><tr>
+<td style="padding-left:49px;">
+<select name="A_head3" style="width:200px" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(4)"></select>
+<select name="A_HSE_HEAD1" onchange="StAllCalc()"></select>
+</td>
+
+</tr><tr>
+<td>
+<select name="A_LEFT_REFINE" onchange="StAllCalc()"></select>
+<select name="A_left" style="width:200px" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(5)|setShieldWeight(this[this.selectedIndex].value)">
+<option value="305">(No Shield)</option></select>
+<select name="A_left_card" onchange="StAllCalc()|Card(this[this.selectedIndex].value)">
+<option value="0">(No Card)</option></select>
+</td>
+
+</tr><tr>
+<td>
+<select name="A_BODY_REFINE" onchange="StAllCalc()"></select>
+<select name="A_body" style="width:200px" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(6)"></select>
+<select name="A_body_card" onchange="StAllCalc()|Card(this[this.selectedIndex].value)"></select>
+<select name="A_HSE" onchange="StAllCalc()"></select>
+</td>
+
+</tr><tr>
+<td>
+<select name="A_SHOULDER_REFINE" onchange="StAllCalc()"></select>
+<select name="A_shoulder" style="width:200px" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(7)"></select>
+<select name="A_shoulder_card" onchange="StAllCalc()|Card(this[this.selectedIndex].value)"></select>
+</td>
+
+</tr><tr>
+<td>
+<select name="A_SHOES_REFINE" onchange="StAllCalc()"></select>
+<select name="A_shoes" style="width:200px" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(8)"></select>
+<select name="A_shoes_card" onchange="StAllCalc()|Card(this[this.selectedIndex].value)"></select>
+</td>
+
+</tr><tr>
+<td style="padding-left:49px;">
+<select name="A_acces1" style="width:200px" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(9)"></select>
+<select name="A_acces1_card" onchange="Click_Card(this[this.selectedIndex].value)"></select>
+</td>
+
+</tr><tr>
+<td style="padding-left:49px;">
+<select name="A_acces2" style="width:200px" onchange="StAllCalc()|ClickB_Item(this[this.selectedIndex].value)|restrictCardslot(10)"></select>
+<select name="A_acces2_card" onchange="Click_Card(this[this.selectedIndex].value)"></select>
+</td>
+</tr>
+</table>
+</td></tr></table>
+
+<table><tr><td style="padding: 0 8px 0 0; vertical-align:top;">
+
+<table class="tborder" style="vertical-align:top;">
+<tr><td colspan="8" class="subheader" style="cursor:pointer;" onClick="ClickB_Item('SW')">
+<div id="ITEM_TITLE" style="float:left; letter-spacing:1px; font-weight:bold;">Item Data</div>
+<div class="right">(click to show/hide)</div>
+</td></tr>
+<tr class="center tdborder">
+<td id="ITEM1" style="width: 15%; background-color:#DDF; color:black;"></td>
+<td id="ITEM_DATA" class="data" style="width: 8%; background-color:#DDF; border-right:2px solid #999; color:black;"></td>
+<td id="ITEM2" style="width: 19%;"></td>
+<td id="ITEM_W_LV" style="width: 8%; border-right:2px solid #999;"></td>
+<td id="ITEM3" style="width: 16%; background-color:#DDF; color:black;"></td>
+<td id="ITEM_LV" class="data" style="width: 9%; background-color:#DDF; border-right:2px solid #999; color:black;"></td>
+<td id="ITEM4" style="width: 16%;"></td>
+<td id="ITEM_WAIT" style="width: 9%;"></td>
+</tr><tr>
+<td colspan="8" id="B_SETUMEI" style="max-width:507px; border-top:1px solid #999;"></td>
+</tr></table>
+
+</td><td style="width:53%; vertical-align:top;">
+<table class="tborder"><tr><td class="subheader">Other Info
+<div class="right">
+<select name="A_Kakutyou" onchange="KakutyouKansuu2() | StAllCalc()">
+<!--<select name="A_Kakutyou" onchange="oInfo(1)">-->
+<option value="0">-
+</option><option value="2">Heal amount
+</option><option value="4">Sanctuary amount
+</option><!--<option value="5">Potion Pitcher amount
+</option><option value="6">Increase HP/SP recovery
+</option><option value="7">Potion's recovery amount
+</option><!--<option value="8">Spirits Recovery
+</option><option value="10">Weight Limit
+</option>--><option value="12">Player Resistance
+</option><option value="14">+% ATK based Damage Modifiers
+</option><option value="16">+% MATK based Damage Modifiers
+</option><!--<option value="18">Cast Time/delay
+</option>--><option value="20">Experience
+</option><option value="22">Potion Pitcher HP/SP power
+</option><option value="24">Forge/Potion/EDP Creation Success Rate
+</option><!--<option value="26">Steal Success Rate
+</option>--><option value="28">Strip chance &amp; duration
+</option><option value="30">Cooking Success Rates
+</option><option value="32">Capture Pet Success Rate
+</option><option value="34">Refinement Cost &amp; Success Rate
+</option><option value="36">Socket Enchant Cost &amp; Success Rate
+</option><!--<option value="38">Hidden Slot Enchant Cost &amp; Success Rate
+</option><option value="40">What Homunculus will I get?!
+</option>--></select>
+</div>
+</td></tr>
+<tr><td style="padding:0;">
+<span id="A_KakutyouSel"></span>
+<span id="A_KakutyouData"></span>
+</td></tr>
+</table>
+
+</td></tr></table>
+
+<table id="ID_ARG" class="tborder manual" style="float: left; width:600px;">
+<tr><td id="A9TD" class="subheader">Additional Enchants &amp; Manual Edits on Player 
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+<div style="clear: both;"></div>
+
+</div>
+<br>
+
+<h3><img src="images/buffitem.gif" alt="(icon)" style="margin:0 19px 0 0; vertical-align:middle;">Buffs, Items and other stuff</h3>
+<div class="main" style="padding: 5px 0 2px 15px;">
+
+<!--<table><tr>
+<td style="width:44%; vertical-align:top; padding: 0 8px 0 0;"><table class="tborder">
+<tr><td colspan="4" class="subheader">Passive &amp; Self-casted Skills</td></tr>
+<tr><td id="P_Skill0" class="center"></td><td id="P_Skill0s" class="data"><select name="A_skill0" id="A_skill0"></select></td><td id="P_Skill1" class="center"></td><td id="P_Skill1s"><select name="A_skill1" id="A_skill1"></select></td></tr>
+<tr><td id="P_Skill2" class="center"></td><td id="P_Skill2s" class="data"><select name="A_skill2" id="A_skill2"></select></td><td id="P_Skill3" class="center"></td><td id="P_Skill3s"><select name="A_skill3" id="A_skill3"></select></td></tr>
+<tr><td id="P_Skill4" class="center"></td><td id="P_Skill4s" class="data"><select name="A_skill4" id="A_skill4"></select></td><td id="P_Skill5" class="center"></td><td id="P_Skill5s"><select name="A_skill5" id="A_skill5"></select></td></tr>
+<tr><td id="P_Skill6" class="center"></td><td id="P_Skill6s" class="data"><select name="A_skill6" id="A_skill6"></select></td><td id="P_Skill7" class="center"></td><td id="P_Skill7s"><select name="A_skill7" id="A_skill7"></select></td></tr>
+<tr><td id="P_Skill8" class="center"></td><td id="P_Skill8s" class="data"><select name="A_skill8" id="A_skill8"></select></td><td id="P_Skill9" class="center"></td><td id="P_Skill9s"><select name="A_skill9" id="A_skill9"></select></td></tr>
+<tr><td id="P_Skill10" class="center"></td><td id="P_Skill10s" class="data"><select name="A_skill10" id="A_skill10"></select></td><td id="P_Skill11" class="center"></td><td id="P_Skill11s"><select name="A_skill11" id="A_skill11"></select></td></tr>
+<tr><td id="P_Skill12" class="center"></td><td id="P_Skill12s" class="data"><select name="A_skill12" id="A_skill12"></select></td><td id="P_Skill13" class="center"></td><td id="P_Skill13s"><select name="A_skill13" id="A_skill13"></select></td></tr>
+<tr><td id="P_Skill14" class="center"></td><td id="P_Skill14s" class="data"><select name="A_skill14" id="A_skill14"></select></td><td id="P_Skill15" class="center"></td><td id="P_Skill15s"><select name="A_skill15" id="A_skill15"></select></td></tr>
+</table></td>
+<td style="width:56%; vertical-align:top;"><table id="SIENSKILL" class="tborder">
+<tr><td class="subheader">Supportive / Party Skills
+<div class="right">(click to show/hide)</div>
+</td></tr>
+</table></td>
+</tr></table>-->
+
+
+<table class="tborder" style="float: left; width:39%; max-width:430px; vertical-align:top;">
+<tr><td colspan="4" class="subheader">Passive &amp; Self-casted Skills</td></tr>
+<tr><td id="P_Skill0" class="center"></td><td id="P_Skill0s" class="data"><select name="A_skill0" id="A_skill0"></select></td><td id="P_Skill1" class="center"></td><td id="P_Skill1s"><select name="A_skill1" id="A_skill1"></select></td></tr>
+<tr><td id="P_Skill2" class="center"></td><td id="P_Skill2s" class="data"><select name="A_skill2" id="A_skill2"></select></td><td id="P_Skill3" class="center"></td><td id="P_Skill3s"><select name="A_skill3" id="A_skill3"></select></td></tr>
+<tr><td id="P_Skill4" class="center"></td><td id="P_Skill4s" class="data"><select name="A_skill4" id="A_skill4"></select></td><td id="P_Skill5" class="center"></td><td id="P_Skill5s"><select name="A_skill5" id="A_skill5"></select></td></tr>
+<tr><td id="P_Skill6" class="center"></td><td id="P_Skill6s" class="data"><select name="A_skill6" id="A_skill6"></select></td><td id="P_Skill7" class="center"></td><td id="P_Skill7s"><select name="A_skill7" id="A_skill7"></select></td></tr>
+<tr><td id="P_Skill8" class="center"></td><td id="P_Skill8s" class="data"><select name="A_skill8" id="A_skill8"></select></td><td id="P_Skill9" class="center"></td><td id="P_Skill9s"><select name="A_skill9" id="A_skill9"></select></td></tr>
+<tr><td id="P_Skill10" class="center"></td><td id="P_Skill10s" class="data"><select name="A_skill10" id="A_skill10"></select></td><td id="P_Skill11" class="center"></td><td id="P_Skill11s"><select name="A_skill11" id="A_skill11"></select></td></tr>
+<tr><td id="P_Skill12" class="center"></td><td id="P_Skill12s" class="data"><select name="A_skill12" id="A_skill12"></select></td><td id="P_Skill13" class="center"></td><td id="P_Skill13s"><select name="A_skill13" id="A_skill13"></select></td></tr>
+<tr><td id="P_Skill14" class="center"></td><td id="P_Skill14s" class="data"><select name="A_skill14" id="A_skill14"></select></td><td id="P_Skill15" class="center"></td><td id="P_Skill15s"><select name="A_skill15" id="A_skill15"></select></td></tr>
+<tr><td id="P_Skill16" class="center"></td><td id="P_Skill16s" class="data"><select name="A_skill16" id="A_skill16"></select></td><td id="P_Skill17" class="center"></td><td id="P_Skill17s"><select name="A_skill17" id="A_skill17"></select></td></tr>
+<tr><td id="P_Skill18" class="center"></td><td id="P_Skill18s" class="data"><select name="A_skill18" id="A_skill18"></select></td><td id="P_Skill19" class="center"></td><td id="P_Skill19s"><select name="A_skill19" id="A_skill19"></select></td></tr>
+<tr><td id="P_Skill20" class="center"></td><td id="P_Skill20s" class="data"><select name="A_skill20" id="A_skill20"></select></td><td id="P_Skill21" class="center"></td><td id="P_Skill21s"><select name="A_skill21" id="A_skill21"></select></td></tr>
+</table>
+
+<table id="SIENSKILL" class="tborder" style="float: left; width:57%; max-width:480px; ">
+<tr><td class="subheader">Supportive / Party Skills
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+<div style="clear: both;"></div>
+
+<table id="SP_SIEN05" class="tborder" style="float: left; width:469px;">
+<tr><td id="A7TD" class="subheader">Food, Speed Potions & other Items
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+<table id="SP_SIEN01" class="tborder" style="float: left; width:464px; text-align:right;">
+<tr><td id="A3TD" class="subheader">Music and Dance Skills
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+<table id="SP_SIEN02" class="tborder" style="float: left; width:210px;">
+<tr><td id="A4TD" class="subheader">Guild Skills
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+<table id="SP_SIEN04" class="tborder" style="float: left; width:590px;">
+<tr><td id="A6TD" class="subheader">Miscellaneous Effects on Player
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+<div style="clear: both;"></div>
+
+</div>
+
+<br>
+
+<h3><img src="images/magno.gif" alt="(icon)" style="margin:0 19px 0 0; vertical-align:middle; float:left;">Combat Simulator
+</h3>
+<div class="main" style="overflow:auto;">
+
+<div id="fixable" style="float:left;">
+<table class="tborderA" style="font-weight:bold;">
+<tr>
+<td colspan="6" class="subheader">Place: 
+<select name="ENEMY_SORT2" onchange="EnemySort()|calc()" style="width:155px;"></select>
+Sort: <select name="ENEMY_SORT" onchange="EnemySort()|calc()">
+	<option value="0">Alphabetical
+	</option><option value="1">By attribute
+	</option><option value="2">By race
+	</option><option value="8">By size
+	</option><option value="3">By 100%Hit
+	</option><option value="4">By 95%Flee
+	</option><option value="5">By BaseExp
+	</option><option value="6">By JobExp
+	</option><option value="7">By MaxATK
+	</option><option value="9">By DEF
+	</option><option value="10">By MDEF
+	</option><option value="11">By Type
+</option></select>
+</td></tr>
+<tr><td colspan="6" class="subheader">Enemy: <select name="B_Enemy" onchange="Bskill() | calc()"></select></td></tr>
+<tr><td class="right"></td><td class="data"></td><td class="right">Max HP</td><td id="B_6" class="data"></td><td class="right">BaseExp</td><td id="B_16"></td></tr>
+<tr><td class="right">AGI</td><td id="B_agi" class="data"></td><td class="right">ATK</td><td class="data"><span id="B_12"></span>~<span id="B_13"></span></td><td class="right">JobExp</td><td id="B_17"></td></tr>
+<tr><td class="right">VIT</td><td id="B_vit" class="data"></td><td class="right">DEF</td><td class="data"><span id="B_14"></span><span id="B_AA"> + </span><span id="B_23"></span><!--<span id="B_AC"></span><span id="B_24"></span>--></td><td class="right">Race</td><td id="B_2"></td></tr>
+<tr><td class="right">INT</td><td id="B_int" class="data"></td><td class="right">MDEF</td><td class="data"><span id="B_15"></span><span id="B_AB"> + </span><span id="B_25"></span></td><td class="right">Element</td><td id="B_3"></td></tr>
+<tr><td class="right">DEX</td><td id="B_dex" class="data"></td><td class="right">100% Hit</td><td id="B_21" class="data"></td><td class="right">Size</td><td id="B_4"></td></tr>
+<tr><td class="right">LUK</td><td id="B_luk" class="data"></td><td class="right">95% Dodge</td><td id="B_22" class="data"></td><td class="right">Type</td><td id="B_type"></td></tr>
+</table>
+
+<table id="cresults" style="float:left; font-weight:bold;" class="tborderA">
+<tr><td style="padding-bottom:0;"><input type="checkbox" id="all_dmgSkills" onClick="Askill() | calc()">All Damage Skills</td><td><input type="button" id="ReCalcButton" value="ReCalculate" onclick="calc()" style="width:100px;"></td></tr>
+<tr><td colspan="2" class="subheader" style="padding-bottom:0;">Player Attack Skill: <select name="A_ActiveSkill" onchange="ClickActiveSkill() | calc()" style="width:155px;"><option value="0">Basic Attack</option><option value="2909" disabled>-- Spell Scrolls --</option><option value="3009" disabled>-- Yggdrasil Leaf --</option></select>
+<!--<span name="show_ActiveSkillLV"></span>--><select name="A_ActiveSkillLV" onchange="calc()"><option value="-">-</option></select>
+<!--<span id="AASkillName"></span><span id="AASkill"></span>-->
+</td></tr>
+<tr><td colspan="2" class="subheader" style="padding-top:0;"><span id="AASkill" style="float:right;"></span></td></tr>
+
+<tr><td id="nm053" class="right">Player's Hit Ratio</td><td><span id="BattleHIT"></span>%</td></tr>
+<tr><td id="nm074" class="right">Attack Element</td><td id="A_WeaponElement"></td></tr>
+<tr><td id="nm076" class="right">Weapon/Skill Size Modifier</td><td id="A_WeaponSize"></td></tr>
+<tr><td id="CRIATKname" class="right">Critical Damage (Critical Rate)</td><td><span id="CRIATK"></span><span id="CRInum"></span></td></tr>
+<tr><td id="bSUB3name" class="right">Damage Backslash</td><td id="bSUB3"></td></tr>
+<tr><td id="bSUBname" class="right">Cast Time</td><td id="bSUB"></td></tr>
+<tr><td id="nm055" class="right">Minimum Damage</td><td id="strID_0"></td></tr>
+<tr><td id="nm056" class="right">Average Damage</td><td id="strID_1"></td></tr>
+<tr><td id="nm057" class="right">Maximum Damage</td><td id="strID_2"></td></tr>
+<tr><td id="bREFLECT1name" class="right"></td><td id="bREFLECT1"></td></tr>
+<tr><td id="bREFLECT2name" class="right"></td><td id="bREFLECT2"></td></tr>
+<tr><td id="bSUB2name" class="right">Time/Hit<br></td><td id="bSUB2"><br></td></tr>
+<tr><td id="nm058" class="right">Damage Per Second</td><td id="AveSecondATK"></td></tr>
+<tr><td id="nm059" class="right">Minimum Number of Hits</td><td id="MinATKnum"></td></tr>
+<tr><td id="nm060" class="right">Average Number of Hits</td><td id="AveATKnum"></td></tr>
+<tr><td id="nm061" class="right">Maximum Number of Hits</td><td id="MaxATKnum"></td></tr>
+<tr><td id="nm062" class="right">Average Battle Duration</td><td id="BattleTime"></td></tr>
+<tr><td id="nm063" class="right">Base Exp per Hit</td><td id="AtkBaseExp"></td></tr>
+<tr><td id="nm064" class="right">Job Exp per Hit</td><td id="AtkJobExp"></td></tr>
+
+<!--<tr><td colspan="2" class="subheader" style="padding-bottom:0;">Number of Enemies attacking you: <select name="B_num" onChange="calc()"><option selected="selected" value="1">1</option></select></td></tr>
+--><tr><td colspan="2" class="subheader" style="padding-bottom:0;">Enemy Attack Range: <select name="B_AtkRange" onchange="calc()" style="width:195px;"><option value="0">(unchanged)</option><option value="1">Melee (4 or less cells away)</option><option value="2">Long Range (5 or more cells away)</option></select></td></tr>
+<tr><td colspan="2" class="subheader" style="padding-bottom:0;">Enemy Attack Skill: <select name="B_AtkSkill" onchange="BClickAtkSkill()" style="width:204px;"><option value="0">Basic Attack</option></select></td></tr>
+<tr><td colspan="2" class="subheader" style="padding-bottom:0;">Enemy Attack Element: <select name="B_AtkElem" onchange="calc()"><option value="10">(unchanged)</option></select></td></tr>
+<tr><td colspan="2" class="subheader" style="padding-top:0;"><!--<select disabled name="B_AtkSkillLV"><option value="1">1</option></select>-->
+<!--<span id="BBSkillName" style="float:right;"></span>--><span id="BBSkill" style="float:right;"></span></td></tr>
+<tr><td id="nm054" class="right">Player's Dodge Ratio</td><td id="A_DodgeRatio"><span id="BattleFLEE"></span>%</td></tr>
+<tr><td id="nm075" class="right">Enemy Attack Element</td><td id="B_WeaponElement"></td></tr>
+<tr><td id="nm067" class="right">Minimum Damage Received</td><td id="B_MinAtk"></td></tr>
+<tr><td id="nm065" class="right">Average Damage Received</td><td id="B_AveAtk"></td></tr>
+<tr><td id="nm068" class="right">Maximum Damage Received</td><td id="B_MaxAtk"></td></tr>
+<tr><td id="aREFLECT1name" class="right"></td><td id="aREFLECT1"></td></tr>
+<tr><td id="aREFLECT2name" class="right"></td><td id="aREFLECT2"></td></tr>
+<tr><td id="nm066" class="right">Average Dmg Received (w/dodge)</td><td id="B_Ave2Atk"></td></tr>
+</table>
+</div>
+
+<div style="overflow:hidden;">
+Number of Enemies attacking you: <select name="B_num" onChange="calc()"><option selected="selected" value="1">1</option></select>
+<BR>
+Minimum delay between active skills:
+<select name="Conf01" style="width:135px;">
+<option value="10">0.1s (10 per second)</option>
+<option value="15">0.15s</option>
+<option value="20">0.2s (5 per second)</option>
+<option value="25">0.25s (4 per second)</option>
+<option value="30">0.3s</option>
+<option value="33" selected="selected">0.33s (3 per second) [default]</option>
+<option value="40">0.4s</option>
+<option value="50">0.5s (2 per second)</option>
+</select><a href="inputLimitExplanation.htm">(what's this?)</a>
+<BR>
+Environment: <select name="A8_Skill14" onChange="calc()">
+<option value="0" selected="selected">PvM / PvP</option>
+<option value="1">WoE / BG</option>
+<option value="2">Guild Dungeon</option>
+<option value="3">URDR Server</option>
+</select>
+<BR>
+Defense Investment (custom): <select name="A8_Skill15" onChange="calc()"><option selected="selected" value="0">-</option></select> [WoE Zone only]
+<BR>
+<!--
+<div style="text-align:center;">
+<input type="checkbox" id="scrollygg" onClick="ActiveSkillSetPlus()">Add <font color="brown">Spell-scrolls</font> and <font color="green">Yggdrasil Leaf</font> to Skill List.
+</div>
+-->
+<BR>
+
+<!--Monster State-->
+<table id="EnemyDebuf" class="tborder" style="float:left; width:260px;">
+<tr><td class="subheader">Debuffs on Enemy
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+<!--Monster Buffs-->
+<table id="EnemyBuf" class="tborder" style="width:314px; margin-right:0;">
+<tr><td class="subheader">Buffs on Enemy
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+<div style="clear: both;"></div>
+
+<table id="B_MANUAL" class="tborder manual" style="width:100%; max-width:550px;">
+<tr><td id="A10TD" class="subheader">Manual Edits on Enemy
+<div class="right">(click to show/hide)</div>
+</td></tr></table>
+
+</div>
+</div>
+
+<br><br>
+
+<div class="links">
+<b>Useful Links:</b> [<a href="http://calcx.wushuang.ws">Gandi's CalcX</a>] [<a href="https://xellie.com/RO/statcalc/calcx.htm">Xellie's CalcX</a>] [<a href="http://calc.irowiki.org/">iROwiki Renewal Calc</a>]  [<a href="https://newcalc.irowiki.org/">iROwiki new Renewal Calc</a>] [<a href="http://ro-calc.de">another Renewal Calc</a>] [<a href="http://upaste.me/calc/">another another Renewal Calc</a>] [<a href="https://dotalux.com/ro/skill3/">Skill&nbsp;Tree&nbsp;Simulator</a>] [<a href="https://skillsim.irowiki.org">Renewal&nbsp;Skill&nbsp;Tree&nbsp;Simulator</a>] [<a href="http://www.igames.alcomsoft.ru/scripts/Rosim926/main-iro.htm">Character&nbsp;Simulator</a>][<a href="http://ww4.enjoy.ne.jp/~to4/hom/hom.html">Homunculus&nbsp;Calculator</a>]
+</div>
+<br>
+
+<div id="foot" class="main">
+Original simulator created by <a href="http://roratorio.2-d.jp/ro/">ROratorio</a><br>
+Translated and adapted by <a href="http://rode.doddlercon.com/">Doddler</a><br>
+Old updates/translations by <a href="http://gandi.wushuang.ws/site/">Gandi</a><br>
+Remade/Updated by <a href="http://forum.ratemyserver.net/general-discussion/%28non-renewal%29-sharing-a-ro-non-renewal-calc-for-everyone-here/">Triper</a> for all the RO fans<br>
+Last updates by <a href="http://forum.ratemyserver.net/general-discussion/updated-rms-non-official-calc/">kurimet</a><br>
+</div>
+
+
+
+
+<!-- ============================================================
+     ClickJob coverage stubs; generated by build-time analysis
+     of rocalc.com's vendored JS. These elements exist solely so
+     ClickJob() does not throw on classes whose UI rebuild touches
+     them. The skills they represent are not interactable through
+     score_build (the calc engine reads form .value, which stays
+     at default 0 / empty for stubs). Regenerate by re-running the
+     coverage probe and updating this block.
+     ============================================================
+-->
+<div id="clickjob-stubs" style="display:none;">
+<select id="A2TD" name="A2TD"></select>
+<select id="A2_Skill0" name="A2_Skill0"></select>
+<select id="A2_Skill1" name="A2_Skill1"></select>
+<select id="A2_Skill10" name="A2_Skill10"></select>
+<select id="A2_Skill11" name="A2_Skill11"></select>
+<select id="A2_Skill12" name="A2_Skill12"></select>
+<select id="A2_Skill13" name="A2_Skill13"></select>
+<select id="A2_Skill14" name="A2_Skill14"></select>
+<select id="A2_Skill15" name="A2_Skill15"></select>
+<select id="A2_Skill2" name="A2_Skill2"></select>
+<select id="A2_Skill3" name="A2_Skill3"></select>
+<select id="A2_Skill4" name="A2_Skill4"></select>
+<select id="A2_Skill5" name="A2_Skill5"></select>
+<select id="A2_Skill6" name="A2_Skill6"></select>
+<select id="A2_Skill7" name="A2_Skill7"></select>
+<select id="A2_Skill8" name="A2_Skill8"></select>
+<select id="A2_Skill9" name="A2_Skill9"></select>
+<select id="A3_Skill0_1" name="A3_Skill0_1"></select>
+<select id="A3_Skill0_2" name="A3_Skill0_2"></select>
+<select id="A3_Skill0_3" name="A3_Skill0_3"></select>
+<select id="A3_Skill0_4" name="A3_Skill0_4"></select>
+<select id="A3_Skill10" name="A3_Skill10"></select>
+<select id="A3_Skill11" name="A3_Skill11"></select>
+<select id="A3_Skill11_AGI" name="A3_Skill11_AGI"></select>
+<select id="A3_Skill11_DEX" name="A3_Skill11_DEX"></select>
+<select id="A3_Skill11_INT" name="A3_Skill11_INT"></select>
+<select id="A3_Skill11_LUK" name="A3_Skill11_LUK"></select>
+<select id="A3_Skill11_STR" name="A3_Skill11_STR"></select>
+<select id="A3_Skill11_VIT" name="A3_Skill11_VIT"></select>
+<select id="A3_Skill11a" name="A3_Skill11a"></select>
+<select id="A3_Skill12_1" name="A3_Skill12_1"></select>
+<select id="A3_Skill12_2" name="A3_Skill12_2"></select>
+<select id="A3_Skill12_3" name="A3_Skill12_3"></select>
+<select id="A3_Skill12_4" name="A3_Skill12_4"></select>
+<select id="A3_Skill1_1" name="A3_Skill1_1"></select>
+<select id="A3_Skill1_2" name="A3_Skill1_2"></select>
+<select id="A3_Skill1_3" name="A3_Skill1_3"></select>
+<select id="A3_Skill2_1" name="A3_Skill2_1"></select>
+<select id="A3_Skill2_2" name="A3_Skill2_2"></select>
+<select id="A3_Skill2_3" name="A3_Skill2_3"></select>
+<select id="A3_Skill2_4" name="A3_Skill2_4"></select>
+<select id="A3_Skill3_1" name="A3_Skill3_1"></select>
+<select id="A3_Skill3_2" name="A3_Skill3_2"></select>
+<select id="A3_Skill3_3" name="A3_Skill3_3"></select>
+<select id="A3_Skill40" name="A3_Skill40"></select>
+<select id="A3_Skill41" name="A3_Skill41"></select>
+<select id="A3_Skill42" name="A3_Skill42"></select>
+<select id="A3_Skill43" name="A3_Skill43"></select>
+<select id="A3_Skill44" name="A3_Skill44"></select>
+<select id="A3_Skill4_1" name="A3_Skill4_1"></select>
+<select id="A3_Skill4_2" name="A3_Skill4_2"></select>
+<select id="A3_Skill4_3" name="A3_Skill4_3"></select>
+<select id="A3_Skill5_1" name="A3_Skill5_1"></select>
+<select id="A3_Skill5_2" name="A3_Skill5_2"></select>
+<select id="A3_Skill5_3" name="A3_Skill5_3"></select>
+<select id="A3_Skill6_1" name="A3_Skill6_1"></select>
+<select id="A3_Skill6_2" name="A3_Skill6_2"></select>
+<select id="A3_Skill6_3" name="A3_Skill6_3"></select>
+<select id="A3_Skill7" name="A3_Skill7"></select>
+<select id="A3_Skill8" name="A3_Skill8"></select>
+<select id="A3_Skill9" name="A3_Skill9"></select>
+<select id="A5_Skill0" name="A5_Skill0"></select>
+<select id="A5_Skill1" name="A5_Skill1"></select>
+<select id="A5_Skill2" name="A5_Skill2"></select>
+<select id="A5_Skill3" name="A5_Skill3"></select>
+<select id="A5_Skill4" name="A5_Skill4"></select>
+<select id="A5_Skill5" name="A5_Skill5"></select>
+<select id="A6_Skill0" name="A6_Skill0"></select>
+<select id="A6_Skill1" name="A6_Skill1"></select>
+<select id="A6_Skill10" name="A6_Skill10"></select>
+<select id="A6_Skill11" name="A6_Skill11"></select>
+<select id="A6_Skill12" name="A6_Skill12"></select>
+<select id="A6_Skill13" name="A6_Skill13"></select>
+<select id="A6_Skill14" name="A6_Skill14"></select>
+<select id="A6_Skill15" name="A6_Skill15"></select>
+<select id="A6_Skill16" name="A6_Skill16"></select>
+<select id="A6_Skill17" name="A6_Skill17"></select>
+<select id="A6_Skill18" name="A6_Skill18"></select>
+<select id="A6_Skill3" name="A6_Skill3"></select>
+<select id="A6_Skill4" name="A6_Skill4"></select>
+<select id="A6_Skill5" name="A6_Skill5"></select>
+<select id="A6_Skill6" name="A6_Skill6"></select>
+<select id="A6_Skill7" name="A6_Skill7"></select>
+<select id="A6_Skill8" name="A6_Skill8"></select>
+<select id="A6_Skill9" name="A6_Skill9"></select>
+<select id="A7_Skill0" name="A7_Skill0"></select>
+<select id="A7_Skill1" name="A7_Skill1"></select>
+<select id="A7_Skill10" name="A7_Skill10"></select>
+<select id="A7_Skill11" name="A7_Skill11"></select>
+<select id="A7_Skill12" name="A7_Skill12"></select>
+<select id="A7_Skill13" name="A7_Skill13"></select>
+<select id="A7_Skill14" name="A7_Skill14"></select>
+<select id="A7_Skill16" name="A7_Skill16"></select>
+<select id="A7_Skill17" name="A7_Skill17"></select>
+<select id="A7_Skill18" name="A7_Skill18"></select>
+<select id="A7_Skill19" name="A7_Skill19"></select>
+<select id="A7_Skill2" name="A7_Skill2"></select>
+<select id="A7_Skill20" name="A7_Skill20"></select>
+<select id="A7_Skill21" name="A7_Skill21"></select>
+<select id="A7_Skill22" name="A7_Skill22"></select>
+<select id="A7_Skill23" name="A7_Skill23"></select>
+<select id="A7_Skill24" name="A7_Skill24"></select>
+<select id="A7_Skill25" name="A7_Skill25"></select>
+<select id="A7_Skill26" name="A7_Skill26"></select>
+<select id="A7_Skill27" name="A7_Skill27"></select>
+<select id="A7_Skill28" name="A7_Skill28"></select>
+<select id="A7_Skill29" name="A7_Skill29"></select>
+<select id="A7_Skill3" name="A7_Skill3"></select>
+<select id="A7_Skill30" name="A7_Skill30"></select>
+<select id="A7_Skill31" name="A7_Skill31"></select>
+<select id="A7_Skill32" name="A7_Skill32"></select>
+<select id="A7_Skill33" name="A7_Skill33"></select>
+<select id="A7_Skill34" name="A7_Skill34"></select>
+<select id="A7_Skill36" name="A7_Skill36"></select>
+<select id="A7_Skill37" name="A7_Skill37"></select>
+<select id="A7_Skill38" name="A7_Skill38"></select>
+<select id="A7_Skill39" name="A7_Skill39"></select>
+<select id="A7_Skill4" name="A7_Skill4"></select>
+<select id="A7_Skill40" name="A7_Skill40"></select>
+<select id="A7_Skill41" name="A7_Skill41"></select>
+<select id="A7_Skill42" name="A7_Skill42"></select>
+<select id="A7_Skill44" name="A7_Skill44"></select>
+<select id="A7_Skill45" name="A7_Skill45"></select>
+<select id="A7_Skill46" name="A7_Skill46"></select>
+<select id="A7_Skill47" name="A7_Skill47"></select>
+<select id="A7_Skill48" name="A7_Skill48"></select>
+<select id="A7_Skill49" name="A7_Skill49"></select>
+<select id="A7_Skill5" name="A7_Skill5"></select>
+<select id="A7_Skill50" name="A7_Skill50"></select>
+<select id="A7_Skill51" name="A7_Skill51"></select>
+<select id="A7_Skill6" name="A7_Skill6"></select>
+<select id="A7_Skill7" name="A7_Skill7"></select>
+<select id="A7_Skill8" name="A7_Skill8"></select>
+<select id="A7_Skill9" name="A7_Skill9"></select>
+<select id="A8_Skill0" name="A8_Skill0"></select>
+<select id="A8_Skill1" name="A8_Skill1"></select>
+<select id="A8_Skill10" name="A8_Skill10"></select>
+<select id="A8_Skill11" name="A8_Skill11"></select>
+<select id="A8_Skill2" name="A8_Skill2"></select>
+<select id="A8_Skill3" name="A8_Skill3"></select>
+<select id="A8_Skill5" name="A8_Skill5"></select>
+<select id="A8_Skill6" name="A8_Skill6"></select>
+<select id="A8_Skill7" name="A8_Skill7"></select>
+<select id="A8_Skill8" name="A8_Skill8"></select>
+<select id="A8_Skill9" name="A8_Skill9"></select>
+<select id="A9_Skill0" name="A9_Skill0"></select>
+<select id="A9_Skill1" name="A9_Skill1"></select>
+<select id="A9_Skill2" name="A9_Skill2"></select>
+<select id="A9_Skill3" name="A9_Skill3"></select>
+<select id="A9_Skill4" name="A9_Skill4"></select>
+<select id="A9_Skill5" name="A9_Skill5"></select>
+<select id="A9_Skill6" name="A9_Skill6"></select>
+<select id="A9_Skill7" name="A9_Skill7"></select>
+<select id="A9_Skill8" name="A9_Skill8"></select>
+<select id="A9_Skill9" name="A9_Skill9"></select>
+<select id="AITD" name="AITD"></select>
+<select id="AKTD" name="AKTD"></select>
+<select id="ARG_RC0" name="ARG_RC0"></select>
+<select id="ARG_RC1" name="ARG_RC1"></select>
+<select id="ARG_RC15" name="ARG_RC15"></select>
+<select id="ARG_RC16" name="ARG_RC16"></select>
+<select id="ARG_RC17" name="ARG_RC17"></select>
+<select id="ARG_RC18" name="ARG_RC18"></select>
+<select id="ARG_RC19" name="ARG_RC19"></select>
+<select id="ARG_RC2" name="ARG_RC2"></select>
+<select id="ARG_RC20" name="ARG_RC20"></select>
+<select id="ARG_RC21" name="ARG_RC21"></select>
+<select id="ARG_RC22" name="ARG_RC22"></select>
+<select id="ARG_RC23" name="ARG_RC23"></select>
+<select id="ARG_RC24" name="ARG_RC24"></select>
+<select id="ARG_RC25" name="ARG_RC25"></select>
+<select id="ARG_RC26" name="ARG_RC26"></select>
+<select id="ARG_RC27" name="ARG_RC27"></select>
+<select id="ARG_RC28" name="ARG_RC28"></select>
+<select id="ARG_RC29" name="ARG_RC29"></select>
+<select id="ARG_RC3" name="ARG_RC3"></select>
+<select id="ARG_RC30" name="ARG_RC30"></select>
+<select id="ARG_RC31" name="ARG_RC31"></select>
+<select id="ARG_RC32" name="ARG_RC32"></select>
+<select id="ARG_RC33" name="ARG_RC33"></select>
+<select id="ARG_RC34" name="ARG_RC34"></select>
+<select id="ARG_RC35" name="ARG_RC35"></select>
+<select id="ARG_RC36" name="ARG_RC36"></select>
+<select id="ARG_RC37" name="ARG_RC37"></select>
+<select id="ARG_RC38" name="ARG_RC38"></select>
+<select id="ARG_RC39" name="ARG_RC39"></select>
+<select id="ARG_RC4" name="ARG_RC4"></select>
+<select id="ARG_RC40" name="ARG_RC40"></select>
+<select id="ARG_RC41" name="ARG_RC41"></select>
+<select id="ARG_RC42" name="ARG_RC42"></select>
+<select id="ARG_RC43" name="ARG_RC43"></select>
+<select id="ARG_RC44" name="ARG_RC44"></select>
+<select id="ARG_RC45" name="ARG_RC45"></select>
+<select id="ARG_RC47" name="ARG_RC47"></select>
+<select id="ARG_RC48" name="ARG_RC48"></select>
+<select id="ARG_RC5" name="ARG_RC5"></select>
+<select id="ARG_RC6" name="ARG_RC6"></select>
+<select id="ARG_RC7" name="ARG_RC7"></select>
+<select id="ARG_RC83" name="ARG_RC83"></select>
+<select id="ARG_RC84" name="ARG_RC84"></select>
+<select id="ARG_RC85" name="ARG_RC85"></select>
+<select id="ARG_RC86" name="ARG_RC86"></select>
+<select id="ARG_RC87" name="ARG_RC87"></select>
+<select id="ARG_RC88" name="ARG_RC88"></select>
+<select id="AS11_1" name="AS11_1"></select>
+<select id="A_ElemS" name="A_ElemS"></select>
+<select id="A_Iron" name="A_Iron"></select>
+<select id="A_KakutyouSelNum" name="A_KakutyouSelNum"></select>
+<select id="A_KakutyouSelNum2" name="A_KakutyouSelNum2"></select>
+<select id="A_KakutyouSelNumHP" name="A_KakutyouSelNumHP"></select>
+<select id="A_KakutyouSelNumSP" name="A_KakutyouSelNumSP"></select>
+<select id="A_OriR" name="A_OriR"></select>
+<select id="A_PotionRLevel" name="A_PotionRLevel"></select>
+<select id="A_PreparePLevel" name="A_PreparePLevel"></select>
+<select id="A_SmithT" name="A_SmithT"></select>
+<select id="A_SpeedPOT" name="A_SpeedPOT"></select>
+<select id="A_StarC" name="A_StarC"></select>
+<select id="A_Steel" name="A_Steel"></select>
+<select id="A_StoneC" name="A_StoneC"></select>
+<select id="A_Van" name="A_Van"></select>
+<select id="A_Weapon2_refine" name="A_Weapon2_refine"></select>
+<select id="A_WepR" name="A_WepR"></select>
+<select id="A_cardshortLeft" name="A_cardshortLeft"></select>
+<select id="A_debuf0" name="A_debuf0"></select>
+<select id="A_debuf1" name="A_debuf1"></select>
+<select id="A_debuf2" name="A_debuf2"></select>
+<select id="A_debuf3" name="A_debuf3"></select>
+<select id="A_weapon2_card1" name="A_weapon2_card1"></select>
+<select id="A_weapon2_card2" name="A_weapon2_card2"></select>
+<select id="A_weapon2_card3" name="A_weapon2_card3"></select>
+<select id="A_weapon2_card4" name="A_weapon2_card4"></select>
+<select id="BRG_RC0" name="BRG_RC0"></select>
+<select id="BRG_RC1" name="BRG_RC1"></select>
+<select id="BRG_RC10" name="BRG_RC10"></select>
+<select id="BRG_RC15" name="BRG_RC15"></select>
+<select id="BRG_RC16" name="BRG_RC16"></select>
+<select id="BRG_RC19" name="BRG_RC19"></select>
+<select id="BRG_RC2" name="BRG_RC2"></select>
+<select id="BRG_RC20" name="BRG_RC20"></select>
+<select id="BRG_RC21" name="BRG_RC21"></select>
+<select id="BRG_RC22" name="BRG_RC22"></select>
+<select id="BRG_RC23" name="BRG_RC23"></select>
+<select id="BRG_RC24" name="BRG_RC24"></select>
+<select id="BRG_RC25" name="BRG_RC25"></select>
+<select id="BRG_RC26" name="BRG_RC26"></select>
+<select id="BRG_RC27" name="BRG_RC27"></select>
+<select id="BRG_RC28" name="BRG_RC28"></select>
+<select id="BRG_RC29" name="BRG_RC29"></select>
+<select id="BRG_RC3" name="BRG_RC3"></select>
+<select id="BRG_RC33" name="BRG_RC33"></select>
+<select id="BRG_RC34" name="BRG_RC34"></select>
+<select id="BRG_RC35" name="BRG_RC35"></select>
+<select id="BRG_RC36" name="BRG_RC36"></select>
+<select id="BRG_RC37" name="BRG_RC37"></select>
+<select id="BRG_RC38" name="BRG_RC38"></select>
+<select id="BRG_RC39" name="BRG_RC39"></select>
+<select id="BRG_RC4" name="BRG_RC4"></select>
+<select id="BRG_RC40" name="BRG_RC40"></select>
+<select id="BSkillSubNum" name="BSkillSubNum"></select>
+<select id="BSkillSubNum2" name="BSkillSubNum2"></select>
+<select id="BSkillSubNum3" name="BSkillSubNum3"></select>
+<select id="B_AGI" name="B_AGI"></select>
+<select id="B_DEF" name="B_DEF"></select>
+<select id="B_INT" name="B_INT"></select>
+<select id="B_LUK" name="B_LUK"></select>
+<select id="B_LV" name="B_LV"></select>
+<select id="B_MDEF" name="B_MDEF"></select>
+<select id="B_OBJ" name="B_OBJ"></select>
+<select id="B_TAISEI10" name="B_TAISEI10"></select>
+<select id="B_TAISEI13" name="B_TAISEI13"></select>
+<select id="B_TAISEI14" name="B_TAISEI14"></select>
+<select id="B_TAISEI2_1" name="B_TAISEI2_1"></select>
+<select id="B_TAISEI3_1" name="B_TAISEI3_1"></select>
+<select id="B_TAISEI4" name="B_TAISEI4"></select>
+<select id="B_TAISEI5" name="B_TAISEI5"></select>
+<select id="B_VIT" name="B_VIT"></select>
+<select id="B_buf0" name="B_buf0"></select>
+<select id="B_buf1" name="B_buf1"></select>
+<select id="B_buf2" name="B_buf2"></select>
+<select id="B_buf3" name="B_buf3"></select>
+<select id="B_buf4" name="B_buf4"></select>
+<select id="B_buf5" name="B_buf5"></select>
+<select id="B_buf6" name="B_buf6"></select>
+<select id="B_buf7" name="B_buf7"></select>
+<select id="B_buf8" name="B_buf8"></select>
+<select id="B_buf9" name="B_buf9"></select>
+<select id="B_buff10" name="B_buff10"></select>
+<select id="B_buff11" name="B_buff11"></select>
+<select id="B_buff12" name="B_buff12"></select>
+<select id="B_buff13" name="B_buff13"></select>
+<select id="B_buff14" name="B_buff14"></select>
+<select id="B_debuf0" name="B_debuf0"></select>
+<select id="B_debuf1" name="B_debuf1"></select>
+<select id="B_debuf10" name="B_debuf10"></select>
+<select id="B_debuf11" name="B_debuf11"></select>
+<select id="B_debuf12" name="B_debuf12"></select>
+<select id="B_debuf13" name="B_debuf13"></select>
+<select id="B_debuf14" name="B_debuf14"></select>
+<select id="B_debuf15" name="B_debuf15"></select>
+<select id="B_debuf16" name="B_debuf16"></select>
+<select id="B_debuf17" name="B_debuf17"></select>
+<select id="B_debuf18" name="B_debuf18"></select>
+<select id="B_debuf19" name="B_debuf19"></select>
+<select id="B_debuf2" name="B_debuf2"></select>
+<select id="B_debuf20" name="B_debuf20"></select>
+<select id="B_debuf21" name="B_debuf21"></select>
+<select id="B_debuf22" name="B_debuf22"></select>
+<select id="B_debuf23" name="B_debuf23"></select>
+<select id="B_debuf24" name="B_debuf24"></select>
+<select id="B_debuf3" name="B_debuf3"></select>
+<select id="B_debuf4" name="B_debuf4"></select>
+<select id="B_debuf5" name="B_debuf5"></select>
+<select id="B_debuf6" name="B_debuf6"></select>
+<select id="B_debuf7" name="B_debuf7"></select>
+<select id="B_debuf8" name="B_debuf8"></select>
+<select id="B_debuf9" name="B_debuf9"></select>
+<select id="B_element" name="B_element"></select>
+<select id="Bman1" name="Bman1"></select>
+<select id="Bman2" name="Bman2"></select>
+<select id="CExp" name="CExp"></select>
+<select id="CKit" name="CKit"></select>
+<select id="DesiredRefine" name="DesiredRefine"></select>
+<select id="DropChance" name="DropChance"></select>
+<select id="E_DEX" name="E_DEX"></select>
+<select id="E_INT" name="E_INT"></select>
+<select id="E_OBJ" name="E_OBJ"></select>
+<select id="E_VIT" name="E_VIT"></select>
+<select id="EquipType" name="EquipType"></select>
+<select id="EquipValue" name="EquipValue"></select>
+<select id="F2P" name="F2P"></select>
+<select id="FS2_LV" name="FS2_LV"></select>
+<select id="FS_LV" name="FS_LV"></select>
+<select id="FStat" name="FStat"></select>
+<select id="Flv" name="Flv"></select>
+<select id="IRP" name="IRP"></select>
+<select id="ISP" name="ISP"></select>
+<select id="ItemValue" name="ItemValue"></select>
+<select id="OreType" name="OreType"></select>
+<select id="OreValue" name="OreValue"></select>
+<select id="POT_RLevel" name="POT_RLevel"></select>
+<select id="PP" name="PP"></select>
+<select id="Pet" name="Pet"></select>
+<select id="PetHP" name="PetHP"></select>
+<select id="RNK_BNS" name="RNK_BNS"></select>
+<select id="R_OBJ" name="R_OBJ"></select>
+<select id="RefineType" name="RefineType"></select>
+<select id="S2_LV" name="S2_LV"></select>
+<select id="S3_LV" name="S3_LV"></select>
+<select id="SG_Weight" name="SG_Weight"></select>
+<select id="SL_LV" name="SL_LV"></select>
+<select id="SPP" name="SPP"></select>
+<select id="SP_OBJ" name="SP_OBJ"></select>
+<select id="S_LV" name="S_LV"></select>
+<select id="S_OBJ" name="S_OBJ"></select>
+<select id="SkillSubNum" name="SkillSubNum"></select>
+<select id="Smug_LV" name="Smug_LV"></select>
+<select id="SocketChance" name="SocketChance"></select>
+<select id="StartingRefine" name="StartingRefine"></select>
+<select id="Steal_LV" name="Steal_LV"></select>
+</div>
+
+</form>
+<span id="popupURL"></span>
+</body></html>

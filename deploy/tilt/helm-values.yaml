@@ -1,0 +1,11 @@
+# Tilt-only overrides. Tilt's image graph injects the actual image refs
+# at apply time; setting pullPolicy: Never ensures k8s reads the locally-
+# built image instead of pulling.
+api:
+  image:
+    pullPolicy: Never
+    tag: dev
+sidecar:
+  image:
+    pullPolicy: Never
+    tag: dev

@@ -1,0 +1,589 @@
+openapi: 3.0.3
+
+info:
+  title: ro-builder API
+  version: 0.1.0
+  description: |
+    Ragnarok Online (pre-renewal) build optimizer.
+
+    Four endpoints:
+      - POST /score           direct calc; fully-specified Build → derived stats + optional combat sim
+      - POST /generate        LLM-driven; enqueue a generation job; returns 202 + {id}
+      - GET  /generations/{id} poll status of an enqueued generation
+      - GET  /builds          paginated list of saved trajectories
+      - GET  /builds/{id}     one full saved trajectory with item/skill names resolved
+
+    The /generate endpoint requires LLM_API_KEY at the API process. Without it,
+    the binary fails to start.
+
+    Class names are shim-contract strings ("novice", "taekwon_kid",
+    "high_wizard"). Numeric ids are not accepted at the API boundary.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /score:
+    post:
+      operationId: score
+      summary: Score a fully-specified build
+      description: |
+        Calc-direct path. Caller supplies the entire Build (class, level,
+        stats, equipment); the sidecar produces derived stats and, if a
+        Scenario.Target is given, a combat sim against that mob.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreRequestBody"
+      responses:
+        "200":
+          description: Computed score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreResponse"
+        "400":
+          description: Build validation failed or sidecar reported a 4xx (caller-fixable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "500":
+          description: Unexpected internal failure (transport, encode)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "502":
+          description: Sidecar reported a 5xx (sidecar crash / shim panic)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /generate:
+    post:
+      operationId: generate
+      summary: Enqueue an asynchronous build-generation job
+      description: |
+        Enqueues a generation job and returns immediately. Poll
+        /generations/{id} until status is "completed" or "failed".
+        Recommended poll cadence: ~30 seconds.
+
+        The /generate endpoint requires LLM_API_KEY at the API process.
+        Without it, the binary fails to start.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateRequest"
+      responses:
+        "202":
+          description: Generation enqueued; poll /generations/{id} for status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateEnqueueResponse"
+        "400":
+          description: Request validation failed (mode/playstyle/description)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "429":
+          description: Generation queue at capacity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "503":
+          description: API is shutting down; retry later
+          headers:
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /generations/{id}:
+    get:
+      operationId: getGeneration
+      summary: Poll status of an enqueued generation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Generation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationStatus"
+        "404":
+          description: Unknown id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "500":
+          description: Library / encode failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /builds:
+    get:
+      operationId: listBuilds
+      summary: List saved trajectories (recency-ordered)
+      parameters:
+        - name: class
+          in: query
+          required: false
+          schema:
+            type: string
+          description: filter to one class (e.g. "taekwon_kid")
+        - name: server
+          in: query
+          required: false
+          schema:
+            type: string
+          description: filter to one server profile (e.g. "uaro")
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+          description: cap results (default 5, max 50)
+      responses:
+        "200":
+          description: List of trajectory summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListBuildsResponse"
+        "400":
+          description: Invalid query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "500":
+          description: Library / encode failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /builds/{id}:
+    get:
+      operationId: getBuild
+      summary: Fetch one saved trajectory with catalog names resolved
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: id returned by /generate (or /builds list)
+      responses:
+        "200":
+          description: Saved trajectory with enrichment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrichedBuild"
+        "400":
+          description: id path parameter missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "404":
+          description: No trajectory with that id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "500":
+          description: Library / encode failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+components:
+  schemas:
+
+    # --- common error shape ---
+
+    ErrorBody:
+      type: object
+      required: [ error ]
+      properties:
+        error:
+          type: string
+
+    # --- domain primitives ---
+
+    Stats:
+      type: object
+      required: [ str, agi, vit, int, dex, luk ]
+      properties:
+        str: { type: integer }
+        agi: { type: integer }
+        vit: { type: integer }
+        int: { type: integer }
+        dex: { type: integer }
+        luk: { type: integer }
+
+    Level:
+      type: object
+      required: [ base, job ]
+      properties:
+        base: { type: integer }
+        job: { type: integer }
+
+    SlotKey:
+      type: string
+      enum: [ weapon, headTop, headMid, headBot, shield, armor, garment, footgear, accessory1, accessory2 ]
+
+    EquipSpec:
+      type: object
+      required: [ id ]
+      properties:
+        id: { type: integer }
+        refine: { type: integer, minimum: 0, maximum: 10 }
+        cards:
+          type: array
+          items: { type: integer }
+
+    SkillAlloc:
+      type: object
+      required: [ id, level ]
+      properties:
+        id: { type: integer }
+        level: { type: integer }
+
+    EquipmentMap:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/EquipSpec"
+      description: keyed by SlotKey enum (weapon, headTop, ...)
+
+    NamedRef:
+      type: object
+      required: [ id, name ]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+      description: |
+        Resolved id reference: every numeric id in a snapshot's
+        equipment, cards, or leveling target ships with its catalog
+        name inline. name is empty when the catalog has no record for
+        id, or when the API has no catalog configured.
+
+    EnrichedEquipSpec:
+      type: object
+      required: [ item ]
+      properties:
+        item: { $ref: "#/components/schemas/NamedRef" }
+        refine: { type: integer, minimum: 0, maximum: 10 }
+        cards:
+          type: array
+          items: { $ref: "#/components/schemas/NamedRef" }
+
+    # --- /score request + response ---
+
+    Build:
+      type: object
+      required: [ level, stats ]
+      properties:
+        mode:
+          type: string
+          enum: [ pre-renewal, renewal ]
+          description: only "pre-renewal" is currently supported
+        server: { type: string }
+        tier:
+          type: string
+          enum: [ budget, realistic, endgame ]
+        class:
+          type: string
+          description: shim-contract class name ("novice", "taekwon_kid", ...)
+        level: { $ref: "#/components/schemas/Level" }
+        stats: { $ref: "#/components/schemas/Stats" }
+        equipment: { $ref: "#/components/schemas/EquipmentMap" }
+
+    Scenario:
+      type: object
+      properties:
+        target:
+          type: integer
+          description: iRO mob id; 0 means no combat sim
+
+    ScoreRequestBody:
+      type: object
+      required: [ build ]
+      properties:
+        build: { $ref: "#/components/schemas/Build" }
+        scenario: { $ref: "#/components/schemas/Scenario" }
+
+    BasePlus:
+      type: object
+      required: [ base, plus ]
+      properties:
+        base: { type: integer }
+        plus: { type: integer }
+
+    MinMax:
+      type: object
+      required: [ min, max ]
+      properties:
+        min: { type: integer }
+        max: { type: integer }
+
+    HardSoft:
+      type: object
+      required: [ hard, soft ]
+      properties:
+        hard: { type: integer }
+        soft: { type: integer }
+
+    DerivedStats:
+      type: object
+      required: [ hit, flee, cri, atk, matk, def, mdef, aspd, maxHp, maxSp, statPointsRemaining ]
+      properties:
+        hit: { type: integer }
+        flee: { type: integer }
+        cri: { type: integer }
+        atk: { $ref: "#/components/schemas/BasePlus" }
+        matk: { $ref: "#/components/schemas/MinMax" }
+        def: { $ref: "#/components/schemas/HardSoft" }
+        mdef: { $ref: "#/components/schemas/HardSoft" }
+        aspd: { type: number }
+        maxHp: { type: integer }
+        maxSp: { type: integer }
+        statPointsRemaining: { type: integer }
+
+    CombatDamage:
+      type: object
+      properties:
+        min: { type: number, nullable: true }
+        ave: { type: number, nullable: true }
+        max: { type: number, nullable: true }
+        secondAve: { type: number, nullable: true }
+
+    CombatCrit:
+      type: object
+      properties:
+        damage: { type: number, nullable: true }
+        rate: { type: number, nullable: true }
+
+    CombatIncoming:
+      type: object
+      properties:
+        min: { type: number, nullable: true }
+        ave: { type: number, nullable: true }
+        max: { type: number, nullable: true }
+        aveWithDodge: { type: number, nullable: true }
+
+    CombatEnemy:
+      type: object
+      required: [ race, element, size, type ]
+      properties:
+        hp: { type: number, nullable: true }
+        race: { type: string }
+        element: { type: string }
+        size: { type: string }
+        type: { type: string }
+
+    CombatResults:
+      type: object
+      required: [ damage, crit, incoming, enemy ]
+      properties:
+        damage: { $ref: "#/components/schemas/CombatDamage" }
+        crit: { $ref: "#/components/schemas/CombatCrit" }
+        hit: { type: number, nullable: true }
+        flee: { type: number, nullable: true }
+        dodge: { type: number, nullable: true }
+        battleTimeSec: { type: number, nullable: true }
+        incoming: { $ref: "#/components/schemas/CombatIncoming" }
+        enemy: { $ref: "#/components/schemas/CombatEnemy" }
+
+    ScoreResponse:
+      type: object
+      required: [ derived, calc_version ]
+      properties:
+        derived: { $ref: "#/components/schemas/DerivedStats" }
+        combat: { $ref: "#/components/schemas/CombatResults" }
+        calc_version:
+          type: string
+          description: engine snapshot stamp (e.g. "rocalc-2026-04-06")
+
+    # --- /generate request + response ---
+
+    GenerateEnqueueResponse:
+      type: object
+      required: [ id ]
+      properties:
+        id:
+          type: string
+          description: identifier for the enqueued generation; used as both the polling key and the eventual /builds/{id} key
+
+    GenerationStatus:
+      type: object
+      required: [ id, status, created_at ]
+      properties:
+        id: { type: string }
+        status:
+          type: string
+          enum: [ queued, running, completed, failed ]
+        created_at: { type: string, format: date-time }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time }
+        build_id:
+          type: string
+          description: present only when status=completed; always equal to id
+        error:
+          type: string
+          description: present only when status=failed; generic user-facing message
+
+    GateOverrides:
+      type: object
+      properties:
+        ignore_status:
+          type: array
+          items: { type: string }
+
+    GenerateRequest:
+      type: object
+      required: [ class ]
+      properties:
+        class:
+          type: string
+          description: shim-contract class name; required
+        server: { type: string }
+        playstyle:
+          type: string
+          enum: [ pvm, pvp, balanced_dual, balanced_generalist ]
+        mode:
+          type: string
+          enum: [ pre-renewal, renewal ]
+        description:
+          type: string
+          maxLength: 2000
+          description: free-form scenario context (LLM treats as informational only)
+        gate_overrides: { $ref: "#/components/schemas/GateOverrides" }
+
+    GateResult:
+      type: object
+      required: [ name, severity ]
+      properties:
+        name: { type: string }
+        threshold: { description: any (number, string, list) }
+        actual: { description: any (number, string, list) }
+        severity:
+          type: string
+          enum: [ pass, warn, fail, fail_hard ]
+        reason: { type: string }
+
+    EnrichedSnapshot:
+      type: object
+      required: [ class, level, stats ]
+      properties:
+        class: { type: string }
+        level: { $ref: "#/components/schemas/Level" }
+        post_rebirth: { type: boolean }
+        stats: { $ref: "#/components/schemas/Stats" }
+        skills:
+          type: array
+          items:
+            type: object
+            required: [ id, name, level ]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              level: { type: integer }
+        equipment:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/EnrichedEquipSpec"
+          description: keyed by SlotKey enum (weapon, headTop, ...)
+        leveling_target:
+          type: object
+          properties:
+            target: { $ref: "#/components/schemas/NamedRef" }
+        score: { $ref: "#/components/schemas/ScoreResponse" }
+        gates:
+          type: array
+          items: { $ref: "#/components/schemas/GateResult" }
+        notes: { type: string }
+
+    EnrichedTrajectory:
+      type: object
+      required: [ class, snapshots ]
+      properties:
+        class: { type: string }
+        snapshots:
+          type: array
+          items: { $ref: "#/components/schemas/EnrichedSnapshot" }
+
+    # --- /builds list + get ---
+
+    GateSummary:
+      type: object
+      required: [ pass, warn, fail, fail_hard ]
+      properties:
+        pass: { type: integer }
+        warn: { type: integer }
+        fail: { type: integer }
+        fail_hard: { type: integer }
+
+    BuildSummary:
+      type: object
+      required: [ id, created_at, class, server, playstyle, gate_summary ]
+      properties:
+        id: { type: string }
+        created_at: { type: string, format: date-time }
+        class: { type: string }
+        server: { type: string }
+        playstyle: { type: string }
+        description: { type: string }
+        gate_summary: { $ref: "#/components/schemas/GateSummary" }
+
+    ListBuildsResponse:
+      type: object
+      required: [ builds ]
+      properties:
+        builds:
+          type: array
+          items: { $ref: "#/components/schemas/BuildSummary" }
+
+    EnrichedBuild:
+      type: object
+      required: [ id, created_at, class, server, playstyle, mode, primary, gate_summary ]
+      properties:
+        id: { type: string }
+        created_at: { type: string, format: date-time }
+        class: { type: string }
+        server: { type: string }
+        playstyle: { type: string }
+        mode: { type: string }
+        description: { type: string }
+        primary: { $ref: "#/components/schemas/EnrichedTrajectory" }
+        alternatives:
+          type: array
+          items: { $ref: "#/components/schemas/EnrichedTrajectory" }
+        final_text: { type: string }
+        gate_summary: { $ref: "#/components/schemas/GateSummary" }
+        calc_version: { type: string }
+        catalog_version: { type: integer }

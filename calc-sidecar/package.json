@@ -1,0 +1,21 @@
+{
+  "name": "ro-builder-calc-sidecar",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Node + jsdom harness wrapping Kurimet's rocalc (https://rocalc.com) for the ro-builder Go API. Vendor files under vendor/rocalc/ are unmodified",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "start": "node server.ts"
+  },
+  "dependencies": {
+    "jsdom": "^24.0.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^28.0.1",
+    "@types/node": "^25.6.0",
+    "prettier": "^3.3.0",
+    "typescript": "^6.0.3"
+  }
+}

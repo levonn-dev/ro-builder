@@ -1,0 +1,27 @@
+# Overrides for docker-desktop's k8s. Committed; not sensitive.
+api:
+  persistence:
+    storageClassName: hostpath
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+sidecar:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+env:
+  LOG_FORMAT: text
+  LOG_LEVEL: debug
+  GENERATION_MAX_ITERS: "80"
+  LLM_MODEL: claude-opus-4-7
+  LLM_PROVIDER: anthropic

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: ro-builder
+description: Ragnarok Online pre-renewal build optimizer (api + calc sidecar)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/levonn-dev/ro-builder
+sources:
+  - https://github.com/levonn-dev/ro-builder
+maintainers:
+  - name: levonn-dev

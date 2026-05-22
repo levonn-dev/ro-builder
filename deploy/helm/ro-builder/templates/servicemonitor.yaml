@@ -1,0 +1,20 @@
+{{- if .Values.metrics.serviceMonitor.enabled -}}
+# NOTE: Requires (a) Prometheus Operator CRDs installed in-cluster, AND
+# (b) the api/sidecar to expose a /metrics endpoint. Neither is in place
+# today; flipping this flag without both will fail to apply or scrape.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ro-builder.fullname" . }}
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "shared" "root" .) | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ro-builder.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+{{- end }}

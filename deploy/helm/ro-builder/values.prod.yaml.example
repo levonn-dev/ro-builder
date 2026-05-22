@@ -1,0 +1,58 @@
+# Example values for a production cluster install. Copy to values.prod.yaml,
+# adjust, and: `helm upgrade --install ro-builder ./deploy/helm/ro-builder \
+#                              -f deploy/helm/ro-builder/values.prod.yaml`
+#
+# Cluster prereqs (see ../README.md):
+#   - Bitnami sealed-secrets controller installed
+#   - Ingress controller (nginx / traefik / contour)
+#   - CNI that enforces NetworkPolicy (Cilium, Calico, Weave)
+#   - metrics-server (for HPA)
+#   - Prometheus Operator CRDs (only if metrics.serviceMonitor.enabled)
+
+api:
+  image:
+    pullPolicy: Always
+    tag: ""   # set to the released git SHA
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits:   { cpu: "2",  memory: 1Gi }
+  persistence:
+    size: 10Gi
+    storageClassName: gp3   # adjust per cluster
+
+sidecar:
+  image:
+    pullPolicy: Always
+    tag: ""
+  replicas: 2
+  workers: 4
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits:   { cpu: "4",  memory: 2Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+env:
+  LOG_FORMAT: json
+  LOG_LEVEL: info
+
+ingress:
+  enabled: true
+  className: nginx
+  host: ro-builder.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls:
+    - secretName: ro-builder-tls
+      hosts:
+        - ro-builder.example.com
+
+networkPolicy:
+  enabled: true
+
+metrics:
+  serviceMonitor:
+    enabled: false   # flip once /metrics exists in the api + sidecar

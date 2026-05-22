@@ -1,0 +1,110 @@
+# Default values for ro-builder. Override per-environment via -f or --set.
+# This file holds defaults that make sense in any cluster; environment
+# specifics live in values.local.yaml (docker-desktop) or
+# values.prod.yaml.example (template for real clusters).
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace is set at install time via `helm install -n <ns>`. Templates
+# don't hardcode it.
+
+api:
+  image:
+    repository: ro-builder-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  persistence:
+    size: 1Gi
+    # Empty = cluster default. docker-desktop uses "hostpath".
+    storageClassName: ""
+  probes:
+    liveness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+    readiness:
+      initialDelaySeconds: 2
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+
+sidecar:
+  image:
+    repository: ro-builder-sidecar
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  workers: 2
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+  probes:
+    liveness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+    readiness:
+      # Sidecar workers take ~1.5s each to warm up. The readiness probe
+      # checks the pool's ready() flag; initial pass should be allowed to
+      # fail a few times while createShim() finishes on each worker.
+      initialDelaySeconds: 2
+      periodSeconds: 3
+      timeoutSeconds: 2
+      failureThreshold: 10
+
+env:
+  # Non-secret env. Each key here lands in the ConfigMap and is injected
+  # via envFrom on both deployments. Empty string = use the binary's
+  # built-in default (read `.env.example` for what those are).
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  LLM_PROVIDER: "anthropic"
+  LLM_MODEL: ""
+  LLM_BASE_URL: ""
+  LLM_TIMEOUT_SECONDS: ""
+  LLM_MAX_TOKENS: ""
+  GENERATION_WORKERS: ""
+  GENERATION_QUEUE_CAP: ""
+  GENERATION_POLL_INTERVAL: ""
+  GENERATION_SHUTDOWN_TIMEOUT: ""
+  GENERATION_MAX_ITERS: ""
+
+secrets:
+  # The chart only references the Secret by name. The actual Secret is
+  # produced by the sealed-secrets controller decrypting a SealedSecret
+  # applied outside the chart's lifecycle. See deploy/k8s/sealed-secrets/.
+  externalSecretName: ro-builder-env
+
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  tls: []
+  annotations: {}
+
+networkPolicy:
+  enabled: false
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s

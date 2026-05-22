@@ -1,0 +1,53 @@
+# Build artifacts (Taskfile writes binaries to bin/, packages to dist/).
+/bin/
+/dist/
+/.task/
+
+# Test artifacts (Go coverage, Node coverage, runtime temp files).
+/coverage/
+/tmp/
+/calc-sidecar/coverage/
+
+# Environment; committed example, real values gitignored. See .env.example.
+.env*
+!.env.example
+
+# Editor / IDE.
+/.idea/
+/.vscode/
+*.swp
+.DS_Store
+
+# Node.
+/node_modules/
+/calc-sidecar/node_modules/
+
+# Sidecar Vendor.
+/calc-sidecar/vendor/
+
+# Mapping-tool intermediate artifacts.
+# Source committed: main.go (tool), manual_overrides.json (hand-curated input).
+# Runtime artifact committed: calc-sidecar/src/backends/rocalc/mapping.json
+# (load-bearing for the shim; regenerating requires Hercules+rAthena clones).
+# Local-review-only artifacts ignored; they regenerate on every `task mapping`
+# and would otherwise produce diff noise on cosmetic re-runs.
+/cmd/build-rocalc-mapping/rms_suggestions.json
+/cmd/build-rocalc-mapping/unmatched-items.txt
+/cmd/build-rocalc-mapping/unmatched-cards.txt
+/cmd/build-rocalc-mapping/unmatched-mobs.txt
+
+# reference documents
+/ref_docs/
+
+# Build library SQLite. Default path per cmd/api's BUILDLIBRARY_PATH;
+# operators can override but the cwd default lands the file at the
+# repo root by default. This is local state, not committed.
+/buildlibrary.db
+/buildlibrary.db-journal
+/buildlibrary.db-wal
+/buildlibrary.db-shm
+
+# Sealed secrets; only commit the .example templates. Real sealed-secret
+# blobs are encrypted but we prefer they stay local (belt-and-suspenders).
+deploy/k8s/sealed-secrets/*.yaml
+!deploy/k8s/sealed-secrets/*.example

@@ -1,0 +1,32 @@
+ro-builder
+
+Copyright (C) 2026 levonn-dev
+
+This project is licensed under the GNU Affero General Public License v3.0.
+See LICENSE for the full text.
+
+================================================================================
+Acknowledgments
+================================================================================
+
+rocalc — pre-renewal Ragnarok Online calculator
+  ROratorio -> Doddler -> Gandi -> Triper -> Kurimet
+
+  rocalc is the trusted upstream pre-renewal calculator this project drives
+  via a thin shim. The calc itself is not bundled with this repository —
+  users supply their own copy of Kurimet's files into vendor/rocalc/ (or
+  whichever calc they wish to use). The formulas reflect many years of
+  community refinement across the maintainer lineage above.
+
+Hercules — Ragnarok Online server emulator
+  https://github.com/HerculesWS/Hercules
+  Licensed GPLv3.
+
+rAthena — Ragnarok Online server emulator
+  https://github.com/rathena/rathena
+  Licensed GPLv3.
+
+  The embedded catalog (internal/catalog/catalog.json) is built from the
+  pre-renewal item, mob, and skill databases shipped with these emulators.
+  This project's parsers read their db trees and produce an iRO-IDed
+  catalog. The catalog inherits the upstream license.

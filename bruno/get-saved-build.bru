@@ -1,0 +1,181 @@
+meta {
+  name: get-saved-build
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/builds/{{savedBuildId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Pulls the enriched view of one saved trajectory. Every numeric id in
+  the snapshot body (equipment items, cards, skills, leveling target)
+  ships alongside its catalog name as `{ id, name }`. That's what makes
+  the rocalc-style render readable.
+
+  `savedBuildId` is set by the `generate` request's post-response
+  script. Run this only after `generation-status` reports
+  `status=completed`; before that, the endpoint will 404 because
+  nothing has been written to saved_trajectories yet.
+
+  The post-response script renders the endgame snapshot in full,
+  mirroring `scripts/generate.sh`'s output; header, stats,
+  equipment+cards, skills, derived stats, vs-target combat, gates.
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("primary trajectory present", function() {
+    expect(res.getBody().primary).to.be.an("object");
+  });
+  test("endgame snapshot has inline-named equipment", function() {
+    const snaps = (res.getBody().primary || {}).snapshots || [];
+    const hero  = snaps[snaps.length - 1] || {};
+    const eq    = hero.equipment || {};
+    const slots = Object.keys(eq);
+    if (slots.length === 0) return; // some test fixtures may have no gear
+    const first = eq[slots[0]] || {};
+    expect(first.item).to.be.an("object");
+    expect(first.item.id).to.be.a("number");
+    expect(first.item.name).to.be.a("string");
+  });
+}
+
+script:post-response {
+  // Rocalc-style endgame render; names are inlined under each
+  // equipment.item, skill, card, and leveling_target.target, so no
+  // separate catalog_names lookup is needed.
+
+  const data = res.getBody() || {};
+  const snaps = (data.primary && data.primary.snapshots) || [];
+  const hero  = snaps[snaps.length - 1] || {};
+  const sc    = hero.score || {};
+  const d     = sc.derived || {};
+  const cm    = sc.combat;
+
+  const fmt = (x) => (x === null || x === undefined) ? "-" : String(x);
+  const pad = (x, n) => {
+    const s = String(x);
+    return " ".repeat(Math.max(0, n - s.length)) + s;
+  };
+  const refName = (ref) => {
+    if (!ref) return "-";
+    if (ref.name) return ref.name;
+    return "#" + ref.id + " (unknown)";
+  };
+  const cardsInline = (cards) => {
+    if (!cards || cards.length === 0) return "";
+    return " · cards: " + cards.map(refName).join(", ");
+  };
+
+  const out = [];
+  out.push("═══ Endgame Build ═══");
+  out.push("Class:  " + (hero.class || "?"));
+  let lvlLine = "Level:  " + ((hero.level && hero.level.base) ?? "?")
+    + " / " + ((hero.level && hero.level.job) ?? "?");
+  if (hero.post_rebirth) lvlLine += "  (post-rebirth)";
+  if (hero.leveling_target && hero.leveling_target.target) {
+    lvlLine += "    leveling target: " + refName(hero.leveling_target.target);
+  }
+  out.push(lvlLine);
+
+  out.push("");
+  out.push("── Stats ──");
+  const st = hero.stats || {};
+  out.push("  STR " + pad(st.str ?? 0, 4));
+  out.push("  AGI " + pad(st.agi ?? 0, 4));
+  out.push("  VIT " + pad(st.vit ?? 0, 4));
+  out.push("  INT " + pad(st.int ?? 0, 4));
+  out.push("  DEX " + pad(st.dex ?? 0, 4));
+  out.push("  LUK " + pad(st.luk ?? 0, 4));
+
+  out.push("");
+  out.push("── Equipment & Cards ──");
+  const eq = hero.equipment || {};
+  const slots = Object.keys(eq).sort();
+  if (slots.length === 0) {
+    out.push("  (none)");
+  } else {
+    for (const slot of slots) {
+      const spec = eq[slot] || {};
+      out.push("  " + slot + ":  " + refName(spec.item)
+        + "  +" + (spec.refine || 0)
+        + cardsInline(spec.cards));
+    }
+  }
+
+  out.push("");
+  const sk = hero.skills || [];
+  out.push("── Skills (" + sk.length + " allocated) ──");
+  if (sk.length === 0) {
+    out.push("  (none)");
+  } else {
+    const sorted = [...sk].sort((a, b) => (a.id || 0) - (b.id || 0));
+    for (const s of sorted) {
+      const label = s.name || ("#" + s.id + " (unknown)");
+      out.push("  " + label + "  lv " + s.level);
+    }
+  }
+
+  out.push("");
+  out.push("── Derived Stats ──");
+  if (Object.keys(d).length === 0) {
+    out.push("  (snapshot not scored; calc skipped)");
+  } else {
+    const atk = d.atk || {};
+    const matk = d.matk || {};
+    const def = d.def || {};
+    const mdef = d.mdef || {};
+    out.push("  HIT  " + fmt(d.hit) + "   FLEE " + fmt(d.flee)
+      + "   CRI " + fmt(d.cri) + "   ASPD " + fmt(d.aspd));
+    out.push("  ATK  " + fmt(atk.base) + " + " + fmt(atk.plus)
+      + "   MATK " + fmt(matk.min) + "–" + fmt(matk.max));
+    out.push("  DEF  " + fmt(def.hard) + " / " + fmt(def.soft) + " (hard/soft)"
+      + "   MDEF " + fmt(mdef.hard) + " / " + fmt(mdef.soft));
+    out.push("  MaxHP " + fmt(d.maxHp) + "   MaxSP " + fmt(d.maxSp)
+      + "   Stat points left " + fmt(d.statPointsRemaining));
+  }
+
+  if (cm) {
+    const enemy = cm.enemy || {};
+    const dmg = cm.damage || {};
+    const inc = cm.incoming || {};
+    const targetRef = hero.leveling_target && hero.leveling_target.target;
+    const targetLabel = targetRef ? (refName(targetRef) + "; ") : "";
+    out.push("");
+    out.push("── Vs Target (" + targetLabel
+      + (enemy.race || "?") + " / "
+      + (enemy.element || "?") + " / "
+      + (enemy.size || "?")
+      + ", HP " + fmt(enemy.hp) + ") ──");
+    out.push("  your damage:  min/avg/max  " + fmt(dmg.min) + " / " + fmt(dmg.ave) + " / " + fmt(dmg.max));
+    out.push("  incoming:     min/avg/max  " + fmt(inc.min) + " / " + fmt(inc.ave) + " / " + fmt(inc.max));
+    out.push("  hit/flee:     " + fmt(cm.hit) + " / " + fmt(cm.flee)
+      + "    battle time " + fmt(cm.battleTimeSec) + "s");
+  }
+
+  const gates = hero.gates || [];
+  const counts = { pass: 0, warn: 0, fail: 0, fail_hard: 0 };
+  for (const g of gates) if (counts[g.severity] !== undefined) counts[g.severity]++;
+  const verdict = (counts.fail + counts.fail_hard) > 0
+    ? "BAD"
+    : (counts.warn > 0 ? "GOOD (with " + counts.warn + " warning" + (counts.warn === 1 ? "" : "s") + ")" : "GOOD");
+  out.push("");
+  out.push("── Gates ──");
+  out.push("  pass=" + counts.pass + "  warn=" + counts.warn
+    + "  fail=" + counts.fail + "  fail_hard=" + counts.fail_hard
+    + "   ⇒ " + verdict);
+  for (const g of gates) {
+    if (g.severity === "pass") continue;
+    out.push("    [" + g.severity + "] " + g.name + ": " + (g.reason || "(no reason)"));
+  }
+
+  out.push("");
+  out.push("saved build id: " + (data.id || "?"));
+  console.log(out.join("\n"));
+}

@@ -1,0 +1,394 @@
+# go-task taskfile (https://taskfile.dev). Run `task` (no args) to list
+# every task with its description. The structure mirrors a typical
+# multi-language repo: bootstrap → fmt/lint → build/test → run.
+#
+# Build artifacts land in bin/, coverage reports in coverage/, runtime
+# temp files in tmp/ (all gitignored). Real config lives in .env (also
+# gitignored); see .env.example for the template.
+
+version: '3'
+
+# .env is loaded automatically; every task's commands and subprocesses
+# see LLM_API_KEY, PORT, SIDECAR_URL, etc. without manual exports.
+# Missing .env on a fresh clone is non-fatal in modern go-task; bootstrap
+# creates it the first time.
+dotenv: ['.env']
+
+vars:
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  COVERAGE_DIR: '{{.ROOT_DIR}}/coverage'
+  TMP_DIR: '{{.ROOT_DIR}}/tmp'
+  SIDECAR_DIR: '{{.ROOT_DIR}}/calc-sidecar'
+
+tasks:
+
+  default:
+    desc: List available tasks (run with no args)
+    silent: true
+    cmds:
+      - task --list
+
+  # ------------------------------ bootstrap ------------------------------
+
+  bootstrap:
+    desc: One-shot dev environment setup (env file + Go modules + Node deps)
+    cmds:
+      - task: bootstrap:env
+      - task: bootstrap:go
+      - task: bootstrap:node
+
+  bootstrap:env:
+    desc: Create .env from .env.example if missing
+    status:
+      - test -f .env
+    cmds:
+      - cp .env.example .env
+      - 'echo "Created .env from .env.example; fill in LLM_API_KEY for /generate."'
+
+  bootstrap:go:
+    desc: Download Go module dependencies
+    cmds:
+      - go mod download
+
+  bootstrap:node:
+    desc: Install calc-sidecar npm dependencies
+    dir: '{{.SIDECAR_DIR}}'
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/.package-lock.json
+    cmds:
+      - npm install
+
+  # -------------------------------- clean --------------------------------
+
+  clean:
+    desc: Remove all build/test artifacts (bin/, coverage/, tmp/, sidecar coverage)
+    cmds:
+      - rm -rf {{.BIN_DIR}} {{.COVERAGE_DIR}} {{.TMP_DIR}}
+      - rm -rf {{.SIDECAR_DIR}}/coverage
+      - go clean -cache -testcache
+
+  # -------------------------------- format -------------------------------
+  #
+  # Mirrors the lint:go / lint:ts split: top-level fmt aggregates the two
+  # languages; per-language tasks let you target one side without the other.
+  # Prettier is required (via calc-sidecar/package.json devDep); fmt:ts
+  # and fmt:check:ts fail loudly if node_modules hasn't been bootstrapped.
+
+  fmt:
+    desc: Auto-format Go (gofmt) and TypeScript (prettier)
+    cmds:
+      - task: fmt:go
+      - task: fmt:ts
+
+  fmt:go:
+    desc: Auto-format Go (gofmt -w)
+    cmds:
+      - gofmt -w .
+
+  fmt:ts:
+    desc: 'Auto-format TypeScript (prettier --write). Requires `task bootstrap:node`.'
+    dir: '{{.SIDECAR_DIR}}'
+    cmds:
+      - node node_modules/prettier/bin/prettier.cjs --write 'src/**/*.ts' 'test/**/*.ts' 'server.ts'
+
+  fmt:check:
+    desc: 'Verify formatting without mutating; fails on drift. Used by `task check`.'
+    cmds:
+      - task: fmt:check:go
+      - task: fmt:check:ts
+
+  fmt:check:go:
+    desc: Verify Go formatting (fails on drift; prints the diff)
+    cmds:
+      # gofmt -l prints the names of files that need formatting and exits 0
+      # regardless. Wrap to fail (with a useful diff) when the list is non-empty.
+      - 'test -z "$(gofmt -l .)" || (echo "Files need gofmt:"; gofmt -l .; echo; echo "--- diff ---"; gofmt -d .; echo; echo "Run \"task fmt\" to fix."; exit 1)'
+
+  fmt:check:ts:
+    desc: 'Verify TypeScript formatting (prettier --check). Requires `task bootstrap:node`.'
+    dir: '{{.SIDECAR_DIR}}'
+    cmds:
+      - node node_modules/prettier/bin/prettier.cjs --check 'src/**/*.ts' 'test/**/*.ts' 'server.ts'
+
+  # -------------------------------- lint ---------------------------------
+
+  lint:
+    desc: Run all linters (golangci-lint + TypeScript type-check)
+    cmds:
+      - task: lint:go
+      - task: lint:ts
+
+  lint:go:
+    desc: golangci-lint over all Go packages (config in .golangci.yml)
+    cmds:
+      - golangci-lint run ./...
+
+  lint:go:fix:
+    desc: 'Run golangci-lint with --fix to auto-apply safe fixes (gofmt, simple rewrites)'
+    cmds:
+      - golangci-lint run --fix ./...
+
+  lint:ts:
+    desc: TypeScript strict type-check (tsc --noEmit)
+    dir: '{{.SIDECAR_DIR}}'
+    cmds:
+      - node node_modules/typescript/bin/tsc --noEmit
+
+  # -------------------------------- build --------------------------------
+
+  build:
+    desc: Build all deployable Go binaries to bin/. The api binary embeds the catalog at compile time via //go:embed; running `task catalog` first regenerates the embedded JSON if upstream emulator data has changed.
+    deps: [build:dir]
+    sources:
+      # cmd/build-catalog is intentionally excluded: it's a run-only refresh
+      # tool (its output is committed under internal/catalog/data/), not a
+      # deployable artifact. Including it in the glob would mark `build` as
+      # stale on every edit without producing a corresponding binary.
+      - 'cmd/api/**/*.go'
+      - 'cmd/build-rocalc-mapping/**/*.go'
+      - 'cmd/enrich-mapping-rms/**/*.go'
+      - 'cmd/verify-mapping/**/*.go'
+      - 'internal/**/*.go'
+      # Embedded assets: go:embed reads these into the api binary, so
+      # changes to them must trigger a rebuild even when no .go file changed.
+      - 'internal/catalog/data/*.json'
+      - 'internal/catalog/data/*.yaml'
+      - 'configs/servers/*.yaml'
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.BIN_DIR}}/api'
+      - '{{.BIN_DIR}}/build-rocalc-mapping'
+      - '{{.BIN_DIR}}/enrich-mapping-rms'
+      - '{{.BIN_DIR}}/verify-mapping'
+    cmds:
+      - go build -o {{.BIN_DIR}}/api ./cmd/api
+      - go build -o {{.BIN_DIR}}/build-rocalc-mapping ./cmd/build-rocalc-mapping
+      - go build -o {{.BIN_DIR}}/enrich-mapping-rms ./cmd/enrich-mapping-rms
+      - go build -o {{.BIN_DIR}}/verify-mapping ./cmd/verify-mapping
+
+  build:dir:
+    desc: Internal; ensure bin/ exists
+    internal: true
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+
+  catalog:
+    desc: 'Regenerate the embedded item/mob catalog (run-only, no build target). Default source is Hercules; pass extra flags after `--`, e.g. `task catalog -- -source rathena`.'
+    cmds:
+      - go run ./cmd/build-catalog {{.CLI_ARGS}}
+
+  oapi:gen:
+    desc: 'Regenerate Go bindings from api/openapi.yaml (oapi-codegen via Go tools). Run after editing the spec.'
+    sources:
+      - api/openapi.yaml
+      - internal/api/oapi/cfg.yaml
+    generates:
+      - internal/api/oapi/oapi.gen.go
+    cmds:
+      - go generate ./internal/api/oapi/
+
+  # -------------------------------- test ---------------------------------
+
+  test:
+    desc: Run unit tests (Go + sidecar; integration tests skipped via -short)
+    cmds:
+      - task: test:go
+      - task: test:sidecar
+
+  test:go:
+    desc: Go unit tests (-short skips integration tests)
+    cmds:
+      - go test -short ./...
+
+  test:sidecar:
+    desc: 'Sidecar TypeScript tests; fast subset (load/shim/score/server). Skips supported-classes.test.ts. Run `test:sidecar:full` before pushing.'
+    dir: '{{.SIDECAR_DIR}}'
+    cmds:
+      - node --test test/load.test.ts test/shim.test.ts test/score.test.ts test/server.test.ts
+
+  test:sidecar:full:
+    desc: 'Full sidecar test sweep including supported-classes. Wired into check:full and test:all.'
+    dir: '{{.SIDECAR_DIR}}'
+    cmds:
+      - node --test test/*.test.ts
+
+  test:coverage:
+    desc: Go tests with HTML coverage report at coverage/go.html
+    deps: [test:coverage:dir]
+    cmds:
+      - go test -short -coverprofile={{.COVERAGE_DIR}}/go.out ./...
+      - go tool cover -html={{.COVERAGE_DIR}}/go.out -o {{.COVERAGE_DIR}}/go.html
+      - 'echo "coverage report → {{.COVERAGE_DIR}}/go.html"'
+
+  test:coverage:dir:
+    desc: Internal; ensure coverage/ exists
+    internal: true
+    cmds:
+      - mkdir -p {{.COVERAGE_DIR}}
+
+  test:integration:
+    desc: Integration tests; boots node sidecar and hits real Anthropic if LLM_API_KEY is set
+    cmds:
+      - go test -v -run Integration ./...
+
+  test:all:
+    desc: All tests; unit (with the full sidecar sweep) + integration. Used for thorough local verification or CI.
+    cmds:
+      - task: test:go
+      - task: test:sidecar:full
+      - task: test:integration
+
+  e2e:
+    desc: End-to-end smoke test; boots sidecar + API on isolated ports / temp DB, POSTs /score and (if LLM_API_KEY set) /generate, tears down. See scripts/e2e.sh. Fast; rebuilds the api binary natively.
+    cmds:
+      - ./scripts/e2e.sh
+
+  docker:e2e:
+    desc: Same e2e validation but against `docker compose up`; verifies the actual ship images (Dockerfile / env wiring / healthchecks). Slower. See scripts/docker-e2e.sh.
+    cmds:
+      - ./scripts/docker-e2e.sh
+
+  # -------------------------------- run ----------------------------------
+  #
+  # The two services run independently in separate terminals; this keeps
+  # logs readable and Ctrl+C scoped. For "run both" use a tool you already
+  # have (tmux, foreman, overmind); orchestrating background processes
+  # cleanly cross-platform isn't worth a custom Taskfile shell pipeline.
+
+  run:sidecar:
+    desc: Run the calc sidecar in foreground (port from PORT env, default 7401)
+    dir: '{{.SIDECAR_DIR}}'
+    cmds:
+      - node server.ts
+
+  run:api:
+    desc: Run the API server in foreground (config from .env / env vars)
+    cmds:
+      - go run ./cmd/api
+
+  # ------------------------------ docker ---------------------------------
+  #
+  # docker-compose orchestrates sidecar + api in one shot; useful for a
+  # prod-shaped local run, CI parity, or sharing a stable env across devs.
+  # The native `task run:sidecar` + `task run:api` pair is still the
+  # fastest dev-iteration path; both coexist.
+
+  docker:build:
+    desc: Build both Docker images without starting them
+    cmds:
+      - docker compose build
+
+  docker:up:
+    desc: Build (if needed) + start sidecar and api in the foreground
+    cmds:
+      - docker compose up --build
+
+  docker:down:
+    desc: Stop and remove containers (named volumes survive; use docker:nuke to drop them too)
+    cmds:
+      - docker compose down
+
+  docker:nuke:
+    desc: Stop, remove containers AND named volumes (drops the persisted buildlibrary)
+    cmds:
+      - docker compose down -v
+
+  # ------------------------------- tilt ----------------------------------
+  #
+  # Tilt runs the full stack on docker-desktop's k8s with live-reload for
+  # both services. See Tiltfile.
+  #
+  # Day-zero: `task tilt:bootstrap` (one-shot; installs sealed-secrets
+  # controller, creates namespace), then `task tilt:seal` (encrypts your
+  # .env's LLM_API_KEY), then `task tilt:up`.
+  #
+  # The compose path (docker:*) is intact and remains the CI test target.
+
+  tilt:bootstrap:
+    desc: 'One-shot k8s setup: install sealed-secrets controller, create namespace. Idempotent.'
+    deps: [bootstrap]
+    cmds:
+      - ./scripts/k8s-bootstrap.sh
+
+  tilt:seal:
+    desc: 'Encrypt LLM_API_KEY from .env into deploy/k8s/sealed-secrets/local.sealed-secret.yaml.'
+    cmds:
+      - ./scripts/seal-secret.sh
+
+  tilt:up:
+    desc: 'Start the full stack under Tilt (foreground; Ctrl-C to stop).'
+    cmds:
+      - tilt up
+
+  tilt:down:
+    desc: 'Stop Tilt-managed resources. The PVC (buildlibrary) survives.'
+    cmds:
+      - tilt down
+
+  tilt:nuke:
+    desc: 'Stop Tilt + delete the namespace (drops the PVC and the buildlibrary).'
+    cmds:
+      - tilt down
+      - kubectl delete namespace ro-builder --ignore-not-found
+
+  tilt:lint:
+    desc: 'helm lint the chart standalone (subset of `task check`).'
+    cmds:
+      - helm lint deploy/helm/ro-builder
+
+  tilt:e2e:
+    desc: 'End-to-end against k8s; helm install in a temp namespace, POST /score, tear down. Parallel to docker:e2e. Slow.'
+    cmds:
+      - ./scripts/k8s-e2e.sh
+
+  # ------------------------------ mapping --------------------------------
+
+  mapping:
+    desc: Regenerate the rocalc → iRO mapping table from current data sources
+    cmds:
+      - go run ./cmd/build-rocalc-mapping
+
+  mapping:verify:
+    desc: Cross-check mapping.json against Hercules + rAthena (reports divergences)
+    cmds:
+      - go run ./cmd/verify-mapping
+
+  mapping:enrich:
+    desc: Query rms for unmatched entries; write suggestions to rms_suggestions.json
+    cmds:
+      - go run ./cmd/enrich-mapping-rms
+
+  mapping:enrich:apply:
+    desc: Merge high-confidence rms suggestions into manual_overrides.json
+    cmds:
+      - go run ./cmd/enrich-mapping-rms --apply
+
+  # -------------------------------- check --------------------------------
+  # Convenience: everything CI would run.
+
+  check:
+    desc: 'Pre-commit gate: fmt-check + lint + build + test + helm lint. Non-mutating; safe to run repeatedly. Fast.'
+    cmds:
+      - task: fmt:check
+      - task: lint
+      - task: build
+      - task: test
+      - task: tilt:lint
+
+  check:full:
+    desc: 'Pre-push gate: check + full sidecar sweep + native e2e + compose e2e + tilt e2e. Slowest; both packaging stories verified.'
+    cmds:
+      - task: check
+      - task: test:sidecar:full
+      - task: e2e
+      - task: docker:e2e
+      - task: tilt:e2e
+
+  check:docker:
+    desc: 'Alias for check:full; docker:e2e is now part of check:full. Kept for compatibility with existing habits.'
+    cmds:
+      - task: check:full

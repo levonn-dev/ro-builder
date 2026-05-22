@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ro-builder.apiName" . }}-buildlibrary
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "api" "root" .) | nindent 4 }}
+spec:
+  # SQLite is single-writer; RWO is the right mode and the only one
+  # that's safe given the api workload's replicas=1 + strategy=Recreate.
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.api.persistence.size }}
+  {{- if .Values.api.persistence.storageClassName }}
+  storageClassName: {{ .Values.api.persistence.storageClassName | quote }}
+  {{- end }}

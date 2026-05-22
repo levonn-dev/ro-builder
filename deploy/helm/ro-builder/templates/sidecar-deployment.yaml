@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ro-builder.sidecarName" . }}
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "sidecar" "root" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.sidecar.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "ro-builder.selectorLabels" (dict "component" "sidecar" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ro-builder.selectorLabels" (dict "component" "sidecar" "root" .) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "ro-builder.sidecarName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: sidecar
+          image: "{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag }}"
+          imagePullPolicy: {{ .Values.sidecar.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 7401
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "7401"
+            - name: SIDECAR_WORKERS
+              value: "{{ .Values.sidecar.workers }}"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: {{ .Values.sidecar.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.sidecar.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.sidecar.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.sidecar.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: {{ .Values.sidecar.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.sidecar.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.sidecar.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.sidecar.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.sidecar.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true

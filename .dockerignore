@@ -1,0 +1,44 @@
+# Things the docker build context doesn't need. Keeps the upload to the
+# daemon small and prevents accidentally embedding secrets / local state.
+
+# Git + IDE.
+.git
+.idea
+.vscode
+
+# Build artifacts.
+bin
+dist
+.task
+coverage
+tmp
+
+# Environment + secrets.
+.env
+
+# Sidecar local installs (re-installed inside the image).
+calc-sidecar/node_modules
+
+# Local SQLite library.
+buildlibrary.db
+buildlibrary.db-journal
+buildlibrary.db-wal
+buildlibrary.db-shm
+
+# Reference docs / generated mapping artifacts (committed but not needed
+# for the runtime images).
+ref_docs
+cmd/build-rocalc-mapping/rms_suggestions.json
+cmd/build-rocalc-mapping/unmatched-*.txt
+
+# Docker compose / dockerfiles themselves don't need to be inside the
+# image. (Dockerfile is referenced via `dockerfile:` in compose so it
+# still gets read; this just keeps it out of the COPY tree.)
+docker
+docker-compose.yml
+.dockerignore
+
+# K8s deployment story; out of the docker build context, never needed
+# inside the runtime images.
+deploy
+Tiltfile

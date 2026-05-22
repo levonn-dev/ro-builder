@@ -1,0 +1,68 @@
+meta {
+  name: generate
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/generate
+  body: json
+  auth: inherit
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "class": "taekwon_kid",
+    "server": "uaro",
+    "playstyle": "pvm",
+    "description": "General PvM Taekwon Ranker"
+  }
+}
+
+docs {
+  Async LLM-driven generation. Returns 202 immediately with a
+  generation id; poll `generation-status` until status is `completed`
+  or `failed`. Once completed, `get-saved-build` fetches the enriched
+  trajectory keyed by the same id.
+
+  The post-response script stashes the id as both `generationId`
+  (used by `generation-status`) and `savedBuildId` (used by
+  `get-saved-build`); they're the same value by design.
+
+  In the background the orchestrator drives Anthropic Sonnet through
+  a tool-use loop: list_class_skills → search_items → score_build →
+  submit_trajectory. Quality gates run inside submit_trajectory; if
+  any snapshot fails, the tool returns an error so the LLM iterates
+  within the same conversation. Only passing trajectories are
+  persisted to the build library.
+
+  Wall time: 30-300s for typical TK builds, bounded by
+  GENERATION_MAX_ITERS (default 60). Backpressure: 429 if
+  GENERATION_QUEUE_CAP is reached; 503 if the API is shutting down.
+}
+
+tests {
+  test("status is 202", function() {
+    expect(res.getStatus()).to.equal(202);
+  });
+  test("id present", function() {
+    expect(res.getBody().id).to.be.a("string").and.not.empty;
+  });
+}
+
+script:post-response {
+  const data = res.getBody() || {};
+  if (data.id) {
+    bru.setVar("generationId", data.id);
+    bru.setVar("savedBuildId", data.id);
+    console.log("");
+    console.log("Generation enqueued: " + data.id);
+    console.log("");
+    console.log("Next: run 'generation-status' to poll until completed,");
+    console.log("then 'get-saved-build' for the enriched view.");
+  }
+}

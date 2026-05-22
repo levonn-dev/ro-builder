@@ -1,0 +1,60 @@
+# Hand-authored item immunity tags. Merged into the catalog at build time
+# by cmd/build-catalog. Source: irowiki classic effect pages + WoE Class
+# Guides spreadsheet status formulas + UARO wiki for server-specific items.
+#
+# This overlay only carries items that grant FULL immunity to a status
+# (Marc → frozen, Nightmare → sleep, etc.) or grant uninterruptible cast
+# (Phen, Orleans Gown). Partial resists (Diabolus's "+50% stun resist")
+# DO NOT belong here; those run through the gate logic's stat / score
+# breakdown path, not the binary tag.
+#
+# Status keys must come from data.AllImmunities:
+#   frozen, stun, sleep, stone_curse, curse, silence, blind, poison, confusion
+#
+# When adding a row: cite the source (wiki / in-game / RMS) so future
+# editors can re-verify after upstream balance changes.
+
+items:
+  # Element-armor cards that fully prevent freezing because of element
+  # type, not partial resistance. (Frozen status only applies to neutral /
+  # water / a couple of other element targets; armor-element-changing
+  # cards remove that vector.)
+  - id: 4105    # Marc_Card
+    grants_immunity: [ frozen ]
+    # source: irowiki Marc_Card; "Adds immunity to Frozen status".
+  - id: 4099    # Pasana_Card; Fire 1 armor; can't be frozen.
+    grants_immunity: [ frozen ]
+    # source: irowiki Pasana_Card; element conversion → Fire armor.
+  - id: 4119    # Bathory_Card; Shadow 1 armor; can't be frozen.
+    grants_immunity: [ frozen ]
+    # source: irowiki Bathory_Card; element conversion → Shadow armor.
+  - id: 4141    # Evil_Druid_Card; Undead 1 armor.
+    grants_immunity: [ frozen, stone_curse, sleep ]
+    # source: irowiki Evil_Druid_Card; Undead element grants the listed
+    # immunities; trade-off is +100% holy damage taken.
+  - id: 4114    # Argiope_Card; Poison 1 armor; can't be poisoned.
+    grants_immunity: [ poison ]
+    # source: irowiki Argiope_Card; Poison armor blocks the status.
+
+  # Status-immunity headgear cards. These only grant immunity at +9 in
+  # some servers; for now we treat any equip as the immunity grant since
+  # UARO's wiki does not distinguish (revisit if UARO changes).
+  - id: 4127    # Nightmare_Card
+    grants_immunity: [ sleep ]
+    # source: irowiki Nightmare_Card; "Adds immunity to Sleep status".
+  - id: 4112    # Marduk_Card
+    grants_immunity: [ silence ]
+    # source: irowiki Marduk_Card; "Adds immunity to Silence status".
+  - id: 4087    # Giearth_Card
+    grants_immunity: [ confusion ]
+    # source: irowiki Giearth_Card; "Adds immunity to Chaos / Confusion
+    # status" plus Earth resistance (resist tracked elsewhere).
+
+  # Uninterruptible cast; the gate looks for any equipped item carrying
+  # this flag when a build allocates a long interruptible-cast skill.
+  - id: 4077    # Phen_Card
+    grants_uninterruptible_cast: true
+    # source: irowiki Phen_Card; "Cast cannot be interrupted by attacks".
+  - id: 2365    # Orleans_Gown (Orleans's Gown)
+    grants_uninterruptible_cast: true
+    # source: irowiki Orleans_Gown; same effect, but gown-slot.

@@ -1,0 +1,61 @@
+meta {
+  name: generation-status
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/generations/{{generationId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Poll endpoint for an async generation. Run repeatedly until
+  `status` is `completed` or `failed`. Production clients should
+  poll at ~30s intervals.
+
+  Status values:
+    - `queued`   ; in the worker queue, not yet picked up
+    - `running`  ; worker is executing the LLM tool-use loop
+    - `completed`; trajectory passed quality gates and is persisted;
+                    `build_id` is set; chain to `get-saved-build` next
+    - `failed`   ; generation gave up; `error` carries a generic
+                    user-facing message (operator-facing detail
+                    lives in the DB + server logs)
+
+  `generationId` is set by the `generate` request's post-response
+  script. To poll a different generation, override the variable in
+  Bruno's environment panel.
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("status field is a known value", function() {
+    expect(res.getBody().status).to.be.oneOf(["queued", "running", "completed", "failed"]);
+  });
+}
+
+script:post-response {
+  const data = res.getBody() || {};
+  const lines = [""];
+  lines.push("Generation " + (data.id || "?"));
+  lines.push("  status:       " + (data.status || "?"));
+  if (data.created_at)   lines.push("  created_at:   " + data.created_at);
+  if (data.started_at)   lines.push("  started_at:   " + data.started_at);
+  if (data.completed_at) lines.push("  completed_at: " + data.completed_at);
+
+  if (data.status === "completed") {
+    lines.push("");
+    lines.push("Build is ready. Run 'get-saved-build' for the enriched view.");
+  } else if (data.status === "failed") {
+    lines.push("");
+    lines.push("Generation failed: " + (data.error || "(no error)"));
+  } else {
+    lines.push("");
+    lines.push("Still running. Re-run this request to poll again.");
+  }
+  console.log(lines.join("\n"));
+}
