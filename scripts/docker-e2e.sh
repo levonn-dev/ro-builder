@@ -123,25 +123,32 @@ if [[ "$HTTP_CODE" != "200" ]]; then
 	exit 1
 fi
 
-if ! jq -e '
+# Backend-dependent numeric floors. Stub returns fiction regardless of
+# input, so only positive-bounds invariants are checkable. Real backends
+# get the original shape-regression-catching floors (above lvl-1-Novice).
+CALC_VERSION=$(jq -r '.calc_version // ""' "$TMP/score-response.json")
+if [[ "$CALC_VERSION" == stub-* ]]; then
+	BOUNDS_FILTER='(.derived.maxHp > 0) and (.derived.aspd > 0) and (.derived.atk.base >= 0) and (.derived.hit >= 0)'
+	BOUNDS_DESC='derived.{maxHp>0, aspd>0, atk.base>=0, hit>=0} (stub mode)'
+else
+	BOUNDS_FILTER='(.derived.maxHp > 1000) and (.derived.aspd > 100) and (.derived.atk.base > 0) and (.derived.hit > 50)'
+	BOUNDS_DESC='derived.{maxHp>1000, aspd>100, atk.base>0, hit>50} (a shape regression would yield Novice-default maxHp~40)'
+fi
+if ! jq -e "
 	(.error // null) == null
-	and (.derived | type == "object")
-	and (.derived.maxHp > 1000)
-	and (.derived.aspd > 100)
-	and (.derived.atk.base > 0)
-	and (.derived.hit > 50)
-	and (.calc_version | type == "string")
+	and (.derived | type == \"object\")
+	and ($BOUNDS_FILTER)
+	and (.calc_version | type == \"string\")
 	and (.calc_version | length > 0)
-' "$TMP/score-response.json" >/dev/null 2>&1; then
+" "$TMP/score-response.json" >/dev/null 2>&1; then
 	echo "[docker-e2e] /score response failed validation" >&2
-	echo "      expected: no error; derived.{maxHp>1000, aspd>100, atk.base>0, hit>50}; non-empty calc_version" >&2
+	echo "      expected: no error; $BOUNDS_DESC; non-empty calc_version" >&2
 	exit 1
 fi
 SCORE_HP=$(jq -r '.derived.maxHp' "$TMP/score-response.json")
 SCORE_ASPD=$(jq -r '.derived.aspd' "$TMP/score-response.json")
 SCORE_HIT=$(jq -r '.derived.hit' "$TMP/score-response.json")
-SCORE_VER=$(jq -r '.calc_version' "$TMP/score-response.json")
-echo "[docker-e2e] /score OK (maxHp=$SCORE_HP aspd=$SCORE_ASPD hit=$SCORE_HIT calc=$SCORE_VER)"
+echo "[docker-e2e] /score OK (calc=$CALC_VERSION maxHp=$SCORE_HP aspd=$SCORE_ASPD hit=$SCORE_HIT)"
 
 # --- /generate validation (conditional) ---
 if [[ -n "${LLM_API_KEY:-}" ]]; then

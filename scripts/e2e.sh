@@ -194,29 +194,33 @@ fi
 # Validation contract:
 #   - No top-level "error" key (would mean a 200-with-error-body)
 #   - .derived is an object
-#   - .derived.maxHp > 1000; a lvl 50/30 Swordsman with 40 VIT should
-#     have well over 1k HP. A lvl-1-Novice default would have ~40 HP, so
-#     this floor catches request-shape regressions outright.
-#   - .derived.aspd > 100; recompute ran on real stats, not zeroes.
-#   - .derived.atk.base > 0; STR=60 produces non-trivial base ATK.
-#   - .derived.hit > 50; DEX=30 + lvl 50 produces hit > 50.
-if ! jq -e '
+#   - Backend-dependent numeric floors. Read calc_version to pick:
+#     - stub backend ("stub-v1"): returns fiction regardless of input;
+#       only shape + positive-bounds invariants are checkable.
+#     - real backend (e.g. rocalc): floors above the lvl-1-Novice
+#       defaults (maxHp~40) catch request-shape regressions where the
+#       API silently decoded to a zero-value Build.
+CALC_VERSION=$(jq -r '.calc_version // ""' "$TMP/score-response.json")
+if [[ "$CALC_VERSION" == stub-* ]]; then
+	BOUNDS_FILTER='(.derived.maxHp > 0) and (.derived.aspd > 0) and (.derived.atk.base >= 0) and (.derived.hit >= 0)'
+	BOUNDS_DESC='derived.{maxHp>0, aspd>0, atk.base>=0, hit>=0} (stub mode; no shape-regression detection)'
+else
+	BOUNDS_FILTER='(.derived.maxHp > 1000) and (.derived.aspd > 100) and (.derived.atk.base > 0) and (.derived.hit > 50)'
+	BOUNDS_DESC='derived.{maxHp>1000, aspd>100, atk.base>0, hit>50} (defaults would yield maxHp~40; a shape regression would trip this)'
+fi
+if ! jq -e "
 	(.error // null) == null
-	and (.derived | type == "object")
-	and (.derived.maxHp > 1000)
-	and (.derived.aspd > 100)
-	and (.derived.atk.base > 0)
-	and (.derived.hit > 50)
-' "$TMP/score-response.json" >/dev/null 2>&1; then
+	and (.derived | type == \"object\")
+	and ($BOUNDS_FILTER)
+" "$TMP/score-response.json" >/dev/null 2>&1; then
 	echo "[e2e] /score response failed validation" >&2
-	echo "      expected: no error; derived.{maxHp>1000, aspd>100, atk.base>0, hit>50}" >&2
-	echo "      (defaults would yield maxHp~40; a regression in request shape would trip this)" >&2
+	echo "      expected: no error; $BOUNDS_DESC" >&2
 	exit 1
 fi
 SCORE_HP=$(jq -r '.derived.maxHp' "$TMP/score-response.json")
 SCORE_ASPD=$(jq -r '.derived.aspd' "$TMP/score-response.json")
 SCORE_HIT=$(jq -r '.derived.hit' "$TMP/score-response.json")
-echo "[e2e] /score OK (maxHp=$SCORE_HP aspd=$SCORE_ASPD hit=$SCORE_HIT)"
+echo "[e2e] /score OK (calc=$CALC_VERSION maxHp=$SCORE_HP aspd=$SCORE_ASPD hit=$SCORE_HIT)"
 
 # --- /generate validation (conditional) ---
 if [[ -n "${LLM_API_KEY:-}" ]]; then
