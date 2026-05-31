@@ -417,6 +417,13 @@ task mapping:enrich     # query ratemyserver.net for unmatched entries
 - Comments: only when WHY is non-obvious. API handlers in `internal/api/` are an explicit exception; those carry
   reference-doc comments. Everywhere else, identifier names do the explaining.
 
+### CI
+
+Every PR and push to `main` runs the CI workflow at [`.github/workflows/ci.yml`](.github/workflows/ci.yml). The
+workflow mirrors `task check` (fmt-check, lint, build, unit tests, helm lint) plus native and docker-compose e2e
+runs, all against the stub calc backend (no `vendor/rocalc/` needed). The `/generate` half of e2e is skipped
+because `LLM_API_KEY` is not provisioned in CI.
+
 ---
 
 ## TODO
