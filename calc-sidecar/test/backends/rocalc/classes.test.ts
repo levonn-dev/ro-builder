@@ -9,7 +9,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createShim } from "../src/shim.ts";
+import { createShim } from "../../../src/shim.ts";
 
 // One canonical name per class id we promise to support. Aliases
 // (mage, swordsman, taekwon_master, supernovice, sin_x, scholar,

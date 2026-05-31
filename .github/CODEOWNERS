@@ -1,0 +1,3 @@
+# Require review from the repository owner on all changes.
+# Enables the CODEOWNERS-based pull request reviewer rule.
+* @levonn-dev

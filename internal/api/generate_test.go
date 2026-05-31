@@ -101,6 +101,11 @@ func TestGenerate_503WhenShuttingDown(t *testing.T) {
 	if got := rec.Header().Get("Retry-After"); got != "300" {
 		t.Fatalf("Retry-After: got %q, want 300", got)
 	}
+	// Distinct error text from the no-enqueuer 503 path; the shutdown
+	// message must not bleed into other 503 cases.
+	if got := rec.Body.String(); !strings.Contains(got, "shutting down") {
+		t.Fatalf("body: want 'shutting down' substring, got %q", got)
+	}
 }
 
 func TestGenerate_503WhenNoEnqueuer(t *testing.T) {
@@ -108,6 +113,16 @@ func TestGenerate_503WhenNoEnqueuer(t *testing.T) {
 	rec := postJSON(t, srv, "/generate", `{"class":"novice"}`)
 	if rec.Code != 503 {
 		t.Fatalf("status: got %d, want 503", rec.Code)
+	}
+	// Distinct error text from the shutting-down 503 path; operators
+	// reading the body should see "LLM provider not configured", not
+	// the shutdown message.
+	if got := rec.Body.String(); !strings.Contains(got, "LLM provider not configured") {
+		t.Fatalf("body: want 'LLM provider not configured' substring, got %q", got)
+	}
+	// No Retry-After: this case isn't shutdown-related.
+	if got := rec.Header().Get("Retry-After"); got != "" {
+		t.Fatalf("Retry-After: want empty, got %q", got)
 	}
 }
 

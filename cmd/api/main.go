@@ -5,15 +5,16 @@
 //
 // Required environment:
 //
-//	LLM_API_KEY        - Anthropic credential (or whichever provider is
-//	                     registered). The binary refuses to start without
-//	                     this; /generate cannot function otherwise.
 //	BUILDLIBRARY_PATH  - SQLite file path for the build library. The DB
 //	                     holds the generations queue + saved trajectories.
 //	                     Required; the binary refuses to start without it.
 //
 // Optional environment:
 //
+//	LLM_API_KEY                     - Anthropic credential (or whichever
+//	                                  provider is registered). Required
+//	                                  for /generate; if unset, /generate
+//	                                  returns 503 and /score still works.
 //	ADDR                            - listen address (default ":8080")
 //	SIDECAR_URL                     - calc-sidecar root (default "http://localhost:7401")
 //	LLM_PROVIDER                    - LLM backend name (default "anthropic")
@@ -63,10 +64,6 @@ func main() {
 }
 
 func run() error {
-	apiKey := os.Getenv("LLM_API_KEY")
-	if apiKey == "" {
-		return errors.New("LLM_API_KEY is required")
-	}
 	libPath := os.Getenv("BUILDLIBRARY_PATH")
 	if libPath == "" {
 		return errors.New("BUILDLIBRARY_PATH is required")
@@ -121,45 +118,58 @@ func run() error {
 	}
 
 	llmCfg := llm.LoadConfigFromEnv()
-	provider, err := llm.New(llmCfg)
-	if err != nil {
-		return fmt.Errorf("llm provider init: %w", err)
+	var provider llm.Provider
+	if llmCfg.APIKey != "" {
+		p, err := llm.New(llmCfg)
+		if err != nil {
+			return fmt.Errorf("llm provider init: %w", err)
+		}
+		provider = p
 	}
 	logLLMConfig(logger, llmCfg, maxIters)
 
-	registry := tools.NewRegistry()
-	registry.Register(tools.NewScoreBuild(scoringClient))
-	registry.Register(tools.NewLookupItem(cat))
-	registry.Register(tools.NewSearchItems(cat))
-	registry.Register(tools.NewLookupMonster(cat))
-	registry.Register(tools.NewLookupSkill(cat))
-	registry.Register(tools.NewListClassSkills(cat))
-	registry.Register(tools.NewGetSimilarPastBuilds(lib))
-	// submit_trajectory is intentionally NOT registered here; the
-	// orchestrator constructs a per-request overlay version via
-	// Registry.WithTool, wiring in the per-request Scoring / EvaluateGates /
-	// Accept closures. See orchestrator.Generate.
-
-	orch := orchestrator.New(provider, registry).
-		WithProfiles(profiles).
-		WithScoringClient(scoringClient).
-		WithCatalog(cat).
-		WithMaxIters(maxIters)
-
-	pool := workers.New(workers.Config{
-		Library:      lib,
-		Runner:       orchestratorRunner{orch: orch},
-		Save:         makeSaveCallback(lib, cat),
-		Workers:      numWorkers,
-		PollInterval: pollInterval,
-	})
-	pool.Start()
-
-	enqueuer := &apiEnqueuer{lib: lib, pool: pool, cap: queueCap, shutdownTimeout: shutdownTimeout}
 	server := api.NewServer(scoringClient, cat).
 		WithLibrary(lib).
-		WithEnqueuer(enqueuer).
 		WithProfiles(profiles)
+
+	// /generate requires an LLM provider; without one, build the API
+	// without an enqueuer so the handler returns 503. /score remains
+	// fully operational.
+	var pool *workers.Pool
+	if provider != nil {
+		registry := tools.NewRegistry()
+		registry.Register(tools.NewScoreBuild(scoringClient))
+		registry.Register(tools.NewLookupItem(cat))
+		registry.Register(tools.NewSearchItems(cat))
+		registry.Register(tools.NewLookupMonster(cat))
+		registry.Register(tools.NewLookupSkill(cat))
+		registry.Register(tools.NewListClassSkills(cat))
+		registry.Register(tools.NewGetSimilarPastBuilds(lib))
+		// submit_trajectory is intentionally NOT registered here; the
+		// orchestrator constructs a per-request overlay version via
+		// Registry.WithTool, wiring in the per-request Scoring / EvaluateGates /
+		// Accept closures. See orchestrator.Generate.
+
+		orch := orchestrator.New(provider, registry).
+			WithProfiles(profiles).
+			WithScoringClient(scoringClient).
+			WithCatalog(cat).
+			WithMaxIters(maxIters)
+
+		pool = workers.New(workers.Config{
+			Library:      lib,
+			Runner:       orchestratorRunner{orch: orch},
+			Save:         makeSaveCallback(lib, cat),
+			Workers:      numWorkers,
+			PollInterval: pollInterval,
+		})
+		pool.Start()
+
+		enqueuer := &apiEnqueuer{lib: lib, pool: pool, cap: queueCap, shutdownTimeout: shutdownTimeout}
+		server = server.WithEnqueuer(enqueuer)
+	} else {
+		logger.Warn("LLM_API_KEY unset; /generate disabled (returns 503), /score remains available")
+	}
 
 	readyzClient := &http.Client{Timeout: readyzCheckTimeout}
 	mux := http.NewServeMux()
@@ -201,8 +211,11 @@ func run() error {
 		// Drain workers first; GET endpoints stay live so clients can finish
 		// polling their in-flight generations. After the pool fully drains,
 		// close HTTP with a brief grace period for any tail-end requests.
-		if err := pool.Shutdown(shutdownTimeout); err != nil {
-			logger.Warn("pool drain", slog.String("error", err.Error()))
+		// Pool is nil when LLM_API_KEY was unset at startup.
+		if pool != nil {
+			if err := pool.Shutdown(shutdownTimeout); err != nil {
+				logger.Warn("pool drain", slog.String("error", err.Error()))
+			}
 		}
 		httpCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

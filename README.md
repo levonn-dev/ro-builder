@@ -75,11 +75,14 @@ calc-sidecar/
   server.ts             POST /score
   src/
     types.ts            public contract (Go side mirrors this)
-    shim.ts             re-exports active backend
+    shim.ts             re-exports active backend via the registry
     pool.ts             worker-thread pool
     backends/
+      registry.ts       backend table + CALC_BACKEND dispatch
       rocalc/           rocalc adapter (form-template, mapping.json)
-  vendor/<engine>/      ← you drop the backend's source files here (gitignored)
+      stub/             deterministic fiction (CI / non-calc dev)
+  vendor/<engine>/      ← you drop the backend's source files here (gitignored;
+                          parent dir tracked via .gitkeep)
 configs/servers/        one YAML per server profile (embedded)
 deploy/                 Helm chart + Tilt + sealed-secrets
 scripts/                e2e.sh, generate.sh, docker-e2e.sh, ...
@@ -133,7 +136,8 @@ task bootstrap     # copies .env.example → .env, go mod download, npm install
 ```
 
 Then edit `.env` and set `LLM_API_KEY` (Anthropic by default; switch provider via `LLM_PROVIDER` / `LLM_BASE_URL`). The
-API still serves `/score` without a key; only `/generate` requires one.
+API still starts and serves `/score` without a key; `/generate` returns 503 (`LLM provider not configured`) until a
+key is set.
 
 ### 2. Provide files for the calc backend
 
@@ -170,6 +174,10 @@ Notes specific to the rocalc adapter:
   result; the orchestrator passes them
   to the LLM.
 - Never modify files under `vendor/`. All glue lives in the shim.
+
+Alternatively, set `CALC_BACKEND=stub` to run the sidecar against the built-in stub backend. It skips vendor entirely
+and returns deterministic fiction numbers. Useful for iterating on shim plumbing, the HTTP layer, or the API
+without rocalc files on disk. Not useful for any real build calculation.
 
 To use a different calc backend, see [Adding a calc backend](#adding-a-calc-backend).
 
@@ -209,6 +217,9 @@ task docker:down    # stops; named volume `ro-builder-buildlibrary` survives
 task docker:nuke    # stops AND drops the buildlibrary volume
 ```
 
+The sidecar's calc backend defaults to rocalc. Set `CALC_BACKEND=stub` in your shell env (or `.env`) before
+`task docker:up` to use the stub backend instead.
+
 ### Kubernetes via Tilt (live-reload k8s)
 
 ```bash
@@ -216,6 +227,9 @@ task tilt:bootstrap   # one-shot: install sealed-secrets controller, create name
 task tilt:seal        # encrypt LLM_API_KEY from .env into a SealedSecret
 task tilt:up          # start the full stack under Tilt (Ctrl-C to stop)
 ```
+
+The chart's `sidecar.calcBackend` value defaults to `rocalc`. Override via `values.local.yaml` or `--set` for
+stub-backed local runs.
 
 ---
 
@@ -328,13 +342,19 @@ The shim contract is in [`calc-sidecar/src/types.ts`](calc-sidecar/src/types.ts)
    `CALC_VERSION: string`.
 2. Put engine-specific assets (synthetic HTML form, ID-mapping JSON, etc.) alongside it.
 3. Drop the engine's source files under `calc-sidecar/vendor/<engine>/`.
-4. Switch the active backend in [`calc-sidecar/src/shim.ts`](calc-sidecar/src/shim.ts):
+4. Register your backend in [`calc-sidecar/src/backends/registry.ts`](calc-sidecar/src/backends/registry.ts) by adding one
+   line in the `BACKENDS` table:
 
    ```ts
-   export { createShim, CALC_VERSION } from "./backends/<engine>/index.ts";
+   const BACKENDS: Record<string, () => Promise<BackendModule>> = {
+     rocalc: () => import("./rocalc/index.ts"),
+     stub:   () => import("./stub/index.ts"),
+     <engine>: () => import("./<engine>/index.ts"),  // ← your backend
+   };
    ```
 
-5. Write a boundary translation if your engine doesn't speak iRO IDs. The rocalc adapter keeps a `mapping.json` and
+5. Select it at runtime via `CALC_BACKEND=<engine>` (env var; default `rocalc`).
+6. Write a boundary translation if your engine doesn't speak iRO IDs. The rocalc adapter keeps a `mapping.json` and
    translates per call; see [`calc-sidecar/src/backends/rocalc/index.ts`](calc-sidecar/src/backends/rocalc/index.ts).
 
 ### Adding a server profile
@@ -397,6 +417,14 @@ task mapping:enrich     # query ratemyserver.net for unmatched entries
 - `task check:full` runs everything plus all three e2e flavors (native, compose, k8s).
 - Comments: only when WHY is non-obvious. API handlers in `internal/api/` are an explicit exception; those carry
   reference-doc comments. Everywhere else, identifier names do the explaining.
+
+### CI
+
+Every PR and push to `main` runs the CI workflow at [`.github/workflows/ci.yml`](.github/workflows/ci.yml). The
+workflow mirrors `task check` (fmt-check, lint, build, unit tests, helm lint) plus native and docker-compose e2e
+runs, all against the stub calc backend (no `vendor/rocalc/` needed). `LLM_API_KEY` is not provisioned in CI; the e2e
+suite verifies `/generate` returns 503 (`LLM provider not configured`) in that mode rather than running the
+happy-path LLM loop.
 
 ---
 

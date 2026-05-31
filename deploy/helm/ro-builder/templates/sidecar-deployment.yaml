@@ -39,6 +39,8 @@ spec:
               value: "7401"
             - name: SIDECAR_WORKERS
               value: "{{ .Values.sidecar.workers }}"
+            - name: CALC_BACKEND
+              value: {{ .Values.sidecar.calcBackend | quote }}
           livenessProbe:
             httpGet:
               path: /healthz

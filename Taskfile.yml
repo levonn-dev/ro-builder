@@ -205,16 +205,52 @@ tasks:
       - go test -short ./...
 
   test:sidecar:
-    desc: 'Sidecar TypeScript tests; fast subset (load/shim/score/server). Skips supported-classes.test.ts. Run `test:sidecar:full` before pushing.'
-    dir: '{{.SIDECAR_DIR}}'
+    desc: 'Fast sidecar subset (rocalc only). For full coverage use test:sidecar:full.'
     cmds:
-      - node --test test/load.test.ts test/shim.test.ts test/score.test.ts test/server.test.ts
+      - task: test:sidecar:shim:rocalc
+      - task: test:sidecar:backend:rocalc
+
+  test:sidecar:shim:rocalc:
+    desc: 'Shim contract tests against rocalc. Proves rocalc satisfies the contract. Needs vendor/.'
+    dir: '{{.SIDECAR_DIR}}'
+    env:
+      CALC_BACKEND: rocalc
+    cmds:
+      - node --test test/shim/*.test.ts
+
+  test:sidecar:shim:stub:
+    desc: 'Shim contract tests against stub. Proves stub satisfies the contract. CI-safe; no vendor.'
+    dir: '{{.SIDECAR_DIR}}'
+    env:
+      CALC_BACKEND: stub
+    cmds:
+      - node --test test/shim/*.test.ts
+
+  test:sidecar:backend:rocalc:
+    desc: 'Rocalc-specific tests (numerics, classes). Needs vendor/.'
+    dir: '{{.SIDECAR_DIR}}'
+    env:
+      CALC_BACKEND: rocalc
+    cmds:
+      - node --test test/backends/rocalc/*.test.ts
+
+  test:sidecar:backend:stub:
+    desc: 'Stub backend smoke tests.'
+    dir: '{{.SIDECAR_DIR}}'
+    env:
+      CALC_BACKEND: stub
+    cmds:
+      - node --test test/backends/stub/*.test.ts
 
   test:sidecar:full:
-    desc: 'Full sidecar test sweep including supported-classes. Wired into check:full and test:all.'
-    dir: '{{.SIDECAR_DIR}}'
+    desc: 'Full sweep; shim under both backends + each backend specifics. Wired into check:full and test:all.'
     cmds:
-      - node --test test/*.test.ts
+      # Stub sub-tasks first so a vendor-less contributor sees what passes
+      # before hitting the rocalc steps that fail without vendor/rocalc/.
+      - task: test:sidecar:shim:stub
+      - task: test:sidecar:backend:stub
+      - task: test:sidecar:shim:rocalc
+      - task: test:sidecar:backend:rocalc
 
   test:coverage:
     desc: Go tests with HTML coverage report at coverage/go.html

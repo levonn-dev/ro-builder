@@ -14,7 +14,7 @@ info:
       - GET  /builds/{id}     one full saved trajectory with item/skill names resolved
 
     The /generate endpoint requires LLM_API_KEY at the API process. Without it,
-    the binary fails to start.
+    /generate returns 503 (Service Unavailable); /score continues to work.
 
     Class names are shim-contract strings ("novice", "taekwon_kid",
     "high_wizard"). Numeric ids are not accepted at the API boundary.
@@ -74,7 +74,7 @@ paths:
         Recommended poll cadence: ~30 seconds.
 
         The /generate endpoint requires LLM_API_KEY at the API process.
-        Without it, the binary fails to start.
+        Without it, this endpoint returns 503 and the job is never enqueued.
       requestBody:
         required: true
         content:
