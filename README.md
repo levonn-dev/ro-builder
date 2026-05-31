@@ -136,7 +136,8 @@ task bootstrap     # copies .env.example → .env, go mod download, npm install
 ```
 
 Then edit `.env` and set `LLM_API_KEY` (Anthropic by default; switch provider via `LLM_PROVIDER` / `LLM_BASE_URL`). The
-API still serves `/score` without a key; only `/generate` requires one.
+API still starts and serves `/score` without a key; `/generate` returns 503 (`LLM provider not configured`) until a
+key is set.
 
 ### 2. Provide files for the calc backend
 
@@ -421,8 +422,9 @@ task mapping:enrich     # query ratemyserver.net for unmatched entries
 
 Every PR and push to `main` runs the CI workflow at [`.github/workflows/ci.yml`](.github/workflows/ci.yml). The
 workflow mirrors `task check` (fmt-check, lint, build, unit tests, helm lint) plus native and docker-compose e2e
-runs, all against the stub calc backend (no `vendor/rocalc/` needed). The `/generate` half of e2e is skipped
-because `LLM_API_KEY` is not provisioned in CI.
+runs, all against the stub calc backend (no `vendor/rocalc/` needed). `LLM_API_KEY` is not provisioned in CI; the e2e
+suite verifies `/generate` returns 503 (`LLM provider not configured`) in that mode rather than running the
+happy-path LLM loop.
 
 ---
 

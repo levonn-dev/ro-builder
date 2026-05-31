@@ -61,9 +61,10 @@ const userFacingGenerationFailure = "We couldn't generate a build matching your 
 // Optional dependencies (Library, Enqueuer) gate optional endpoints;
 // /generate is unreachable without an Enqueuer (returns 503), /builds
 // and /generations endpoints return "not configured" 500s without a
-// Library. Task 13's main.go rewrite will fail-fast at startup when
-// required env vars (LLM_API_KEY, BUILDLIBRARY_PATH) are missing,
-// eliminating the runtime "not configured" responses.
+// Library. main.go constructs the Enqueuer only when LLM_API_KEY is
+// set; without it /generate returns 503 while /score remains available.
+// BUILDLIBRARY_PATH is required at startup, so the Library is always
+// present in normal runs.
 type Server struct {
 	scoring  *scoring.Client
 	enqueuer Enqueuer              // optional; nil disables /generate
@@ -207,12 +208,16 @@ func (s *Server) scoreErrorResponse(ctx context.Context, err error) (oapi.ScoreR
 //	429: queue at capacity
 //	503: API is shutting down (Retry-After header set)
 func (s *Server) Generate(ctx context.Context, req oapi.GenerateRequestObject) (oapi.GenerateResponseObject, error) {
-	if s.enqueuer == nil || s.enqueuer.IsShuttingDown() {
-		timeout := 0
-		if s.enqueuer != nil {
-			timeout = s.enqueuer.ShutdownTimeoutSeconds()
-		}
-		return shutdown503Response(timeout), nil
+	if s.enqueuer == nil {
+		// No enqueuer means main.go was started without LLM_API_KEY.
+		// Distinct from the shutting-down 503 below so operators (and
+		// CI assertions) can tell the two cases apart.
+		return oapi.Generate503JSONResponse{
+			Body: oapi.ErrorBody{Error: "/generate is unavailable: LLM provider not configured (set LLM_API_KEY)"},
+		}, nil
+	}
+	if s.enqueuer.IsShuttingDown() {
+		return shutdown503Response(s.enqueuer.ShutdownTimeoutSeconds()), nil
 	}
 	if req.Body == nil {
 		return oapi.Generate400JSONResponse{Error: "request body is required"}, nil

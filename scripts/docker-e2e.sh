@@ -183,7 +183,26 @@ if [[ -n "${LLM_API_KEY:-}" ]]; then
 	GEN_GATED_COUNT=$(jq -r '[.primary.snapshots[] | select(.gates != null and (.gates | length) > 0)] | length' "$TMP/generate-response.json")
 	echo "[docker-e2e] /generate OK (iters=$GEN_ITERS snapshots=$GEN_SNAP_COUNT scored=$GEN_SCORED_COUNT gated=$GEN_GATED_COUNT)"
 else
-	echo "[docker-e2e] LLM_API_KEY not set; skipping /generate"
+	# LLM_API_KEY unset: API starts in score-only mode; /generate must
+	# return 503 with "LLM provider not configured" rather than crashing
+	# or accepting a job that can't be processed. Verify rather than skip.
+	echo "[docker-e2e] LLM_API_KEY not set; verifying /generate returns 503"
+	HTTP_CODE=$(curl -s -o "$TMP/generate-503.json" -w '%{http_code}' \
+		--max-time 10 \
+		-X POST "$API_URL/generate" \
+		-H 'content-type: application/json' \
+		-d '{"class":"taekwon_kid","server":"uaro","playstyle":"pvm","description":"503 probe"}')
+	if [[ "$HTTP_CODE" != "503" ]]; then
+		echo "[docker-e2e] /generate returned HTTP $HTTP_CODE (expected 503 when LLM_API_KEY unset)" >&2
+		cat "$TMP/generate-503.json" >&2 || true
+		exit 1
+	fi
+	if ! jq -e '(.error // "") | contains("LLM provider not configured")' "$TMP/generate-503.json" >/dev/null 2>&1; then
+		echo "[docker-e2e] /generate 503 body missing 'LLM provider not configured'" >&2
+		cat "$TMP/generate-503.json" >&2 || true
+		exit 1
+	fi
+	echo "[docker-e2e] /generate 503 confirmed (score-only mode)"
 fi
 
 echo "[docker-e2e] all checks passed"
