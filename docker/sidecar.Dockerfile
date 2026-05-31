@@ -1,7 +1,14 @@
-# Calc sidecar image: Node 24 with jsdom and the rocalc vendor files
-# baked in. The vendor/ directory must exist on the host before building.
-# BYO calc: users drop their own copy of rocalc files into
-# calc-sidecar/vendor/rocalc/.
+# Calc sidecar image: Node 24 with jsdom and the calc backend's vendor
+# files baked in.
+#
+# Backends are pluggable (see calc-sidecar/src/backends/registry.ts);
+# the rocalc backend wants vendor files under calc-sidecar/vendor/rocalc/,
+# the stub backend wants nothing. The vendor/ dir itself is tracked
+# (via .gitkeep), so `COPY vendor` below always succeeds; an empty
+# vendor is valid for backends that don't need on-disk assets.
+#
+# BYO calc: users drop their own copy of the chosen backend's files
+# (e.g. rocalc) into calc-sidecar/vendor/<engine>/.
 
 FROM node:24-alpine
 

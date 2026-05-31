@@ -1,5 +1,5 @@
 import { test } from "node:test";
-import { createShim } from "../src/shim.ts";
+import { createShim } from "../../src/shim.ts";
 
 // Step 2 deliverable: rocalc loads cleanly in headless Node. createShim does
 // the full jsdom + 7-file load + DOM compat wiring; if any of those fail it

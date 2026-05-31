@@ -1,6 +1,6 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { score, resetScoreShim } from "../src/score.ts";
+import { score, resetScoreShim } from "../../../src/score.ts";
 
 // score() is the unified "build → numbers" entry point the HTTP layer
 // hands every /score request to. It owns a single long-lived shim so

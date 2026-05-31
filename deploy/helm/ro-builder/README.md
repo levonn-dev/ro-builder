@@ -46,6 +46,9 @@ See `values.yaml` for the full schema and defaults. Key sections:
 - `api.*`: image, resources, persistence, probes. Always `replicas: 1`
   with `strategy: Recreate` (SQLite is single-writer).
 - `sidecar.*`: image, replicas, workers, autoscaling, probes. Stateless.
+  - `sidecar.calcBackend`: calc backend selection; see
+    `calc-sidecar/src/backends/registry.ts`. Use `stub` for chart smoke
+    deploys without vendor files. Default `rocalc`.
 - `env.*`: non-secret env. Lands in the ConfigMap.
 - `secrets.externalSecretName`: name of the Secret the chart references,
   produced by the sealed-secrets controller from a separately-applied

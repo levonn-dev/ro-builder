@@ -19,6 +19,11 @@ services:
     restart: unless-stopped
     expose:
       - "7401"
+    environment:
+      # Backend selection (see calc-sidecar/src/backends/registry.ts).
+      # Default rocalc requires vendor/rocalc/ on disk; stub mode skips
+      # vendor and is used by CI's docker-e2e job.
+      CALC_BACKEND: ${CALC_BACKEND:-rocalc}
     # Healthcheck: the sidecar's own readiness probe (POST /score with
     # an empty body) is the same one scripts/e2e.sh uses. Once it
     # returns 200, the api can safely depend on it.

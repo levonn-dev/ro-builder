@@ -1,7 +1,7 @@
 import { before, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import type { ShimSession } from "../src/shim.ts";
-import { createShim } from "../src/shim.ts";
+import type { ShimSession } from "../../../src/shim.ts";
+import { createShim } from "../../../src/shim.ts";
 
 // IDs in equip() calls are iRO IDs; the canonical ID space every RO server
 // emulator (Hercules, rAthena, etc.) exposes. The rocalc backend translates

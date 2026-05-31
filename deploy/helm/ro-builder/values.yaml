@@ -56,6 +56,10 @@ sidecar:
     minReplicas: 1
     maxReplicas: 4
     targetCPUUtilizationPercentage: 70
+  # Calc backend selection. 'rocalc' (default) requires vendor/rocalc/
+  # baked into the image; 'stub' skips vendor and returns fiction
+  # numbers (used by CI / smoke deploys without a real calc engine).
+  calcBackend: rocalc
   probes:
     liveness:
       initialDelaySeconds: 5

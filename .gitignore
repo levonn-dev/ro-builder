@@ -23,7 +23,12 @@
 /calc-sidecar/node_modules/
 
 # Sidecar Vendor.
-/calc-sidecar/vendor/
+# BYO calc backend files (rocalc, or another engine you adapt to the
+# shim contract). The directory itself is tracked via .gitkeep so the
+# Dockerfile's `COPY vendor` succeeds on a fresh checkout; everything
+# inside is gitignored. Backend selection is via CALC_BACKEND env var.
+/calc-sidecar/vendor/*
+!/calc-sidecar/vendor/.gitkeep
 
 # Mapping-tool intermediate artifacts.
 # Source committed: main.go (tool), manual_overrides.json (hand-curated input).
