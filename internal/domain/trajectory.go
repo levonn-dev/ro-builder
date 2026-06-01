@@ -25,6 +25,21 @@ type Trajectory struct {
 	Snapshots []Snapshot `json:"snapshots"`
 }
 
+// Clean reports whether every gate on every snapshot passed: no warnings
+// and no failures. A trajectory with no gates evaluated (scoring disabled)
+// counts as clean. Drives the orchestrator's first-clean-wins lock: a clean
+// submission is final, a warned one stays provisional and replaceable.
+func (t Trajectory) Clean() bool {
+	for i := range t.Snapshots {
+		for _, g := range t.Snapshots[i].Gates {
+			if !g.IsPass() {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // Snapshot is one character state along a Trajectory.
 //
 // Class is the player's class at this point; may differ from

@@ -38,7 +38,7 @@ func (t *listClassSkillsTool) Definition() llm.Tool {
 		Name: "list_class_skills",
 		Description: "Enumerate every skill the given class can allocate, with iRO id, aegis name, display name, max level, and cast/cooldown metadata. " +
 			"Source: Hercules's skill_tree.conf with inherits flattened; Novice's skills appear under every class that inherits from it. " +
-			"Use this once at the start of building a snapshot's Skills allocation; avoids the spam of guessing iRO IDs and calling lookup_skill repeatedly. " +
+			"Fallback only: the user prompt already injects this class's full allocatable skill list (id, max level, element, attack type, cast/cooldown, prerequisites), so call this tool only when that injected block is absent; it is redundant when the block is present. " +
 			"Note: the calc engine (rocalc) silently drops skills it can't model (e.g. Taekwon kicks). Score numbers fall back to auto-attack-tier in those cases; that's expected behavior, not an error to fix by changing skill choice.",
 		InputSchema: json.RawMessage(listClassSkillsSchema),
 	}

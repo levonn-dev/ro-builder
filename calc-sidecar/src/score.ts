@@ -24,6 +24,7 @@
 import { createShim, CALC_VERSION } from "./shim.ts";
 import { ScoreValidationError } from "./errors.ts";
 import type {
+  EquipSpec,
   ScoreRequest,
   ScoreResponse,
   ShimSession,
@@ -85,6 +86,46 @@ const SLOT_KEYS = new Set<SlotKey>([
   "accessory2",
 ]);
 
+// applyEquipment applies every slot, collecting per-slot validation errors
+// instead of throwing on the first. Unusable items (unknown to the calc, or
+// not equippable by this class) AND unknown slot keys are all gathered, so a
+// build with several bad slots surfaces ALL of them in one response and the
+// caller fixes every one in a single resubmit rather than one per round-trip.
+//
+// Only caller-fixable (validation) errors are collected; a non-validation
+// error means the shim's form globals are half-applied (corruption), so it
+// re-throws immediately and score()'s catch disposes the shim. Partially
+// applied good slots are harmless: score() resets the shim at the start of
+// every request, rolling them back.
+export function applyEquipment(
+  s: Pick<ShimSession, "equip">,
+  equipment: Partial<Record<SlotKey, EquipSpec>>,
+): void {
+  const errors: string[] = [];
+  for (const slot of Object.keys(equipment) as SlotKey[]) {
+    if (!SLOT_KEYS.has(slot)) {
+      // An unknown slot key is caller-fixable too; aggregate it rather than
+      // short-circuiting, so a typo'd slot alongside bad items still reports
+      // everything at once.
+      errors.push(`${slot}: unknown equipment slot`);
+      continue;
+    }
+    const spec = equipment[slot];
+    if (!spec) continue;
+    try {
+      s.equip(slot, spec);
+    } catch (e) {
+      if (!isValidationError(e)) throw e;
+      errors.push(`${slot}: ${(e as Error).message}`);
+    }
+  }
+  if (errors.length > 0) {
+    throw new ScoreValidationError(
+      `${errors.length} equipment item(s) cannot be used; fix all and resubmit:\n- ${errors.join("\n- ")}`,
+    );
+  }
+}
+
 // rocalcCombatCaveats returns the always-applicable approximations rocalc
 // makes in its combat sim; sourced from rocalc.com's own "known issues"
 // notes. Documented at the request-shape level (we surface them whenever
@@ -123,17 +164,7 @@ export function score(req: ScoreRequest): ScoreResponse {
     if (req.level) s.setLevel(req.level);
     if (req.stats) s.setStats(req.stats);
     if (req.skills && req.skills.length > 0) s.setSkills(req.skills);
-    if (req.equipment) {
-      for (const slot of Object.keys(req.equipment) as SlotKey[]) {
-        if (!SLOT_KEYS.has(slot)) {
-          throw new ScoreValidationError(
-            `unknown equipment slot in request: ${slot}`,
-          );
-        }
-        const spec = req.equipment[slot];
-        if (spec) s.equip(slot, spec);
-      }
-    }
+    if (req.equipment) applyEquipment(s, req.equipment);
 
     const out: ScoreResponse = {
       derived: s.readDerivedStats(),

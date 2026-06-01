@@ -163,3 +163,29 @@ test("non-validation error disposes shim so subsequent requests recover", () => 
     "minimal Novice request must succeed after a corrupting failure",
   );
 });
+
+// Equipment validation aggregates: a build with several unusable items must
+// surface ALL of them in one error, so the caller fixes every bad item in a
+// single resubmit rather than one per round-trip. Two clearly-unmapped ids
+// stand in for the real mix of "no rocalc mapping" / "not in class option
+// list" failures.
+test("score aggregates every unusable equipment item into one error", () => {
+  resetScoreShim();
+  let err: Error | undefined;
+  try {
+    score({
+      equipment: {
+        weapon: { id: 99999998 },
+        armor: { id: 99999999 },
+      },
+    });
+  } catch (e) {
+    err = e as Error;
+  }
+  assert.ok(err, "expected score to throw for unmappable items");
+  assert.match(err.message, /weapon:/);
+  assert.match(err.message, /armor:/);
+  // The aggregated error is a validation error, so the shim is left intact;
+  // the next request must still succeed (partial equip rolled back by reset).
+  assert.equal(score({}).derived.hit, 2);
+});

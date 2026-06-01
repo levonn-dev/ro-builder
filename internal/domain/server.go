@@ -177,6 +177,21 @@ type GateResult struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
+// IsPass reports whether this gate cleared with no warning and no failure.
+// The single source of truth for "clean" across the orchestrator's lock
+// decision and the tool's checkpoint echo, so they can't drift on what a
+// passing gate is.
+func (g GateResult) IsPass() bool {
+	return g.Severity == GateSeverityPass
+}
+
+// IsBlocking reports whether this gate disqualifies a build (a fail or
+// fail_hard). Warnings are non-blocking: they flow through as a provisional
+// (replaceable) result rather than a rejection.
+func (g GateResult) IsBlocking() bool {
+	return g.Severity == GateSeverityFail || g.Severity == GateSeverityFailHard
+}
+
 // GateOverrides is the per-request toggle the user can supply to relax
 // gates the server profile would otherwise enforce. Applied uniformly
 // across all snapshots in the trajectory.

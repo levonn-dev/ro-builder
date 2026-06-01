@@ -721,6 +721,48 @@ func TestFormatUserPrompt(t *testing.T) {
 			t.Errorf("budget line should be absent when budget=0; got:\n%s", got)
 		}
 	})
+
+	// Claim 3: the injected block must carry element + attack type so the
+	// model never needs list_class_skills for that detail on the common
+	// path. Empty values stay omitted (asserted by the no-noise check).
+	t.Run("element_and_attack_type_rendered", func(t *testing.T) {
+		magic := []catalog.ClassSkill{
+			{ID: 83, AegisName: "MG_FIREBOLT", Name: "Fire Bolt", MaxLevel: 10, AttackType: "magic", Element: "fire"},
+		}
+		got := formatUserPrompt(
+			GenerateRequest{Class: "magician"},
+			nil, magic, 99, 50, 49)
+		if !strings.Contains(got, "type=magic") {
+			t.Errorf("attack type not rendered in skill line; got:\n%s", got)
+		}
+		if !strings.Contains(got, "elem=fire") {
+			t.Errorf("element not rendered in skill line; got:\n%s", got)
+		}
+	})
+
+	t.Run("element_and_attack_type_omitted_when_empty", func(t *testing.T) {
+		got := formatUserPrompt(
+			GenerateRequest{Class: "taekwon_kid"},
+			nil, skills, 99, 50, 58)
+		if strings.Contains(got, "type=") || strings.Contains(got, "elem=") {
+			t.Errorf("type=/elem= tokens must be absent when skills carry no attack type/element; got:\n%s", got)
+		}
+	})
+}
+
+func TestSummarizeToolCalls(t *testing.T) {
+	content := []llm.ContentBlock{
+		{Type: llm.BlockText, Text: "reasoning"},
+		{Type: llm.BlockToolUse, ToolName: "score_build"},
+		{Type: llm.BlockToolUse, ToolName: "score_build"},
+		{Type: llm.BlockToolUse, ToolName: "search_items"},
+	}
+	if got, want := summarizeToolCalls(content), "score_build=2,search_items=1"; got != want {
+		t.Fatalf("summarizeToolCalls: got %q want %q", got, want)
+	}
+	if got := summarizeToolCalls([]llm.ContentBlock{{Type: llm.BlockText, Text: "just text"}}); got != "" {
+		t.Fatalf("text-only content should summarize to empty, got %q", got)
+	}
 }
 
 type authFailProvider struct{}

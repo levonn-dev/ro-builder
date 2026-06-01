@@ -115,9 +115,9 @@ func TestSubmit_RejectsWhenGatesFail(t *testing.T) {
 }
 
 func TestSubmit_AcceptCallbackFiresEachTime(t *testing.T) {
-	// The session callback's job is to ignore second+ accepts (returning false).
-	// The tool's job is to forward every successful (gates-passing) submission
-	// to the callback; first-pass-wins is enforced by the callback, not the tool.
+	// The tool's job is to forward every successful (gates-passing)
+	// submission to the callback; the accept/replace/lock policy
+	// (first-clean-wins) lives in the callback (Session), not the tool.
 	var cat *catalog.Catalog
 	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}}}
 
@@ -310,6 +310,88 @@ func TestSubmitTrajectory_Execute_NilCatalogSkipsEcho(t *testing.T) {
 	}
 	if strings.Contains(string(out), `"resolved_equipment"`) {
 		t.Errorf("nil catalog should omit resolved_equipment, got: %s", out)
+	}
+}
+
+// TestSubmit_SuccessAckReportsPerCheckpointBudget covers Claim 1's
+// success path: the model no longer pre-scores checkpoints, so the
+// accept ack must surface each scored snapshot's statPointsRemaining and
+// any non-pass gate (e.g. an under-spend warning) so the model can decide
+// whether to resubmit without a separate score_build pass.
+func TestSubmit_SuccessAckReportsPerCheckpointBudget(t *testing.T) {
+	var cat *catalog.Catalog
+	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{
+		Derived:     scoring.DerivedStats{MaxHP: 5000, StatPointsRemaining: 12},
+		CalcVersion: "rocalc-test",
+	}}
+	tool := NewSubmitTrajectory(SubmitTrajectoryDeps{
+		Catalog: cat,
+		Scoring: sc,
+		EvaluateGates: func(_ *scoring.ScoreResponse, _ *domain.Snapshot) []domain.GateResult {
+			return []domain.GateResult{{
+				Name:      "stat_points_underspent",
+				Severity:  domain.GateSeverityWarn,
+				Threshold: 5,
+				Actual:    12,
+				Reason:    "12 unspent stat points; raise stats to use the full budget",
+			}}
+		},
+		Accept: func(_ domain.Trajectory, _ []domain.Trajectory, _ string) bool { return true },
+	})
+
+	in := SubmitTrajectoryInput{Primary: domain.Trajectory{Class: "novice", Snapshots: []domain.Snapshot{passingSnapshot()}}}
+	raw, _ := json.Marshal(in)
+	out, err := tool.Execute(context.Background(), raw)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	s := string(out)
+	if !strings.Contains(s, `"checkpoints"`) {
+		t.Fatalf("ack missing checkpoints array: %s", s)
+	}
+	if !strings.Contains(s, `"stat_points_remaining":12`) {
+		t.Fatalf("ack missing per-checkpoint statPointsRemaining: %s", s)
+	}
+	if !strings.Contains(s, "stat_points_underspent") {
+		t.Fatalf("ack should surface the under-spend warn gate so the model can resubmit: %s", s)
+	}
+}
+
+// TestSubmit_RejectionIncludesPerCheckpointBudget covers Claim 1's
+// rejection path: a gate failure must report the offending checkpoint's
+// statPointsRemaining inline so the model can correct the allocation in a
+// single resubmit instead of re-deriving the number with score_build.
+func TestSubmit_RejectionIncludesPerCheckpointBudget(t *testing.T) {
+	var cat *catalog.Catalog
+	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{
+		Derived: scoring.DerivedStats{MaxHP: 100, StatPointsRemaining: -8},
+	}}
+	tool := NewSubmitTrajectory(SubmitTrajectoryDeps{
+		Catalog: cat,
+		Scoring: sc,
+		EvaluateGates: func(_ *scoring.ScoreResponse, _ *domain.Snapshot) []domain.GateResult {
+			return []domain.GateResult{{
+				Name:      "stat_points_overspent",
+				Severity:  domain.GateSeverityFailHard,
+				Threshold: 0,
+				Actual:    -8,
+				Reason:    "build allocates 8 more stat points than the level provides",
+			}}
+		},
+		Accept: func(_ domain.Trajectory, _ []domain.Trajectory, _ string) bool { return true },
+	})
+
+	in := SubmitTrajectoryInput{Primary: domain.Trajectory{Class: "novice", Snapshots: []domain.Snapshot{passingSnapshot()}}}
+	raw, _ := json.Marshal(in)
+	_, err := tool.Execute(context.Background(), raw)
+	if err == nil {
+		t.Fatalf("expected rejection error for stat overspend")
+	}
+	if !strings.Contains(err.Error(), "statPointsRemaining=-8") {
+		t.Fatalf("rejection should include the offending checkpoint's statPointsRemaining; got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "stat_points_overspent") {
+		t.Fatalf("rejection should still name the failing gate; got: %v", err)
 	}
 }
 

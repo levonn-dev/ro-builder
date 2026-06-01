@@ -20,11 +20,10 @@ import (
 // the schema gates the model's output: drift between Go struct tags and
 // the schema is exactly what causes the model to send unmarshalable JSON.
 // One source of truth, hand-curated.
-const scoreBuildSchema = `{
-  "type": "object",
-  "required": ["build"],
-  "properties": {
-    "build": {
+// buildObjectSchema is the JSON Schema for one build. Shared by score_build
+// and score_builds (via string composition) so the build shape the two
+// tools accept can't drift apart.
+const buildObjectSchema = `{
       "type": "object",
       "description": "The character setup to score.",
       "required": ["class"],
@@ -74,14 +73,23 @@ const scoreBuildSchema = `{
           }
         }
       }
-    },
-    "scenario": {
+    }`
+
+// scenarioObjectSchema is the shared combat-sim target schema.
+const scenarioObjectSchema = `{
       "type": "object",
       "description": "Target encounter for the combat sim. Omit to get derived stats only.",
       "properties": {
         "target": {"type": "integer", "description": "iRO mob id (Poring=1002, Eddga=1115)."}
       }
-    }
+    }`
+
+const scoreBuildSchema = `{
+  "type": "object",
+  "required": ["build"],
+  "properties": {
+    "build": ` + buildObjectSchema + `,
+    "scenario": ` + scenarioObjectSchema + `
   }
 }`
 
@@ -162,36 +170,51 @@ func (s *scoreBuildTool) Execute(ctx context.Context, raw json.RawMessage) (json
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return nil, fmt.Errorf("decode score_build input: %w", err)
 	}
-	build := in.Build.toBuild()
-	if err := build.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid build: %w", err)
-	}
-
-	// Active server profile, if present, swaps custom-mob targets into the
-	// inline-stats path so the calc shim doesn't try to look them up in
-	// rocalc's m_Monster table. Nil profile means no overlay; every
-	// scenario target passes through as a stock iRO id.
-	profile := domain.ServerProfileFromContext(ctx)
-	// ToScoreRequest can't see scoreBuildBuild.Skills (it's a method on
-	// domain.Build, no Skills field there), so we set req.Skills explicitly
-	// after the conversion.
-	req := build.ToScoreRequest(in.Scenario, profile)
-	if len(in.Build.Skills) > 0 {
-		req.Skills = in.Build.Skills
-	}
-	resp, err := s.client.Score(ctx, req)
+	resp, err := scoreOne(ctx, s.client, in.Build, in.Scenario)
 	if err != nil {
-		// Sidecar 4xx errors are caller-correctable (unknown slot, bad
-		// iRO id); let those propagate as Go errors and the orchestrator
-		// turns them into tool_result is_error blocks the LLM can read.
-		if sErr, ok := errors.AsType[*scoring.Error](err); ok {
-			return nil, fmt.Errorf("calc sidecar: %s (HTTP %d)", sErr.Message, sErr.Status)
-		}
-		return nil, fmt.Errorf("calc sidecar: %w", err)
+		return nil, err
 	}
 	out, err := json.Marshal(resp)
 	if err != nil {
 		return nil, fmt.Errorf("encode score_build output: %w", err)
 	}
 	return out, nil
+}
+
+// errBuildInvalid tags a build that failed domain validation before any
+// sidecar call. score_builds uses errors.Is to classify it as a
+// per-candidate error (one malformed build doesn't abort the batch), while
+// genuine infrastructure failures (sidecar 5xx / transport) propagate.
+var errBuildInvalid = errors.New("invalid build")
+
+// scoreOne validates one build, converts it to a score request, and calls
+// the sidecar. Shared by score_build and score_builds so a single build is
+// scored identically whichever tool the model reaches for.
+//
+// The active server profile, if present, swaps custom-mob targets into the
+// inline-stats path so the calc shim doesn't look them up in rocalc's
+// m_Monster table; nil profile means no overlay. ToScoreRequest can't see
+// scoreBuildBuild.Skills (domain.Build has no Skills field), so skills are
+// set on the request explicitly after conversion.
+//
+// Errors preserve their type in the chain: a validation failure wraps
+// errBuildInvalid, and a sidecar failure wraps the typed *scoring.Error (or
+// transport error). This lets score_builds tell a candidate's bad input
+// (validation, 4xx) apart from a global calc-engine outage (5xx, transport)
+// and decide whether to capture it per-candidate or abort the batch.
+func scoreOne(ctx context.Context, client *scoring.Client, b scoreBuildBuild, scenario *domain.Scenario) (*scoring.ScoreResponse, error) {
+	build := b.toBuild()
+	if err := build.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", errBuildInvalid, err)
+	}
+	profile := domain.ServerProfileFromContext(ctx)
+	req := build.ToScoreRequest(scenario, profile)
+	if len(b.Skills) > 0 {
+		req.Skills = b.Skills
+	}
+	resp, err := client.Score(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("calc sidecar: %w", err)
+	}
+	return resp, nil
 }

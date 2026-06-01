@@ -67,7 +67,7 @@ cleanup() {
 		echo
 		echo "--- api logs (tail) ---"
 		docker compose logs --tail 60 api 2>&1 || true
-		for f in score-response.json generate-response.json; do
+		for f in score-response.json enqueue-response.json gen-status.json build-response.json; do
 			if [[ -f "$TMP/$f" ]]; then
 				echo
 				echo "--- $f ---"
@@ -152,7 +152,12 @@ echo "[docker-e2e] /score OK (calc=$CALC_VERSION maxHp=$SCORE_HP aspd=$SCORE_ASP
 
 # --- /generate validation (conditional) ---
 if [[ -n "${LLM_API_KEY:-}" ]]; then
-	echo "[docker-e2e] LLM_API_KEY set; POST /generate"
+	# /generate is asynchronous: POST enqueues a job and returns 202 + id;
+	# the caller polls GET /generations/{id} until it reaches a terminal
+	# status, then fetches the trajectory from GET /builds/{id}. Mirrors the
+	# native scripts/e2e.sh flow; the packaging is the variable, the
+	# contract is constant.
+	echo "[docker-e2e] LLM_API_KEY set; POST /generate (async)"
 	GEN_BODY='{
 		"class": "taekwon_kid",
 		"server": "uaro",
@@ -160,35 +165,90 @@ if [[ -n "${LLM_API_KEY:-}" ]]; then
 		"description": "docker e2e smoke test; produce a viable PvM build to lvl 99/50"
 	}'
 
-	HTTP_CODE=$(curl -s -o "$TMP/generate-response.json" -w '%{http_code}' \
-		--max-time 300 \
+	# Step 1: enqueue; expect 202 + {id}.
+	HTTP_CODE=$(curl -s -o "$TMP/enqueue-response.json" -w '%{http_code}' \
+		--max-time 30 \
 		-X POST "$API_URL/generate" \
 		-H 'content-type: application/json' \
 		-d "$GEN_BODY")
-	if [[ "$HTTP_CODE" != "200" ]]; then
-		echo "[docker-e2e] /generate returned HTTP $HTTP_CODE (expected 200)" >&2
+	if [[ "$HTTP_CODE" != "202" ]]; then
+		echo "[docker-e2e] /generate returned HTTP $HTTP_CODE (expected 202)" >&2
+		exit 1
+	fi
+	GEN_ID="$(jq -r '.id' "$TMP/enqueue-response.json")"
+	if [[ -z "$GEN_ID" || "$GEN_ID" == "null" ]]; then
+		echo "[docker-e2e] /generate 202 body missing .id" >&2
+		exit 1
+	fi
+	echo "[docker-e2e] /generate enqueued: $GEN_ID"
+
+	# Step 2: poll /generations/{id} until completed or failed.
+	POLL_INTERVAL=10 # seconds
+	MAX_WAIT_SECONDS=900
+	GEN_START=$(date +%s)
+	GEN_LAST_STATUS=""
+	while :; do
+		if ! curl -sf -o "$TMP/gen-status.json" "$API_URL/generations/$GEN_ID"; then
+			echo "[docker-e2e] poll /generations/$GEN_ID failed" >&2
+			exit 1
+		fi
+		GEN_STATUS="$(jq -r '.status' "$TMP/gen-status.json")"
+		if [[ "$GEN_STATUS" != "$GEN_LAST_STATUS" ]]; then
+			echo "[docker-e2e] generation status: $GEN_STATUS"
+			GEN_LAST_STATUS="$GEN_STATUS"
+		fi
+		case "$GEN_STATUS" in
+			completed)
+				break
+				;;
+			failed)
+				GEN_ERR="$(jq -r '.error // "(no error)"' "$TMP/gen-status.json")"
+				echo "[docker-e2e] generation failed: $GEN_ERR" >&2
+				exit 1
+				;;
+			queued | running)
+				NOW=$(date +%s)
+				ELAPSED=$((NOW - GEN_START))
+				if ((ELAPSED >= MAX_WAIT_SECONDS)); then
+					echo "[docker-e2e] /generate timed out after ${MAX_WAIT_SECONDS}s" >&2
+					exit 1
+				fi
+				sleep "$POLL_INTERVAL"
+				;;
+			*)
+				echo "[docker-e2e] unexpected generation status: $GEN_STATUS" >&2
+				exit 1
+				;;
+		esac
+	done
+
+	# Step 3: fetch enriched build from /builds/{id} (build_id == generation id).
+	BUILD_ID="$GEN_ID"
+	if ! curl -sf -o "$TMP/build-response.json" "$API_URL/builds/$BUILD_ID"; then
+		echo "[docker-e2e] GET /builds/$BUILD_ID failed" >&2
 		exit 1
 	fi
 
 	if ! jq -e --arg class "taekwon_kid" '
 		(.error // null) == null
-		and (.primary != null)
-		and (.primary.class == $class)
+		and (.class == $class)
 		and (.primary.snapshots | type == "array")
 		and (.primary.snapshots | length >= 1)
 		and ([.primary.snapshots[] | select(.score != null)] | length >= 1)
 		and ([.primary.snapshots[] | select(.gates != null and (.gates | length) > 0)] | length >= 1)
-	' "$TMP/generate-response.json" >/dev/null 2>&1; then
-		echo "[docker-e2e] /generate response failed validation" >&2
-		echo "      expected: no error; primary.class==taekwon_kid;" >&2
-		echo "                ≥1 snapshot with .score; ≥1 snapshot with gates" >&2
+		and (.gate_summary.pass > 0)
+	' "$TMP/build-response.json" >/dev/null 2>&1; then
+		echo "[docker-e2e] /builds/$BUILD_ID response failed validation" >&2
+		echo "      expected: no error; class==taekwon_kid;" >&2
+		echo "                ≥1 snapshot with .score; ≥1 snapshot with gates;" >&2
+		echo "                gate_summary.pass > 0" >&2
 		exit 1
 	fi
-	GEN_ITERS=$(jq -r '.iters' "$TMP/generate-response.json")
-	GEN_SNAP_COUNT=$(jq -r '.primary.snapshots | length' "$TMP/generate-response.json")
-	GEN_SCORED_COUNT=$(jq -r '[.primary.snapshots[] | select(.score != null)] | length' "$TMP/generate-response.json")
-	GEN_GATED_COUNT=$(jq -r '[.primary.snapshots[] | select(.gates != null and (.gates | length) > 0)] | length' "$TMP/generate-response.json")
-	echo "[docker-e2e] /generate OK (iters=$GEN_ITERS snapshots=$GEN_SNAP_COUNT scored=$GEN_SCORED_COUNT gated=$GEN_GATED_COUNT)"
+	GEN_SNAP_COUNT=$(jq -r '.primary.snapshots | length' "$TMP/build-response.json")
+	GEN_SCORED_COUNT=$(jq -r '[.primary.snapshots[] | select(.score != null)] | length' "$TMP/build-response.json")
+	GEN_GATED_COUNT=$(jq -r '[.primary.snapshots[] | select(.gates != null and (.gates | length) > 0)] | length' "$TMP/build-response.json")
+	GEN_GATE_PASS=$(jq -r '.gate_summary.pass' "$TMP/build-response.json")
+	echo "[docker-e2e] /generate OK (id=$GEN_ID snapshots=$GEN_SNAP_COUNT scored=$GEN_SCORED_COUNT gated=$GEN_GATED_COUNT gate_pass=$GEN_GATE_PASS)"
 else
 	# LLM_API_KEY unset: API starts in score-only mode; /generate must
 	# return 503 with "LLM provider not configured" rather than crashing

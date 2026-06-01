@@ -7,20 +7,50 @@ import (
 	"github.com/levonn-dev/ro-builder/internal/domain"
 )
 
-func TestSession_FirstAcceptWins(t *testing.T) {
+// "First clean pass wins": a warning-free submission locks the session;
+// a submission carrying only warnings (e.g. an under-spent stat budget) is
+// provisional and can be replaced by a later, cleaner resubmit.
+func TestSession_CleanSubmissionLocks(t *testing.T) {
 	s := &Session{}
-	first := AcceptedSubmission{Primary: domain.Trajectory{Class: "novice"}}
-	second := AcceptedSubmission{Primary: domain.Trajectory{Class: "swordsman"}}
+	clean := AcceptedSubmission{Primary: domain.Trajectory{Class: "novice"}}
+	if locked := s.Accept(clean, true); !locked {
+		t.Fatalf("a clean submission should lock the session (locked=true)")
+	}
+	other := AcceptedSubmission{Primary: domain.Trajectory{Class: "swordsman"}}
+	if locked := s.Accept(other, true); !locked {
+		t.Fatalf("once locked, Accept should keep reporting locked=true")
+	}
+	if got := s.Accepted(); got == nil || got.Primary.Class != "novice" {
+		t.Fatalf("a locked submission must not be replaced; got %+v, want novice", got)
+	}
+}
 
-	if !s.Accept(first) {
-		t.Fatalf("first Accept should return true")
+func TestSession_ProvisionalReplacedByCleanerSubmission(t *testing.T) {
+	s := &Session{}
+	warned := AcceptedSubmission{Primary: domain.Trajectory{Class: "novice"}}
+	if locked := s.Accept(warned, false); locked {
+		t.Fatalf("a warned submission is provisional, not locked")
 	}
-	if s.Accept(second) {
-		t.Fatalf("second Accept should return false")
+	if got := s.Accepted(); got == nil || got.Primary.Class != "novice" {
+		t.Fatalf("provisional submission should be the current answer of record; got %+v", got)
 	}
-	got := s.Accepted()
-	if got == nil || got.Primary.Class != "novice" {
-		t.Fatalf("Accepted: got %+v, want novice", got)
+	clean := AcceptedSubmission{Primary: domain.Trajectory{Class: "high_novice"}}
+	if locked := s.Accept(clean, true); !locked {
+		t.Fatalf("a clean resubmit should replace the provisional and lock")
+	}
+	if got := s.Accepted(); got == nil || got.Primary.Class != "high_novice" {
+		t.Fatalf("the clean submission should have replaced the provisional; got %+v", got)
+	}
+}
+
+func TestSession_LatestProvisionalKeptWhileWarned(t *testing.T) {
+	s := &Session{}
+	s.Accept(AcceptedSubmission{Primary: domain.Trajectory{Class: "first"}}, false)
+	if locked := s.Accept(AcceptedSubmission{Primary: domain.Trajectory{Class: "second"}}, false); locked {
+		t.Fatalf("session should still be provisional after a second warned submission")
+	}
+	if got := s.Accepted(); got == nil || got.Primary.Class != "second" {
+		t.Fatalf("latest provisional should win while no clean pass exists; got %+v", got)
 	}
 }
 

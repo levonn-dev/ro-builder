@@ -65,14 +65,19 @@ Include checkpoints at every job change, at base level 85 if reached, and at the
 
 Workflow (follow this order, do not deviate):
 
-1. Call list_class_skills(class) ONCE. Skills are also in the user prompt; the tool gives you cast/cooldown details if needed.
-2. Build the gear list via search_items, then call lookup_item on every id you intend to use (items AND cards) to confirm the catalog name matches your intent. Skip lookup_item only if a search_items result already shows the full {id, name} pair for that item. Your pretrained {id → name} memory is unreliable; the catalog is the only source of truth.
-3. Propose ONE primary trajectory with stats/skills/gear filled in. For EACH scored checkpoint (every job change, base level 85 if reached, endgame), call score_build and verify ` + "`derived.statPointsRemaining`" + ` is in the band [0, 5]. A negative value means the snapshot allocates more stat points than the character's level provides; submit_trajectory will reject with a fail_hard gate. A value greater than 5 means the build leaves stat budget unspent; that's wasted potential; raise stats to bring it into the [0, 5] band. Stat-point overspend is the most common rejection; under-spend produces a warning rather than a rejection but still indicates the build can be improved; fix both before submitting.
-4. Call submit_trajectory. The tool result echoes back the resolved catalog name for every equipment / card id you submitted. Scan the echo: if any name differs from what you intended (e.g. id 5100 echoes as "Sales Banner" when you meant "Feather Beret"), fix the ids via lookup_item and call submit_trajectory again with corrected ids. Repeat until every echoed name matches your intent. Then stop.
+1. The user prompt's class-skills block lists every allocatable skill with id, max level, element, attack type, cast/cooldown, and prerequisites; that is everything you need to allocate skills. Call list_class_skills ONLY if that block is missing (e.g. an unrecognized class left it out).
+2. Pick gear with search_items. Each result is a full item record (same shape as lookup_item), so the {id, name} you take from a search is already authoritative; do not re-verify it. Call lookup_item ONLY for an id you are recalling from memory rather than taking from a search result; pretrained id→name memory is unreliable and the catalog is the only source of truth. submit_trajectory echoes back every resolved equipment / card name as a final backstop, so a wrong id still surfaces there.
+3. Build the trajectory's stats / skills / gear / leveling targets, working through the scored checkpoints (every job change, base level 85 if reached, endgame) in level order so stats and skills only ever grow. If you're weighing genuinely distinct directions (two weapon lines, two stat archetypes), score them together with score_builds in one call, pick the winner, then commit to it. Before submitting, converge ONLY the stat budget: for each scored checkpoint call score_build with NO scenario (a cheap derived-only check) and read derived.statPointsRemaining; it must be >= 0 (negative = over-allocated, reduce stats) and should land in [0, 5]. Load each checkpoint's ACTUAL final equipment for this check: the calc validates the gear and reports every item or card it can't use (unknown to the calc, or not equippable by this class) in one response, so any bad gear surfaces here cheaply instead of aborting a submit. Pre-renewal budgets are large and unintuitive, so a spread that "looks reasonable" routinely overspends by tens of points; verify rather than guessing. Do NOT pre-check the combat gates (hit / flee / EHP / status immunity) with score_build; submit_trajectory reports those per checkpoint and you fix them from its rejection (step 4). Scoring the budget is cheap; hill-climbing combat gates one checkpoint at a time is the slow path you're avoiding.
+4. When every scored checkpoint is within its stat budget, call submit_trajectory. It re-scores canonically and runs the gates as the authoritative commit; you do NOT need to re-score after it passes. Read the result:
+   - Rejected (error result): a gate failed and nothing was committed. The error inlines EVERY scored checkpoint's statPointsRemaining and all failing gates (flee, EHP, status immunity, hit). Fix as many as you can in one pass; adjust stats / gear across the flagged snapshots, re-checking the budget with score_build only if you changed stats, then submit again. Work the whole gate list per resubmit rather than chasing one gate at a time.
+   - Accepted, locked=false (provisional): the build cleared the hard gates but carries a warning; the checkpoints array shows which. Most often a snapshot has statPointsRemaining greater than 5 (unspent stat budget). Raise stats to use the budget (or fix whatever the warning flags) and submit again; a warning-free resubmit replaces this provisional result. One corrective pass is usually enough. If you judge the warning acceptable you may stop; the provisional build is valid and will be saved.
+   - Accepted, locked=true (final): a warning-free build is the answer of record. Read the checkpoints array and the resolved-equipment echo, write your summary from them, and stop. A later submit cannot replace a locked result.
 
-Critical: prefer submitting a viable trajectory over optimizing further. The orchestrator scores canonical checkpoints itself after submit, and the user can iterate on the result. Do NOT loop on score_build with single-stat-point tweaks chasing higher damage. But DO verify the stat-budget constraint (statPointsRemaining >= 0 at every scored snapshot) before submitting; that is a hard requirement, not optimization.
+Verify equipment ids before you submit: take every id from a search_items result, or pre-verify a memory-sourced id with lookup_item. A wrong-but-valid id that scores clean locks in immediately, and the name echo can only be corrected while the result is still provisional.
 
-Stat point budget: total points scale with base level (~3-12 per level depending on tier) plus class-change bonuses (trans gets +52 from job change). Don't try to compute this manually; rely on score_build's ` + "`derived.statPointsRemaining`" + ` to confirm each snapshot is within budget.
+Critical: prefer a viable trajectory over a perfect one. Before submitting, use score_build only to confirm each checkpoint's STAT BUDGET (cheap, required); let submit_trajectory's per-checkpoint rejections drive the combat gates (flee / EHP / status / hit) rather than hill-climbing them with score_build one checkpoint at a time. Don't chase marginal damage with single-point tweaks. submit_trajectory is the authoritative scorer and commit step; once it accepts, trust its result instead of re-scoring.
+
+Stat point budget: total points scale with base level (~3-12 per level depending on tier) plus class-change bonuses (trans gets +52 from job change). Don't compute this manually; use score_build's derived.statPointsRemaining on each checkpoint to confirm it's within budget before submitting. The budget is large and unintuitive, so a stat spread that looks reasonable often overspends by tens of points.
 
 Skill point budget: each class grants (max_job_level − 1) skill points across job levels 1→max. The endgame total is the sum across all classes in the inherit chain (e.g. novice + 1st + 2nd + trans). The user prompt's "Endgame skill point budget" line gives you the exact total; manually count your skill allocation against it before submitting. The calc does not currently surface skill_points_remaining, so this is on you to verify.
 
@@ -312,19 +317,20 @@ func (o *Orchestrator) Generate(ctx context.Context, req GenerateRequest) (*Gene
 			})
 		},
 		Accept: func(primary domain.Trajectory, alts []domain.Trajectory, calcVersion string) bool {
-			ok := sess.Accept(AcceptedSubmission{
+			clean := primary.Clean()
+			locked := sess.Accept(AcceptedSubmission{
 				Primary:      primary,
 				Alternatives: alts,
 				CalcVersion:  calcVersion,
-			})
-			if ok {
-				logger.Info("trajectory accepted",
-					slog.Int("snapshots", len(primary.Snapshots)),
-					slog.Int("alternatives", len(alts)),
-					slog.String("calc_version", calcVersion),
-					slog.Int("attempts", sess.Attempts()))
-			}
-			return ok
+			}, clean)
+			logger.Info("trajectory accepted",
+				slog.Int("snapshots", len(primary.Snapshots)),
+				slog.Int("alternatives", len(alts)),
+				slog.String("calc_version", calcVersion),
+				slog.Bool("clean", clean),
+				slog.Bool("locked", locked),
+				slog.Int("attempts", sess.Attempts()))
+			return locked
 		},
 	})
 	reg := o.registry.WithTool(submitTool)
@@ -367,6 +373,7 @@ func (o *Orchestrator) Generate(ctx context.Context, req GenerateRequest) (*Gene
 		logger.Info("llm iter",
 			slog.Int("iter", iter),
 			slog.String("stop_reason", string(resp.StopReason)),
+			slog.String("tools", summarizeToolCalls(resp.Content)),
 			slog.Int("submit_attempts", sess.Attempts()))
 
 		switch resp.StopReason {
@@ -410,6 +417,32 @@ func (o *Orchestrator) Generate(ctx context.Context, req GenerateRequest) (*Gene
 	}
 	return &GenerateResult{Trace: messages, Iters: o.maxIters},
 		&FailureError{Reason: "max_iters_exhausted", Detail: fmt.Sprintf("maxIters=%d", o.maxIters)}
+}
+
+// summarizeToolCalls renders the tool_use blocks in an assistant turn as a
+// compact "name=count" list (e.g. "score_build=2,search_items=1") for the
+// per-iteration log, so a run's tool mix is visible without re-parsing the
+// trace. Empty when the turn made no tool calls (text-only / end_turn).
+func summarizeToolCalls(content []llm.ContentBlock) string {
+	counts := map[string]int{}
+	var order []string
+	for _, c := range content {
+		if c.Type != llm.BlockToolUse {
+			continue
+		}
+		if counts[c.ToolName] == 0 {
+			order = append(order, c.ToolName)
+		}
+		counts[c.ToolName]++
+	}
+	if len(order) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(order))
+	for _, name := range order {
+		parts = append(parts, fmt.Sprintf("%s=%d", name, counts[name]))
+	}
+	return strings.Join(parts, ",")
 }
 
 // buildResult assembles the GenerateResult from the session's accepted
@@ -718,6 +751,12 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 				line += " (" + s.Name + ")"
 			}
 			line += fmt.Sprintf(" maxlv=%d", s.MaxLevel)
+			if s.AttackType != "" {
+				line += " type=" + s.AttackType
+			}
+			if s.Element != "" {
+				line += " elem=" + s.Element
+			}
 			if s.CastTimeMs > 0 {
 				line += fmt.Sprintf(" cast=%dms", s.CastTimeMs)
 				if s.Interruptible {
@@ -739,7 +778,7 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 			sb.WriteString(line + "\n")
 		}
 	}
-	sb.WriteString("\nProduce concrete builds and verify each with score_build before describing it.")
+	sb.WriteString("\nConfirm each scored checkpoint's stat budget with score_build, then submit the trajectory with submit_trajectory and fix any combat-gate failures it reports. It is the authoritative scorer for the canonical checkpoints; describe the build from its numbers.")
 	return sb.String()
 }
 

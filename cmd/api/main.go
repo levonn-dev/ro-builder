@@ -139,6 +139,7 @@ func run() error {
 	if provider != nil {
 		registry := tools.NewRegistry()
 		registry.Register(tools.NewScoreBuild(scoringClient))
+		registry.Register(tools.NewScoreBuilds(scoringClient))
 		registry.Register(tools.NewLookupItem(cat))
 		registry.Register(tools.NewSearchItems(cat))
 		registry.Register(tools.NewLookupMonster(cat))
