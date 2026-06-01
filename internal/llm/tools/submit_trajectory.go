@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/levonn-dev/ro-builder/internal/catalog"
 	"github.com/levonn-dev/ro-builder/internal/domain"
@@ -153,9 +154,11 @@ type SubmitTrajectoryDeps struct {
 	// that don't want to wire gates).
 	EvaluateGates func(score *scoring.ScoreResponse, snap *domain.Snapshot) []domain.GateResult
 	// Accept is called with the (canonical-scored + gates-stamped)
-	// trajectories when all gates pass. Returns true if this is the
-	// first accept; subsequent calls (returns false) still surface
-	// to the LLM as success but the orchestrator ignores them.
+	// trajectories when all hard gates pass. It returns the session's
+	// locked state under first-clean-wins: true once a warning-free
+	// submission is the final answer of record, false while the result is
+	// provisional (carries a warning) and a cleaner resubmit could still
+	// replace it. Provisional submissions are kept, not ignored.
 	Accept func(primary domain.Trajectory, alternatives []domain.Trajectory, calcVersion string) bool
 }
 
@@ -175,13 +178,13 @@ func NewSubmitTrajectory(deps SubmitTrajectoryDeps) Tool {
 func (s *submitTrajectoryTool) Definition() llm.Tool {
 	return llm.Tool{
 		Name: SubmitTrajectoryToolName,
-		Description: "Submit your final trajectory for the build request. The orchestrator runs canonical scoring + quality-gates evaluation inside this tool. " +
-			"The primary trajectory must pass every gate: if it fails, the tool result returns an error with the failing-gate details so you can fix the build and resubmit. " +
+		Description: "Submit your final trajectory for the build request. The orchestrator runs canonical scoring + quality-gates evaluation inside this tool; it is the authoritative scorer and the commit step. Confirm each checkpoint's stat budget with score_build first, then submit; this tool reports the combat gates (flee / EHP / status immunity / hit) per checkpoint on rejection, so fix those from its result rather than pre-scoring them. Once it accepts you don't need to re-score. " +
+			"On an accepted submission the result's checkpoints array reports each scored snapshot's statPointsRemaining and any non-pass gate (e.g. an under-spent stat budget, a warning). Acceptance is first-clean-wins: a warning-free submission locks in as final (locked=true); a submission carrying warnings is provisional (locked=false) and a cleaner resubmit replaces it. On a rejected submission the result is an error naming the failing gate(s) and the offending checkpoint's statPointsRemaining, so you can correct the allocation and resubmit. " +
 			"Alternatives are independent peer trajectories; any alternative that fails gates is silently dropped from the accepted set (and reported in dropped_alternatives) without rejecting the submission. " +
 			"Provide the primary trajectory (max-level endgame for the requested class, with backwards-derived checkpoints at job changes, lvl 85 if reached, and the endgame). " +
 			"Optionally include peer alternative trajectories that lead to the same endgame goal via a different path. " +
-			"The tool result echoes back the resolved catalog name for every equipment / card ID you submitted. Verify each name matches your intent: if any name is wrong, call lookup_item to find the right id and submit_trajectory again with corrected ids. The catalog is the only source of truth for item names. " +
-			"The response's first_pass field indicates whether this submission is the canonical one (true) or shadowed by an earlier successful submission (false); when false, no further resubmission is needed.",
+			"The tool result echoes back the resolved catalog name for every equipment / card ID you submitted; the catalog is the only source of truth for item names. Prefer catching a wrong id before submitting (take ids from search_items); if the result is still provisional (locked=false) you can resubmit with the corrected id to replace it. " +
+			"The response's locked field is true when the result is final (a warning-free submission has landed); when false the result is provisional and you may resubmit a cleaner build to replace it.",
 		InputSchema: json.RawMessage(submitTrajectorySchema),
 	}
 }
@@ -207,13 +210,21 @@ func (s *submitTrajectoryTool) Execute(ctx context.Context, raw json.RawMessage)
 		return nil, err
 	}
 
+	// Per-checkpoint budget + gate report for the primary. Built once and
+	// reused: it enriches the rejection error (so the model sees the
+	// offending statPointsRemaining inline) and rides along on the accept
+	// ack (so the model sees under-spend warnings without a separate
+	// score_build pass). This is what lets the orchestrator own scoring
+	// end-to-end; the model assembles, submits, and reads these numbers.
+	reports := buildCheckpointReports(&in.Primary)
+
 	// Primary must clear every gate; a fail / fail_hard short-circuits
 	// with a Go error so the registry wraps it as is_error=true and the
 	// LLM iterates. Alternatives are independent peer trajectories: any
 	// alternative that fails gates is dropped from the accepted set,
 	// not propagated as a submission-level failure.
 	if msg := scanGates("primary", in.Primary); msg != "" {
-		return nil, fmt.Errorf("submission rejected; %s. Adjust the build and submit_trajectory again", msg)
+		return nil, fmt.Errorf("submission rejected; %s.\n%sAdjust the flagged snapshots and submit_trajectory again", msg, formatCheckpointLines(reports))
 	}
 	acceptedAlts := make([]domain.Trajectory, 0, len(in.Alternatives))
 	droppedAlts := make([]droppedAlternative, 0)
@@ -236,28 +247,30 @@ func (s *submitTrajectoryTool) Execute(ctx context.Context, raw json.RawMessage)
 		acceptedAlts = append(acceptedAlts, in.Alternatives[i])
 	}
 
-	// Forward to the session callback. First-pass-wins is enforced by
-	// the callback, not the tool, so we call it on every successful
-	// execute. The callback's bool return tells the LLM whether THIS
-	// submission is canonical (true) or shadowed by an earlier one
-	// (false); surfaced as ack.FirstPass so the model has an explicit
-	// signal instead of inferring from the silently-identical accepted=true.
-	firstPass := true
+	// Forward to the session callback. Acceptance is first-clean-wins,
+	// enforced by the callback, not the tool, so we call it on every
+	// successful execute. The callback's bool return is the session's
+	// locked state: true once a warning-free submission is the final
+	// answer of record, false while the result is provisional (carries a
+	// warning) and a cleaner resubmit could still replace it. Surfaced as
+	// ack.Locked so the model knows whether to stop or refine.
+	locked := true
 	if s.deps.Accept != nil {
-		firstPass = s.deps.Accept(in.Primary, acceptedAlts, calcVersion)
+		locked = s.deps.Accept(in.Primary, acceptedAlts, calcVersion)
 	}
 
 	ack := submitTrajectoryAck{
 		Accepted:            true,
-		FirstPass:           firstPass,
+		Locked:              locked,
 		PrimarySnapshots:    len(in.Primary.Snapshots),
 		Alternatives:        len(acceptedAlts),
 		DroppedAlternatives: droppedAlts,
+		Checkpoints:         reports,
 	}
 	if s.deps.Catalog != nil {
 		ack.ResolvedEquipment = s.resolveEquipment(in)
 		if len(ack.ResolvedEquipment) > 0 {
-			ack.VerificationInstructions = "Cross-check every item and card name above against your intent. If any name is unexpected, fix the iRO id (use lookup_item) and submit_trajectory again with corrected ids."
+			ack.VerificationInstructions = "Cross-check every item and card name above against your intent. If any name is unexpected, the iRO id is wrong; fix it (use lookup_item) and, while the result is provisional (locked=false), submit_trajectory again with corrected ids."
 		}
 	}
 	return json.Marshal(ack)
@@ -326,7 +339,7 @@ func SelectScoredIndices(t *domain.Trajectory) []int {
 func scanGates(label string, t domain.Trajectory) string {
 	for i, snap := range t.Snapshots {
 		for _, g := range snap.Gates {
-			if g.Severity == domain.GateSeverityFail || g.Severity == domain.GateSeverityFailHard {
+			if g.IsBlocking() {
 				return fmt.Sprintf("%s snapshot %d (%s): gate %q %s (actual=%v, threshold=%v)",
 					label, i, snap.Class, g.Name, g.Severity, g.Actual, g.Threshold)
 			}
@@ -335,18 +348,89 @@ func scanGates(label string, t domain.Trajectory) string {
 	return ""
 }
 
+// levelStr renders a level as "base/job" (e.g. "99/70") for the LLM-facing
+// echoes. One helper so the checkpoint report and the resolved-equipment
+// block in this file can't render the same level differently.
+func levelStr(l domain.Level) string {
+	return fmt.Sprintf("%d/%d", l.Base, l.Job)
+}
+
+// checkpointReport is the per-snapshot scoring summary echoed back to the
+// model on every submit outcome. statPointsRemaining is the headline
+// number (negative = over-allocated → rejection; > underspendWarn = wasted
+// budget → warn); Gates carries only the non-pass results so the echo
+// stays actionable.
+type checkpointReport struct {
+	SnapshotIndex       int                 `json:"snapshot_index"`
+	Class               string              `json:"class"`
+	Level               string              `json:"level"`
+	StatPointsRemaining int                 `json:"stat_points_remaining"`
+	Gates               []domain.GateResult `json:"gates,omitempty"`
+}
+
+// buildCheckpointReports summarizes the canonically-scored snapshots
+// (SelectScoredIndices) for the model. Snapshots without a stamped Score
+// (scoring disabled, or not selected) are skipped, so an empty result
+// means "nothing was scored" rather than "everything passed".
+func buildCheckpointReports(t *domain.Trajectory) []checkpointReport {
+	var out []checkpointReport
+	for _, idx := range SelectScoredIndices(t) {
+		snap := &t.Snapshots[idx]
+		if snap.Score == nil {
+			continue
+		}
+		r := checkpointReport{
+			SnapshotIndex:       idx,
+			Class:               snap.Class,
+			Level:               levelStr(snap.Level),
+			StatPointsRemaining: snap.Score.Derived.StatPointsRemaining,
+		}
+		for _, g := range snap.Gates {
+			if !g.IsPass() {
+				r.Gates = append(r.Gates, g)
+			}
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// formatCheckpointLines renders the reports as a prose block for the
+// rejection error message. Empty in, empty out (no trailing noise when
+// scoring was disabled).
+func formatCheckpointLines(reports []checkpointReport) string {
+	if len(reports) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("Per-checkpoint scoring:\n")
+	for _, r := range reports {
+		fmt.Fprintf(&sb, "- snapshot %d (%s) %s: statPointsRemaining=%d", r.SnapshotIndex, r.Class, r.Level, r.StatPointsRemaining)
+		for _, g := range r.Gates {
+			fmt.Fprintf(&sb, " [%s %s: %s]", strings.ToUpper(g.Severity), g.Name, g.Reason)
+		}
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
 // === Catalog-name echo (unchanged from prior implementation) ===
 
 type submitTrajectoryAck struct {
 	Accepted bool `json:"accepted"`
-	// FirstPass is true when this submission is the canonical one the
-	// orchestrator will keep; false means an earlier submission already
-	// won the first-pass race and this one is structurally valid but
-	// shadowed. The LLM should treat false as "don't bother resubmitting;
-	// your earlier attempt is already the answer of record".
-	FirstPass                bool                 `json:"first_pass"`
-	PrimarySnapshots         int                  `json:"primary_snapshots"`
-	Alternatives             int                  `json:"alternatives"`
+	// Locked is true when the result is final: a warning-free submission
+	// is the answer of record under first-clean-wins. False means the
+	// result is provisional (carries a warning, e.g. an under-spent
+	// budget) and a cleaner resubmit will replace it. The LLM treats true
+	// as "stop" and false as "you may refine and resubmit".
+	Locked           bool `json:"locked"`
+	PrimarySnapshots int  `json:"primary_snapshots"`
+	Alternatives     int  `json:"alternatives"`
+	// Checkpoints reports each canonically-scored snapshot's
+	// statPointsRemaining and any non-pass gate. Present on every accepted
+	// submission so the model can spot an under-spent budget (a warn, not a
+	// rejection) and resubmit without re-running score_build itself.
+	Checkpoints              []checkpointReport   `json:"checkpoints,omitempty"`
 	DroppedAlternatives      []droppedAlternative `json:"dropped_alternatives,omitempty"`
 	ResolvedEquipment        []resolvedSnapshotEq `json:"resolved_equipment,omitempty"`
 	VerificationInstructions string               `json:"verification_instructions,omitempty"`
@@ -393,7 +477,7 @@ func (s *submitTrajectoryTool) resolveTrajectory(label string, t domain.Trajecto
 			Trajectory:    label,
 			SnapshotIndex: i,
 			Class:         snap.Class,
-			Level:         fmt.Sprintf("%d/%d", snap.Level.Base, snap.Level.Job),
+			Level:         levelStr(snap.Level),
 			Slots:         make(map[string]resolvedSlotEntry, len(snap.Equipment)),
 		}
 		// Sort slot keys so the LLM sees a stable ordering.

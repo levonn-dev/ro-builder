@@ -36,7 +36,7 @@ func (l *lookupItemTool) Definition() llm.Tool {
 		Name: "lookup_item",
 		Description: "Look up a single iRO item by numeric id. Returns the canonical record: name, type (IT_WEAPON / IT_ARMOR / IT_CARD / etc.), subtype (W_DAGGER / A_SHIELD / etc.), atk/def, slot count, equip-level requirement, weapon level, and immunity tags. " +
 			"Immunity tags: grants_immunity (list of statuses the item grants FULL immunity to; frozen / stun / sleep / stone_curse / curse / silence / blind / poison / confusion) and grants_uninterruptible_cast (Phen card / Orleans Gown / equivalent). " +
-			"Use this to verify an item exists and fits the slot you intend BEFORE passing it to score_build (avoids round-trips for 'no rocalc mapping' or 'not in option list'), and to check whether equipment covers the immunity / uninterruptible-cast a build needs vs the target's threats.",
+			"Prefer search_items when choosing gear: its results are full records of this same shape, so you rarely need lookup_item for an item you found through search. Reach for lookup_item when you have a specific id from memory (not from a search result) and need to confirm its name / slot before use, or to inspect one item's immunity and uninterruptible-cast tags against the target's threats.",
 		InputSchema: json.RawMessage(lookupItemSchema),
 	}
 }
