@@ -165,6 +165,7 @@ export function score(req: ScoreRequest): ScoreResponse {
     if (req.stats) s.setStats(req.stats);
     if (req.skills && req.skills.length > 0) s.setSkills(req.skills);
     if (req.equipment) applyEquipment(s, req.equipment);
+    if (req.buffs && req.buffs.length > 0) s.setBuffs(req.buffs);
 
     const out: ScoreResponse = {
       derived: s.readDerivedStats(),

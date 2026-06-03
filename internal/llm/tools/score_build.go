@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/levonn-dev/ro-builder/internal/catalog"
 	"github.com/levonn-dev/ro-builder/internal/domain"
 	"github.com/levonn-dev/ro-builder/internal/llm"
 	"github.com/levonn-dev/ro-builder/internal/scoring"
@@ -71,6 +72,18 @@ const buildObjectSchema = `{
               "cards": {"type": "array", "items": {"type": "integer"}, "description": "iRO card ids slotted into this item."}
             }
           }
+        },
+        "active_buffs": {
+          "type": "array",
+          "description": "Self-buffs active for this build (e.g. Taekwon Ranker, Mild Wind). name is a semantic buff key from this class's available buffs (see list_class_buffs); element (lowercase, e.g. \"holy\") is required only for weapon-endow buffs and must be within the buff's level. Buff level comes from the anchor skill's allocation in skills; do not restate it. Only declare buffs whose anchor skill this build allocates. Scored the same way submit_trajectory scores them.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {"type": "string"},
+              "element": {"type": "string"}
+            }
+          }
         }
       }
     }`
@@ -100,18 +113,21 @@ const scoreBuildSchema = `{
 // is set.
 type scoreBuildTool struct {
 	client *scoring.Client
+	cat    *catalog.Catalog
 }
 
 // NewScoreBuild constructs the tool. The orchestrator wires this in at
 // startup with a shared scoring.Client. Panics on nil client to match
 // the fail-fast convention of every other tool constructor in this
 // package; a nil client would otherwise NPE inside Execute on the first
-// real build, far from the wiring bug.
-func NewScoreBuild(client *scoring.Client) Tool {
+// real build, far from the wiring bug. cat may be nil; it is only needed to
+// resolve a build's active_buffs, and a build without buffs scores fine
+// without it.
+func NewScoreBuild(client *scoring.Client, cat *catalog.Catalog) Tool {
 	if client == nil {
 		panic("tools.NewScoreBuild: scoring client is required")
 	}
-	return &scoreBuildTool{client: client}
+	return &scoreBuildTool{client: client, cat: cat}
 }
 
 func (s *scoreBuildTool) Definition() llm.Tool {
@@ -144,11 +160,12 @@ type scoreBuildInput struct {
 // the raw input). Field shapes match domain.Build verbatim so the JSON
 // surface the model sees is unchanged from the previous embedded form.
 type scoreBuildBuild struct {
-	Class     string                              `json:"class,omitempty"`
-	Level     domain.Level                        `json:"level"`
-	Stats     domain.Stats                        `json:"stats"`
-	Equipment map[domain.SlotKey]domain.EquipSpec `json:"equipment,omitempty"`
-	Skills    []domain.SkillAlloc                 `json:"skills,omitempty"`
+	Class       string                              `json:"class,omitempty"`
+	Level       domain.Level                        `json:"level"`
+	Stats       domain.Stats                        `json:"stats"`
+	Equipment   map[domain.SlotKey]domain.EquipSpec `json:"equipment,omitempty"`
+	Skills      []domain.SkillAlloc                 `json:"skills,omitempty"`
+	ActiveBuffs []domain.ActiveBuff                 `json:"active_buffs,omitempty"`
 }
 
 // toBuild copies the LLM-supplied fields into a domain.Build. Mode is
@@ -170,7 +187,7 @@ func (s *scoreBuildTool) Execute(ctx context.Context, raw json.RawMessage) (json
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return nil, fmt.Errorf("decode score_build input: %w", err)
 	}
-	resp, err := scoreOne(ctx, s.client, in.Build, in.Scenario)
+	resp, err := scoreOne(ctx, s.client, s.cat, in.Build, in.Scenario)
 	if err != nil {
 		return nil, err
 	}
@@ -197,12 +214,18 @@ var errBuildInvalid = errors.New("invalid build")
 // scoreBuildBuild.Skills (domain.Build has no Skills field), so skills are
 // set on the request explicitly after conversion.
 //
-// Errors preserve their type in the chain: a validation failure wraps
-// errBuildInvalid, and a sidecar failure wraps the typed *scoring.Error (or
-// transport error). This lets score_builds tell a candidate's bad input
-// (validation, 4xx) apart from a global calc-engine outage (5xx, transport)
-// and decide whether to capture it per-candidate or abort the batch.
-func scoreOne(ctx context.Context, client *scoring.Client, b scoreBuildBuild, scenario *domain.Scenario) (*scoring.ScoreResponse, error) {
+// Errors preserve their type in the chain: a validation failure (or a bad
+// active_buff) wraps errBuildInvalid, and a sidecar failure wraps the typed
+// *scoring.Error (or transport error). This lets score_builds tell a
+// candidate's bad input (validation, 4xx) apart from a global calc-engine
+// outage (5xx, transport) and decide whether to capture it per-candidate or
+// abort the batch.
+//
+// active_buffs are resolved here (level filled from the build's skill
+// allocation, element validated) so a previewed build is scored with the same
+// buffs canonical submit_trajectory scoring applies; cat must be non-nil when
+// the build declares buffs.
+func scoreOne(ctx context.Context, client *scoring.Client, cat *catalog.Catalog, b scoreBuildBuild, scenario *domain.Scenario) (*scoring.ScoreResponse, error) {
 	build := b.toBuild()
 	if err := build.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", errBuildInvalid, err)
@@ -212,6 +235,13 @@ func scoreOne(ctx context.Context, client *scoring.Client, b scoreBuildBuild, sc
 	if len(b.Skills) > 0 {
 		req.Skills = b.Skills
 	}
+	buffs, err := resolveBuffs(b.Class, b.Skills, b.ActiveBuffs, cat)
+	if err != nil {
+		// A bad buff is the caller's input mistake, like a malformed build, so
+		// tag it errBuildInvalid for score_builds' per-candidate classification.
+		return nil, fmt.Errorf("%w: %w", errBuildInvalid, err)
+	}
+	req.Buffs = buffs
 	resp, err := client.Score(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("calc sidecar: %w", err)

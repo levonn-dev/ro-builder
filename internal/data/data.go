@@ -188,6 +188,12 @@ func LoadMobsFrom(emulatorRoot string, mode Mode, source Source) ([]Mob, error) 
 // sources without conversion.
 type Skill = hercules.Skill
 
+// SelfBuff and EndowSpec are hand-authored self-buff metadata layered onto
+// Skill records at catalog build time. Aliased from hercules (where Skill
+// itself lives) to avoid an import cycle.
+type SelfBuff = hercules.SelfBuff
+type EndowSpec = hercules.EndowSpec
+
 // LoadSkills reads the skill database from a Hercules clone (default
 // source). For multi-source workflows use LoadSkillsFrom.
 func LoadSkills(herculesRoot string, mode Mode) ([]Skill, error) {

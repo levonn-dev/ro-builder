@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -93,6 +94,18 @@ const submitTrajectorySchema = `{
             }
           }
         },
+        "active_buffs": {
+          "type": "array",
+          "description": "Self-buffs active at this checkpoint. name is a semantic buff key from this class's available buffs (see list_class_buffs / the injected available-buffs block); element (lowercase, e.g. \"holy\") is required only for weapon-endow buffs like Mild Wind and must be within the buff's level. Declare buffs you'd realistically maintain (Ranker is permanent; Spurt/Mild Wind are re-upped). Buff level is taken from the anchor skill's allocation, do not restate it. Only declare buffs whose anchor skill this snapshot allocates.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {"type": "string"},
+              "element": {"type": "string"}
+            }
+          }
+        },
         "equipment": {
           "type": "object",
           "description": "Recommended gear by slot key (weapon, headTop, headMid, headBot, shield, armor, garment, footgear, accessory1, accessory2). Same shape as score_build.",
@@ -140,6 +153,10 @@ type ScoringClient interface {
 // catalog + profile + overrides + playstyle, and closing Accept over
 // the per-request Session.
 type SubmitTrajectoryDeps struct {
+	// Catalog is used to echo resolved item/card names back to the LLM and to
+	// resolve active_buffs during scoring. Must be non-nil when Scoring is set
+	// if any submitted snapshot can carry active_buffs; the buff resolver needs
+	// it to map buff names to anchor skills.
 	Catalog *catalog.Catalog
 	Scoring ScoringClient
 	// Profile is the resolved server profile for the request. When non-nil,
@@ -230,11 +247,16 @@ func (s *submitTrajectoryTool) Execute(ctx context.Context, raw json.RawMessage)
 	droppedAlts := make([]droppedAlternative, 0)
 	for i := range in.Alternatives {
 		if _, err := s.scoreAndGate(ctx, &in.Alternatives[i]); err != nil {
-			// 4xx from the sidecar means this alternative's input is bad
-			// (unmapped item id, bad slot, etc.); treat like a gate failure
-			// and drop it rather than aborting the whole submission. 5xx or
-			// transport errors propagate: they'd fail the primary too.
-			if scoring.IsClientError(err) {
+			// Caller-fixable errors drop just this alternative rather than
+			// aborting the whole submission: buff-resolution failures (bad buff
+			// name, unallocated anchor skill, endow element above level) carry
+			// errBuffResolve, and a sidecar 4xx (unmapped item id, bad slot)
+			// satisfies IsClientError. Infrastructure failures (sidecar 5xx or
+			// transport) are neither, and they propagate: liveness is not
+			// monotonic across calls, so the primary scoring cleanly does not
+			// prove the alternative will, and a real outage must surface rather
+			// than be masked as one bad alternative.
+			if errors.Is(err, errBuffResolve) || scoring.IsClientError(err) {
 				droppedAlts = append(droppedAlts, droppedAlternative{Index: i, Reason: "scoring: " + err.Error()})
 				continue
 			}
@@ -291,6 +313,14 @@ func (s *submitTrajectoryTool) scoreAndGate(ctx context.Context, t *domain.Traje
 	for _, idx := range SelectScoredIndices(t) {
 		snap := &t.Snapshots[idx]
 		req := snap.ToScoreRequest(s.deps.Profile)
+		buffs, err := resolveBuffs(snap.Class, snap.Skills, snap.ActiveBuffs, s.deps.Catalog)
+		if err != nil {
+			// Tag with errBuffResolve so the alternatives loop classifies this
+			// as a caller-fixable input mistake (drop the alternative) rather
+			// than an infrastructure failure (abort the submission).
+			return "", fmt.Errorf("%w: snapshot %d (%s): %w", errBuffResolve, idx, snap.Class, err)
+		}
+		req.Buffs = buffs
 		resp, err := s.deps.Scoring.Score(ctx, req)
 		if err != nil {
 			return "", fmt.Errorf("canonical scoring failed for snapshot %d (%s): %w", idx, snap.Class, err)
@@ -359,13 +389,35 @@ func levelStr(l domain.Level) string {
 // model on every submit outcome. statPointsRemaining is the headline
 // number (negative = over-allocated → rejection; > underspendWarn = wasted
 // budget → warn); Gates carries only the non-pass results so the echo
-// stays actionable.
+// stays actionable. Buffs is the human-readable active-buff summary for
+// snapshots that declare self-buffs; omitted when no buffs are active.
 type checkpointReport struct {
 	SnapshotIndex       int                 `json:"snapshot_index"`
 	Class               string              `json:"class"`
 	Level               string              `json:"level"`
 	StatPointsRemaining int                 `json:"stat_points_remaining"`
 	Gates               []domain.GateResult `json:"gates,omitempty"`
+	Buffs               string              `json:"buffs,omitempty"`
+}
+
+// formatActiveBuffs renders a snapshot's declared self-buffs as a
+// human-readable, comma-separated list. For endow buffs (Element != ""),
+// the element is appended in parentheses: "mild_wind (holy endow)".
+// Returns an empty string when buffs is empty, so callers can use it
+// directly in omitempty logic.
+func formatActiveBuffs(buffs []domain.ActiveBuff) string {
+	if len(buffs) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(buffs))
+	for _, b := range buffs {
+		if b.Element != "" {
+			parts = append(parts, b.Name+" ("+b.Element+" endow)")
+		} else {
+			parts = append(parts, b.Name)
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // buildCheckpointReports summarizes the canonically-scored snapshots
@@ -384,6 +436,7 @@ func buildCheckpointReports(t *domain.Trajectory) []checkpointReport {
 			Class:               snap.Class,
 			Level:               levelStr(snap.Level),
 			StatPointsRemaining: snap.Score.Derived.StatPointsRemaining,
+			Buffs:               formatActiveBuffs(snap.ActiveBuffs),
 		}
 		for _, g := range snap.Gates {
 			if !g.IsPass() {
@@ -406,6 +459,9 @@ func formatCheckpointLines(reports []checkpointReport) string {
 	sb.WriteString("Per-checkpoint scoring:\n")
 	for _, r := range reports {
 		fmt.Fprintf(&sb, "- snapshot %d (%s) %s: statPointsRemaining=%d", r.SnapshotIndex, r.Class, r.Level, r.StatPointsRemaining)
+		if r.Buffs != "" {
+			fmt.Fprintf(&sb, " buffs=%s", r.Buffs)
+		}
 		for _, g := range r.Gates {
 			fmt.Fprintf(&sb, " [%s %s: %s]", strings.ToUpper(g.Severity), g.Name, g.Reason)
 		}

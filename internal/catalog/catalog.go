@@ -276,6 +276,10 @@ type ClassSkill struct {
 	// before this skill can be learned. Sorted by AegisName for stable
 	// output. Empty for skills with no prerequisites.
 	Requires []ClassSkillRequirement `json:",omitempty"`
+	// SelfBuff is the skill's self-buff metadata, copied from data.Skill when
+	// present. nil for the overwhelming majority of skills. Drives ClassBuffs
+	// + the buff resolver + list_class_buffs.
+	SelfBuff *data.SelfBuff `json:",omitempty"`
 }
 
 // ClassSkills returns the named class's allocatable skills, each joined
@@ -300,6 +304,7 @@ func (c *Catalog) ClassSkills(requestClass string) ([]ClassSkill, bool) {
 			entry.CastTimeMs = sk.CastTimeMs
 			entry.CooldownMs = sk.CooldownMs
 			entry.Interruptible = sk.Interruptible
+			entry.SelfBuff = sk.SelfBuff
 			if entry.MaxLevel == 0 {
 				entry.MaxLevel = sk.MaxLevel
 			}
@@ -313,6 +318,25 @@ func (c *Catalog) ClassSkills(requestClass string) ([]ClassSkill, bool) {
 			entry.Requires = reqs
 		}
 		out = append(out, entry)
+	}
+	return out, true
+}
+
+// ClassBuffs returns the named class's allocatable skills that carry self-buff
+// metadata (Mild Wind, Spurt, Ranker for Taekwon). A filtered view of
+// ClassSkills; the resolver and list_class_buffs both consume it so "available
+// buffs for a class" has one definition. Returns (nil, false) when the class
+// isn't in the catalog.
+func (c *Catalog) ClassBuffs(requestClass string) ([]ClassSkill, bool) {
+	skills, ok := c.ClassSkills(requestClass)
+	if !ok {
+		return nil, false
+	}
+	out := make([]ClassSkill, 0, 4)
+	for _, s := range skills {
+		if s.SelfBuff != nil {
+			out = append(out, s)
+		}
 	}
 	return out, true
 }

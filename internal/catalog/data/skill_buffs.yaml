@@ -1,0 +1,34 @@
+# Hand-authored self-buff metadata. Merged onto skill records (by aegis_name)
+# at catalog build time by cmd/build-catalog. Co-located with the skill the
+# buff comes from. Semantic only: no rocalc ids (the sidecar binding maps
+# name -> engine controls). See docs/superpowers/specs/2026-06-01-rocalc-self-buffs-design.md.
+#
+# kind: weapon_endow | stat_buff | status   (data.AllBuffKinds)
+# persistence: permanent | transient        (data.AllPersistence)
+# endow.elements: ordered; index (1-based) == required buff level. Element
+#   names from data.AllElements.
+skills:
+  - aegis_name: TK_SEVENWIND          # Mild Wind, id 425, max 7
+    self_buff:
+      name: mild_wind
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        # This list is the SOURCE OF TRUTH for Mild Wind's element unlock order.
+        # Index (1-based) == required skill level: earth=1, wind=2, ..., holy=7.
+        # The calc sidecar's MILD_WIND_ORDER const in
+        # calc-sidecar/src/backends/rocalc/index.ts mirrors this order
+        # (defense-in-depth; the sidecar cannot read the catalog).
+        # Keep the two in sync: any reorder here must be reflected there,
+        # and TestMildWindOrder in internal/catalog/buffs_test.go pins this list.
+        elements: [earth, wind, water, fire, ghost, shadow, holy]
+  - aegis_name: TK_RUN                 # Sprint, id 411 (Spurt status: +STR/ATK, 150s)
+    self_buff:
+      name: spurt
+      kind: stat_buff
+      persistence: transient
+  - aegis_name: TK_MISSION             # Taekwon Mission, id 493 -- ranker anchor
+    self_buff:
+      name: taekwon_ranker
+      kind: status
+      persistence: permanent

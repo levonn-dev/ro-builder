@@ -62,6 +62,7 @@ type Snapshot struct {
 	PostRebirth    bool                   `json:"post_rebirth,omitempty"`
 	Stats          Stats                  `json:"stats"`
 	Skills         []SkillAlloc           `json:"skills,omitempty"`
+	ActiveBuffs    []ActiveBuff           `json:"active_buffs,omitempty"`
 	Equipment      map[SlotKey]EquipSpec  `json:"equipment,omitempty"`
 	LevelingTarget *Scenario              `json:"leveling_target,omitempty"`
 	Score          *scoring.ScoreResponse `json:"score,omitempty"`
@@ -78,6 +79,24 @@ type Snapshot struct {
 // double-definition. The alias mirrors how Stats/Level/EquipSpec are
 // shared between scoring and domain via build.go.
 type SkillAlloc = scoring.SkillAlloc
+
+// ActiveBuff is the LLM's declared intent: which self-buff is active on this
+// snapshot, and (for endow buffs) which element. It carries NO level: the
+// level is resolved from the anchor skill's allocation during canonical
+// scoring (the LLM can't claim a higher buff level than it allocated). The
+// resolver turns this into a scoring.Buff. Distinct shape from scoring.Buff,
+// so not a type alias the way SkillAlloc is.
+type ActiveBuff struct {
+	Name    string `json:"name"`
+	Element string `json:"element,omitempty"`
+}
+
+func validateActiveBuff(b ActiveBuff) error {
+	if b.Name == "" {
+		return fmt.Errorf("buff name must be non-empty")
+	}
+	return nil
+}
 
 // Validate runs boundary-level invariants on the trajectory: non-empty,
 // ordered, monotonic within rebirth cycle, last snapshot matches the
@@ -149,10 +168,25 @@ func (s *Snapshot) Validate() error {
 			return fmt.Errorf("equipment[%s] refine %d out of range (0..10)", slot, spec.Refine)
 		}
 	}
+	seenSkill := make(map[int]struct{}, len(s.Skills))
 	for i, sk := range s.Skills {
 		if err := validateSkillAlloc(sk); err != nil {
 			return fmt.Errorf("skills[%d]: %w", i, err)
 		}
+		if _, dup := seenSkill[sk.ID]; dup {
+			return fmt.Errorf("skills[%d]: duplicate skill id %d (each skill may appear at most once)", i, sk.ID)
+		}
+		seenSkill[sk.ID] = struct{}{}
+	}
+	seenBuff := make(map[string]struct{}, len(s.ActiveBuffs))
+	for i, b := range s.ActiveBuffs {
+		if err := validateActiveBuff(b); err != nil {
+			return fmt.Errorf("active_buffs[%d]: %w", i, err)
+		}
+		if _, dup := seenBuff[b.Name]; dup {
+			return fmt.Errorf("active_buffs[%d]: duplicate buff %q (each buff may appear at most once)", i, b.Name)
+		}
+		seenBuff[b.Name] = struct{}{}
 	}
 	return nil
 }

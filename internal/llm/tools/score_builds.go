@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/levonn-dev/ro-builder/internal/catalog"
 	"github.com/levonn-dev/ro-builder/internal/llm"
 	"github.com/levonn-dev/ro-builder/internal/scoring"
 )
@@ -42,15 +43,17 @@ const scoreBuildsSchema = `{
 // exactly as score_build would score it.
 type scoreBuildsTool struct {
 	client *scoring.Client
+	cat    *catalog.Catalog
 }
 
 // NewScoreBuilds constructs the batch scoring tool. Panics on nil client,
-// matching the fail-fast convention of the other tool constructors.
-func NewScoreBuilds(client *scoring.Client) Tool {
+// matching the fail-fast convention of the other tool constructors. cat may
+// be nil; it is only needed to resolve a candidate's active_buffs.
+func NewScoreBuilds(client *scoring.Client, cat *catalog.Catalog) Tool {
 	if client == nil {
 		panic("tools.NewScoreBuilds: scoring client is required")
 	}
-	return &scoreBuildsTool{client: client}
+	return &scoreBuildsTool{client: client, cat: cat}
 }
 
 func (s *scoreBuildsTool) Definition() llm.Tool {
@@ -113,7 +116,7 @@ func (s *scoreBuildsTool) Execute(ctx context.Context, raw json.RawMessage) (jso
 		go func(i int, item scoreBuildsItem) {
 			defer wg.Done()
 			r := scoreBuildsResult{Label: item.Label, Index: i}
-			resp, err := scoreOne(ctx, s.client, item.Build, item.Scenario)
+			resp, err := scoreOne(ctx, s.client, s.cat, item.Build, item.Scenario)
 			if err != nil {
 				// A candidate's own bad input (malformed build, or a 4xx the
 				// sidecar rejected) is captured in place so one bad build

@@ -17,6 +17,7 @@ test("createShim returns an object with all required methods", () => {
     "setStats",
     "equip",
     "setSkills",
+    "setBuffs",
     "setEnemy",
     "setEnemyInline",
     "readDerivedStats",

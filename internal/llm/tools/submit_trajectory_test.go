@@ -159,6 +159,12 @@ func TestSubmitTrajectory_Definition(t *testing.T) {
 	if !strings.Contains(string(def.InputSchema), "snapshots") {
 		t.Errorf("schema missing 'snapshots' field: %s", def.InputSchema)
 	}
+	if !json.Valid(def.InputSchema) {
+		t.Errorf("InputSchema is not valid JSON: %s", def.InputSchema)
+	}
+	if !strings.Contains(string(def.InputSchema), "active_buffs") {
+		t.Errorf("schema missing 'active_buffs' field: %s", def.InputSchema)
+	}
 }
 
 func TestSubmitTrajectory_Execute_AcceptsValidInput(t *testing.T) {
@@ -395,6 +401,21 @@ func TestSubmit_RejectionIncludesPerCheckpointBudget(t *testing.T) {
 	}
 }
 
+func TestParseSubmitTrajectory_ActiveBuffs(t *testing.T) {
+	raw := []byte(`{"primary":{"class":"taekwon_kid","snapshots":[
+		{"class":"taekwon_kid","level":{"base":99,"job":50},"stats":{"str":80,"agi":90,"vit":40,"int":1,"dex":60,"luk":30},
+		 "active_buffs":[{"name":"mild_wind","element":"holy"},{"name":"taekwon_ranker"}]}
+	]}}`)
+	in, err := ParseSubmitTrajectory(raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	bs := in.Primary.Snapshots[0].ActiveBuffs
+	if len(bs) != 2 || bs[0].Name != "mild_wind" || bs[0].Element != "holy" || bs[1].Name != "taekwon_ranker" {
+		t.Fatalf("active_buffs not parsed: %+v", bs)
+	}
+}
+
 func TestParseSubmitTrajectory_PassesAlternativesThrough(t *testing.T) {
 	in := json.RawMessage(`{
 		"primary": {"class": "novice", "snapshots": []},
@@ -410,4 +431,367 @@ func TestParseSubmitTrajectory_PassesAlternativesThrough(t *testing.T) {
 	if len(parsed.Alternatives) != 2 {
 		t.Errorf("alternatives: got %d want 2", len(parsed.Alternatives))
 	}
+}
+
+// TestSubmit_BadBuffOnAlternativeDropsAlt asserts invariant 1: a bad buff on
+// an alternative drops only that alternative; the primary is still accepted
+// and the tool returns success (no Go error).
+//
+// Uses the real catalog because resolveBuffs needs ClassBuffs to validate
+// buff names. The alternative declares "not_a_buff" which does not exist for
+// taekwon_kid, so resolveBuffs returns an error that was previously fatal.
+func TestSubmit_BadBuffOnAlternativeDropsAlt(t *testing.T) {
+	cat, err := catalog.Load()
+	if err != nil {
+		t.Fatalf("catalog.Load: %v", err)
+	}
+
+	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{
+		Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test",
+	}}
+	accepted := false
+	var acceptedPrimary domain.Trajectory
+	var acceptedAlts []domain.Trajectory
+	tool := NewSubmitTrajectory(SubmitTrajectoryDeps{
+		Catalog: cat,
+		Scoring: sc,
+		EvaluateGates: func(_ *scoring.ScoreResponse, _ *domain.Snapshot) []domain.GateResult {
+			return []domain.GateResult{{Name: "ok", Severity: domain.GateSeverityPass}}
+		},
+		Accept: func(primary domain.Trajectory, alts []domain.Trajectory, _ string) bool {
+			accepted = true
+			acceptedPrimary = primary
+			acceptedAlts = alts
+			return true
+		},
+	})
+
+	// Primary: valid taekwon_kid snapshot, no active_buffs (no buff resolution needed).
+	primary := domain.Trajectory{
+		Class: "taekwon_kid",
+		Snapshots: []domain.Snapshot{{
+			Class: "taekwon_kid",
+			Level: domain.Level{Base: 99, Job: 50},
+			Stats: domain.Stats{Str: 1, Agi: 1, Vit: 1, Int: 1, Dex: 1, Luk: 1},
+		}},
+	}
+	// Alternative: same class/level but declares an invalid buff name that
+	// resolveBuffs will reject ("not_a_buff" is not in taekwon_kid's buff list).
+	badAlt := domain.Trajectory{
+		Class: "taekwon_kid",
+		Snapshots: []domain.Snapshot{{
+			Class: "taekwon_kid",
+			Level: domain.Level{Base: 99, Job: 50},
+			Stats: domain.Stats{Str: 1, Agi: 1, Vit: 1, Int: 1, Dex: 1, Luk: 1},
+			ActiveBuffs: []domain.ActiveBuff{
+				{Name: "not_a_buff"},
+			},
+		}},
+	}
+
+	raw, _ := json.Marshal(SubmitTrajectoryInput{Primary: primary, Alternatives: []domain.Trajectory{badAlt}})
+	out, toolErr := tool.Execute(context.Background(), raw)
+	if toolErr != nil {
+		t.Fatalf("Execute returned error; bad-buff alternative should be dropped, not fatal: %v", toolErr)
+	}
+	if !accepted {
+		t.Fatal("Accept callback not invoked; primary should have been accepted")
+	}
+	if acceptedPrimary.Class != "taekwon_kid" {
+		t.Errorf("primary class: got %q want taekwon_kid", acceptedPrimary.Class)
+	}
+	if len(acceptedAlts) != 0 {
+		t.Errorf("bad-buff alternative should have been dropped; got %d accepted alts", len(acceptedAlts))
+	}
+	// The dropped alternative must be reported in the ack so the LLM can
+	// see why it was discarded without aborting.
+	if !strings.Contains(string(out), `"dropped_alternatives"`) {
+		t.Errorf("ack missing dropped_alternatives field: %s", out)
+	}
+	if !strings.Contains(string(out), "not_a_buff") {
+		t.Errorf("dropped_alternatives should mention the bad buff name: %s", out)
+	}
+}
+
+// failOnCallScoringClient succeeds on every Score call except the one at
+// index failAt (1-based), where it returns failErr. Lets a test score the
+// primary cleanly and then inject a specific failure on the alternative's
+// scoring call.
+type failOnCallScoringClient struct {
+	resp    *scoring.ScoreResponse
+	failAt  int
+	failErr error
+	n       int
+}
+
+func (f *failOnCallScoringClient) Score(_ context.Context, _ *scoring.ScoreRequest) (*scoring.ScoreResponse, error) {
+	f.n++
+	if f.n == f.failAt {
+		return nil, f.failErr
+	}
+	return f.resp, nil
+}
+
+// TestSubmit_InfraErrorOnAlternativePropagates asserts that a sidecar 5xx
+// (infrastructure failure) while scoring an alternative aborts the whole
+// submission rather than silently dropping the alternative. Liveness is not
+// monotonic across sidecar calls: the primary scoring cleanly does not
+// guarantee the alternative will, so a real outage must surface as an error,
+// not be recorded as one bad alternative.
+func TestSubmit_InfraErrorOnAlternativePropagates(t *testing.T) {
+	sc := &failOnCallScoringClient{
+		resp:    &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test"},
+		failAt:  2, // call 1 = primary (clean), call 2 = alternative (5xx)
+		failErr: &scoring.Error{Status: 503, Message: "sidecar restarting"},
+	}
+	tool := NewSubmitTrajectory(SubmitTrajectoryDeps{
+		Scoring: sc,
+		EvaluateGates: func(_ *scoring.ScoreResponse, _ *domain.Snapshot) []domain.GateResult {
+			return []domain.GateResult{{Name: "ok", Severity: domain.GateSeverityPass}}
+		},
+		Accept: func(_ domain.Trajectory, _ []domain.Trajectory, _ string) bool { return true },
+	})
+	primary := domain.Trajectory{Class: "novice", Snapshots: []domain.Snapshot{passingSnapshot()}}
+	alt := domain.Trajectory{Class: "novice", Snapshots: []domain.Snapshot{passingSnapshot()}}
+	raw, _ := json.Marshal(SubmitTrajectoryInput{Primary: primary, Alternatives: []domain.Trajectory{alt}})
+	if _, err := tool.Execute(context.Background(), raw); err == nil {
+		t.Fatal("Execute should propagate a sidecar 5xx on an alternative; got nil (silent drop masks a real outage)")
+	}
+}
+
+// TestSubmit_ClientErrorOnAlternativeDrops asserts the other half of the
+// contract: a sidecar 4xx (caller-fixable input, e.g. an unmapped item id)
+// on an alternative drops just that alternative and the submission still
+// succeeds, exactly like a bad buff name does.
+func TestSubmit_ClientErrorOnAlternativeDrops(t *testing.T) {
+	sc := &failOnCallScoringClient{
+		resp:    &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test"},
+		failAt:  2, // alternative's scoring call returns a 4xx
+		failErr: &scoring.Error{Status: 400, Message: "unmapped item id 99999"},
+	}
+	accepted := false
+	tool := NewSubmitTrajectory(SubmitTrajectoryDeps{
+		Scoring: sc,
+		EvaluateGates: func(_ *scoring.ScoreResponse, _ *domain.Snapshot) []domain.GateResult {
+			return []domain.GateResult{{Name: "ok", Severity: domain.GateSeverityPass}}
+		},
+		Accept: func(_ domain.Trajectory, _ []domain.Trajectory, _ string) bool { accepted = true; return true },
+	})
+	primary := domain.Trajectory{Class: "novice", Snapshots: []domain.Snapshot{passingSnapshot()}}
+	alt := domain.Trajectory{Class: "novice", Snapshots: []domain.Snapshot{passingSnapshot()}}
+	raw, _ := json.Marshal(SubmitTrajectoryInput{Primary: primary, Alternatives: []domain.Trajectory{alt}})
+	out, err := tool.Execute(context.Background(), raw)
+	if err != nil {
+		t.Fatalf("a sidecar 4xx on an alternative should drop it, not abort: %v", err)
+	}
+	if !accepted {
+		t.Fatal("primary should still be accepted when only an alternative 4xx-fails")
+	}
+	if !strings.Contains(string(out), `"dropped_alternatives"`) {
+		t.Errorf("ack should record the dropped alternative: %s", out)
+	}
+}
+
+// TestSubmit_BadBuffOnPrimaryErrors asserts invariant 2: a bad buff on the
+// PRIMARY still surfaces to the LLM as a fixable error (is_error=true),
+// not a silent success or a silent drop.
+//
+// Uses the real catalog for the same reason as the alternative test.
+func TestSubmit_BadBuffOnPrimaryErrors(t *testing.T) {
+	cat, err := catalog.Load()
+	if err != nil {
+		t.Fatalf("catalog.Load: %v", err)
+	}
+
+	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{
+		Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test",
+	}}
+	accepted := false
+	tool := NewSubmitTrajectory(SubmitTrajectoryDeps{
+		Catalog: cat,
+		Scoring: sc,
+		EvaluateGates: func(_ *scoring.ScoreResponse, _ *domain.Snapshot) []domain.GateResult {
+			return []domain.GateResult{{Name: "ok", Severity: domain.GateSeverityPass}}
+		},
+		Accept: func(_ domain.Trajectory, _ []domain.Trajectory, _ string) bool {
+			accepted = true
+			return true
+		},
+	})
+
+	// Primary declares a buff whose anchor skill is NOT allocated on the
+	// snapshot; resolveBuffs must return an error and the tool must surface
+	// that error to the caller (LLM sees is_error=true and self-corrects).
+	primary := domain.Trajectory{
+		Class: "taekwon_kid",
+		Snapshots: []domain.Snapshot{{
+			Class:  "taekwon_kid",
+			Level:  domain.Level{Base: 99, Job: 50},
+			Stats:  domain.Stats{Str: 1, Agi: 1, Vit: 1, Int: 1, Dex: 1, Luk: 1},
+			Skills: []domain.SkillAlloc{}, // Mild Wind (id 425) NOT allocated
+			ActiveBuffs: []domain.ActiveBuff{
+				{Name: "mild_wind", Element: "holy"}, // anchor skill missing -> error
+			},
+		}},
+	}
+
+	raw, _ := json.Marshal(SubmitTrajectoryInput{Primary: primary})
+	_, toolErr := tool.Execute(context.Background(), raw)
+	if toolErr == nil {
+		t.Fatal("Execute should return an error when primary has a bad buff; got nil (silent success would suppress LLM self-correction)")
+	}
+	if accepted {
+		t.Fatal("Accept callback must not fire when primary scoring fails")
+	}
+	// The error must mention the buff so the LLM knows what to fix.
+	if !strings.Contains(toolErr.Error(), "mild_wind") {
+		t.Errorf("error should mention the offending buff name; got: %v", toolErr)
+	}
+}
+
+// TestFormatActiveBuffs covers the buff summary formatter directly.
+func TestFormatActiveBuffs(t *testing.T) {
+	cases := []struct {
+		name  string
+		buffs []domain.ActiveBuff
+		want  string
+	}{
+		{
+			name:  "nil buffs returns empty",
+			buffs: nil,
+			want:  "",
+		},
+		{
+			name:  "empty slice returns empty",
+			buffs: []domain.ActiveBuff{},
+			want:  "",
+		},
+		{
+			name:  "single buff without element",
+			buffs: []domain.ActiveBuff{{Name: "taekwon_ranker"}},
+			want:  "taekwon_ranker",
+		},
+		{
+			name:  "single buff with element",
+			buffs: []domain.ActiveBuff{{Name: "mild_wind", Element: "holy"}},
+			want:  "mild_wind (holy endow)",
+		},
+		{
+			name: "multiple buffs mixed",
+			buffs: []domain.ActiveBuff{
+				{Name: "taekwon_ranker"},
+				{Name: "mild_wind", Element: "holy"},
+				{Name: "spurt"},
+			},
+			want: "taekwon_ranker, mild_wind (holy endow), spurt",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := formatActiveBuffs(tc.buffs)
+			if got != tc.want {
+				t.Errorf("formatActiveBuffs: got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestBuildCheckpointReports_BuffSummary verifies that buildCheckpointReports
+// populates the Buffs field from a snapshot's ActiveBuffs and that a snapshot
+// with no buffs produces an empty Buffs field (no "Buffs:" noise).
+func TestBuildCheckpointReports_BuffSummary(t *testing.T) {
+	sc := scoring.ScoreResponse{
+		Derived:     scoring.DerivedStats{StatPointsRemaining: 0},
+		CalcVersion: "rocalc-test",
+	}
+
+	t.Run("snapshot with buffs includes buff line", func(t *testing.T) {
+		traj := domain.Trajectory{
+			Class: "taekwon_kid",
+			Snapshots: []domain.Snapshot{{
+				Class: "taekwon_kid",
+				Level: domain.Level{Base: 99, Job: 50},
+				Stats: domain.Stats{Str: 1, Agi: 1, Vit: 1, Int: 1, Dex: 1, Luk: 1},
+				ActiveBuffs: []domain.ActiveBuff{
+					{Name: "taekwon_ranker"},
+					{Name: "mild_wind", Element: "holy"},
+				},
+				Score: &sc,
+			}},
+		}
+		reports := buildCheckpointReports(&traj)
+		if len(reports) != 1 {
+			t.Fatalf("expected 1 report, got %d", len(reports))
+		}
+		r := reports[0]
+		if !strings.Contains(r.Buffs, "taekwon_ranker") {
+			t.Errorf("Buffs missing taekwon_ranker: %q", r.Buffs)
+		}
+		if !strings.Contains(r.Buffs, "mild_wind") {
+			t.Errorf("Buffs missing mild_wind: %q", r.Buffs)
+		}
+		if !strings.Contains(r.Buffs, "holy") {
+			t.Errorf("Buffs missing holy endow annotation: %q", r.Buffs)
+		}
+	})
+
+	t.Run("snapshot with no buffs produces empty Buffs field", func(t *testing.T) {
+		traj := domain.Trajectory{
+			Class: "novice",
+			Snapshots: []domain.Snapshot{{
+				Class: "novice",
+				Level: domain.Level{Base: 99, Job: 50},
+				Stats: domain.Stats{Str: 1, Agi: 1, Vit: 1, Int: 1, Dex: 1, Luk: 1},
+				Score: &sc,
+			}},
+		}
+		reports := buildCheckpointReports(&traj)
+		if len(reports) != 1 {
+			t.Fatalf("expected 1 report, got %d", len(reports))
+		}
+		if reports[0].Buffs != "" {
+			t.Errorf("expected empty Buffs for snapshot with no active_buffs; got %q", reports[0].Buffs)
+		}
+	})
+}
+
+// TestFormatCheckpointLines_BuffSummary verifies that the human-readable
+// rejection block includes the buff line when buffs are present and omits
+// the field when there are none.
+func TestFormatCheckpointLines_BuffSummary(t *testing.T) {
+	t.Run("buffs appear in prose output", func(t *testing.T) {
+		reports := []checkpointReport{{
+			SnapshotIndex:       0,
+			Class:               "taekwon_kid",
+			Level:               "99/50",
+			StatPointsRemaining: 0,
+			Buffs:               "taekwon_ranker, mild_wind (holy endow), spurt",
+		}}
+		out := formatCheckpointLines(reports)
+		if !strings.Contains(out, "taekwon_ranker") {
+			t.Errorf("prose missing taekwon_ranker: %s", out)
+		}
+		if !strings.Contains(out, "mild_wind") {
+			t.Errorf("prose missing mild_wind: %s", out)
+		}
+		if !strings.Contains(out, "holy") {
+			t.Errorf("prose missing holy endow annotation: %s", out)
+		}
+		if !strings.Contains(out, "spurt") {
+			t.Errorf("prose missing spurt: %s", out)
+		}
+	})
+
+	t.Run("no buffs produces no Buffs: line", func(t *testing.T) {
+		reports := []checkpointReport{{
+			SnapshotIndex:       0,
+			Class:               "novice",
+			Level:               "99/50",
+			StatPointsRemaining: 3,
+		}}
+		out := formatCheckpointLines(reports)
+		if strings.Contains(out, "buffs=") {
+			t.Errorf("prose should not contain buffs= when no buffs active; got: %s", out)
+		}
+	})
 }

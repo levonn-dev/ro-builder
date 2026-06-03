@@ -138,13 +138,14 @@ func run() error {
 	var pool *workers.Pool
 	if provider != nil {
 		registry := tools.NewRegistry()
-		registry.Register(tools.NewScoreBuild(scoringClient))
-		registry.Register(tools.NewScoreBuilds(scoringClient))
+		registry.Register(tools.NewScoreBuild(scoringClient, cat))
+		registry.Register(tools.NewScoreBuilds(scoringClient, cat))
 		registry.Register(tools.NewLookupItem(cat))
 		registry.Register(tools.NewSearchItems(cat))
 		registry.Register(tools.NewLookupMonster(cat))
 		registry.Register(tools.NewLookupSkill(cat))
 		registry.Register(tools.NewListClassSkills(cat))
+		registry.Register(tools.NewListClassBuffs(cat))
 		registry.Register(tools.NewGetSimilarPastBuilds(lib))
 		// submit_trajectory is intentionally NOT registered here; the
 		// orchestrator constructs a per-request overlay version via
