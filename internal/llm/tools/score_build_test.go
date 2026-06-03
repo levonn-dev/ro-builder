@@ -3,11 +3,13 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/levonn-dev/ro-builder/internal/catalog"
 	"github.com/levonn-dev/ro-builder/internal/scoring"
 )
 
@@ -16,7 +18,7 @@ func TestScoreBuild_Definition(t *testing.T) {
 	// NewScoreBuild now requires a non-nil one.
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	defer srv.Close()
-	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil), nil)
 	def := tool.Definition()
 	if def.Name != "score_build" {
 		t.Errorf("name: got %q", def.Name)
@@ -38,7 +40,7 @@ func TestScoreBuild_NilClientPanics(t *testing.T) {
 			t.Fatal("expected panic for nil client")
 		}
 	}()
-	NewScoreBuild(nil)
+	NewScoreBuild(nil, nil)
 }
 
 func TestScoreBuild_Execute_HappyPath(t *testing.T) {
@@ -47,7 +49,7 @@ func TestScoreBuild_Execute_HappyPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil), nil)
 	input := json.RawMessage(`{
 		"build": {
 			"mode": "pre-renewal",
@@ -72,6 +74,47 @@ func TestScoreBuild_Execute_HappyPath(t *testing.T) {
 	}
 }
 
+// TestScoreBuild_AppliesResolvedBuffs asserts score_build resolves a build's
+// active_buffs and forwards them to the sidecar, so its preview numbers match
+// what canonical submit_trajectory scoring would produce for the same buffs
+// (otherwise a build scored with a buff here would silently be scored unbuffed).
+func TestScoreBuild_AppliesResolvedBuffs(t *testing.T) {
+	cat, err := catalog.Load()
+	if err != nil {
+		t.Fatalf("catalog.Load: %v", err)
+	}
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		_, _ = w.Write([]byte(`{"derived":{"maxHp":900,"statPointsRemaining":3},"calc_version":"rocalc-test"}`))
+	}))
+	defer srv.Close()
+
+	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil), cat)
+	// taekwon_kid allocates TK_MISSION (493, the ranker anchor) and declares
+	// the ranker buff; the tool must fill its level from the allocation and
+	// forward it to the sidecar as req.buffs.
+	input := json.RawMessage(`{
+		"build": {
+			"class": "taekwon_kid",
+			"level": {"base": 99, "job": 50},
+			"stats": {"str": 80, "agi": 90, "vit": 40, "int": 1, "dex": 60, "luk": 30},
+			"skills": [{"id": 493, "level": 1}],
+			"active_buffs": [{"name": "taekwon_ranker"}]
+		}
+	}`)
+	if _, err := tool.Execute(context.Background(), input); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	var sent scoring.ScoreRequest
+	if err := json.Unmarshal(gotBody, &sent); err != nil {
+		t.Fatalf("unmarshal sent body: %v (body=%s)", err, gotBody)
+	}
+	if len(sent.Buffs) != 1 || sent.Buffs[0].Name != "taekwon_ranker" || sent.Buffs[0].Level != 1 {
+		t.Errorf("score_build did not forward resolved buff to sidecar; got buffs=%+v", sent.Buffs)
+	}
+}
+
 func TestScoreBuild_Execute_OrchestratorMetadataIgnored(t *testing.T) {
 	// score_build's input struct deliberately omits Mode / Server / Tier;
 	// those are orchestrator metadata the LLM can't smuggle in. A request
@@ -82,7 +125,7 @@ func TestScoreBuild_Execute_OrchestratorMetadataIgnored(t *testing.T) {
 		_, _ = w.Write([]byte(`{"derived":{"hit":71,"flee":61,"cri":1,"atk":{"base":61,"plus":14},"matk":{"min":2,"max":2},"def":{"hard":0,"soft":6},"mdef":{"hard":0,"soft":2},"aspd":139.3,"maxHp":302,"maxSp":61,"statPointsRemaining":261}}`))
 	}))
 	defer srv.Close()
-	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil), nil)
 	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"build":{"mode":"renewal","server":"hijack","tier":"endgame","class":"novice"}}`)); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -97,7 +140,7 @@ func TestScoreBuild_Execute_ValidationFailure(t *testing.T) {
 		t.Error("sidecar called despite validation failure")
 	}))
 	defer srv.Close()
-	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil), nil)
 	_, err := tool.Execute(context.Background(), json.RawMessage(`{"build":{"class":"novice","equipment":{"weapon":{"id":1201,"refine":99}}}}`))
 	if err == nil {
 		t.Fatal("expected validation error")
@@ -125,7 +168,7 @@ func TestScoreBuild_Execute_SkillsForwarded(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil), nil)
 	input := json.RawMessage(`{
 		"build": {
 			"mode": "pre-renewal",
@@ -151,7 +194,7 @@ func TestScoreBuild_Execute_SidecarErrorPropagates(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuild(scoring.NewClient(srv.URL, nil), nil)
 	_, err := tool.Execute(context.Background(), json.RawMessage(`{"build":{"class":"novice"},"scenario":{"target":9999999}}`))
 	if err == nil {
 		t.Fatal("expected sidecar error")

@@ -14,7 +14,7 @@ import (
 func TestScoreBuilds_Definition(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	defer srv.Close()
-	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil), nil)
 	def := tool.Definition()
 	if def.Name != "score_builds" {
 		t.Errorf("name: got %q", def.Name)
@@ -31,7 +31,7 @@ func TestScoreBuilds_NilClientPanics(t *testing.T) {
 			t.Fatal("expected panic for nil client")
 		}
 	}()
-	NewScoreBuilds(nil)
+	NewScoreBuilds(nil, nil)
 }
 
 func TestScoreBuilds_Execute_ScoresEachCandidate(t *testing.T) {
@@ -40,7 +40,7 @@ func TestScoreBuilds_Execute_ScoresEachCandidate(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil), nil)
 	input := json.RawMessage(`{
 		"builds": [
 			{"label": "agi", "build": {"class": "taekwon_kid", "stats": {"agi": 50}}},
@@ -86,7 +86,7 @@ func TestScoreBuilds_Execute_PerCandidateErrorDoesNotAbortBatch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil), nil)
 	input := json.RawMessage(`{
 		"builds": [
 			{"label": "ok", "build": {"class": "novice"}},
@@ -128,7 +128,7 @@ func TestScoreBuilds_Execute_SidecarOutageAbortsBatch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil), nil)
 	input := json.RawMessage(`{
 		"builds": [
 			{"label": "a", "build": {"class": "novice"}},
@@ -143,7 +143,7 @@ func TestScoreBuilds_Execute_SidecarOutageAbortsBatch(t *testing.T) {
 func TestScoreBuilds_Execute_EmptyBuildsRejected(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	defer srv.Close()
-	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil))
+	tool := NewScoreBuilds(scoring.NewClient(srv.URL, nil), nil)
 	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"builds":[]}`)); err == nil {
 		t.Fatal("expected error for empty builds")
 	}

@@ -52,6 +52,17 @@ export interface SkillAlloc {
   level: number;
 }
 
+/** One active self-buff, fully resolved by the orchestrator (level filled
+ * from the anchor skill's allocation; element validated). The active backend
+ * maps `name` to its own engine controls via a binding table. `level` is the
+ * resolved buff level (for level-select buffs); `element` is the chosen
+ * weapon element for endow buffs (one of the backend's element names). */
+export interface Buff {
+  name: string;
+  level?: number;
+  element?: string;
+}
+
 /** Composite stat output for paired numbers; atk = base + plus, matk =
  * min..max, def = hard + soft (pre-renewal split). */
 export interface BasePlus {
@@ -162,6 +173,13 @@ export interface ShimSession {
    * allocation, not a delta. */
   setSkills(skills: SkillAlloc[]): void;
 
+  /** Apply active self-buffs. Each buff's `name` is a semantic key the
+   * backend maps to engine controls (e.g. drive an m_JobBuff slot, force a
+   * weapon element). Unknown names throw a 4xx-classifiable error. Buffs not
+   * passed are absent; callers pass the full set, not a delta. Runs after
+   * setSkills/equip and before any read. */
+  setBuffs(buffs: Buff[]): void;
+
   /** Set the combat-sim target. mobId is engine-specific (rocalc currently
    * uses its m_Monster index; a mob iRO mapping pass will let this take iRO
    * mob ids the same way equip does for items). */
@@ -194,6 +212,7 @@ export interface ScoreRequest {
   level?: Level;
   stats?: Stats;
   skills?: SkillAlloc[];
+  buffs?: Buff[];
   equipment?: Partial<Record<SlotKey, EquipSpec>>;
   /** iRO mob id translated through rocalc's mapping table. Mutually
    * exclusive with enemy_inline; set one or neither. */

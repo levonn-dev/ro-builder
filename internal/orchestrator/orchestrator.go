@@ -344,12 +344,13 @@ func (o *Orchestrator) Generate(ctx context.Context, req GenerateRequest) (*Gene
 	// Fetch failures are non-fatal; we just skip the injection. The LLM
 	// can still call list_class_skills as a tool to recover.
 	classSkills := o.fetchClassSkillsForPrompt(req.Class)
+	classBuffs := o.fetchClassBuffsForPrompt(req.Class)
 	baseLevel, jobLevel, _ := o.fetchClassMaxLevelsForPrompt(profile, req.Class)
 	skillBudget := o.fetchSkillPointBudget(req.Class)
 
 	messages := []llm.Message{{
 		Role:    llm.RoleUser,
-		Content: []llm.ContentBlock{{Type: llm.BlockText, Text: formatUserPrompt(req, profile, classSkills, baseLevel, jobLevel, skillBudget)}},
+		Content: []llm.ContentBlock{{Type: llm.BlockText, Text: formatUserPrompt(req, profile, classSkills, classBuffs, baseLevel, jobLevel, skillBudget)}},
 	}}
 	toolDefs := reg.Definitions()
 
@@ -621,6 +622,22 @@ func (o *Orchestrator) fetchClassSkillsForPrompt(className string) []catalog.Cla
 	return skills
 }
 
+// fetchClassBuffsForPrompt returns the subset of the class's skill list that
+// carries self-buff metadata (e.g. Mild Wind, Spurt, Taekwon Ranker). Mirrors
+// fetchClassSkillsForPrompt but delegates to ClassBuffs (which filters on
+// SelfBuff != nil). Returns nil when the catalog is absent or the class isn't
+// recognized; the prompt then renders without the buffs block.
+func (o *Orchestrator) fetchClassBuffsForPrompt(className string) []catalog.ClassSkill {
+	if o.catalog == nil || className == "" {
+		return nil
+	}
+	buffs, ok := o.catalog.ClassBuffs(className)
+	if !ok {
+		return nil
+	}
+	return buffs
+}
+
 // fetchClassMaxLevelsForPrompt returns the effective max base and job levels
 // for the requested class, merging the catalog's pre-renewal default with any
 // server-profile override. Profile override wins when non-zero.
@@ -681,12 +698,17 @@ func (o *Orchestrator) fetchSkillPointBudget(className string) int {
 // Prerequisite skills are listed on the same line (e.g. "requires: A lv1")
 // so the LLM can verify every skill's prereq chain before submitting.
 //
+// classBuffs, when non-empty, lists the subset of classSkills whose SelfBuff
+// is non-nil. Each entry carries the buff's name, kind, persistence, and (for
+// weapon_endow skills) the per-level element sequence. The LLM uses this block
+// to decide which buffs to declare active per snapshot via active_buffs.
+//
 // baseLevel and jobLevel, when non-zero, are injected as the class's hard
 // level cap so the LLM does not propose snapshots above the game's ceiling.
 //
 // skillBudget, when > 0, is injected as the endgame skill-point budget
 // so the LLM can manually count allocations without relying on the calc.
-func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classSkills []catalog.ClassSkill, baseLevel, jobLevel, skillBudget int) string {
+func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classSkills, classBuffs []catalog.ClassSkill, baseLevel, jobLevel, skillBudget int) string {
 	var sb strings.Builder
 	sb.WriteString("Build request:\n")
 	classLabel := req.Class
@@ -776,6 +798,26 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 				line += " requires: " + strings.Join(parts, ", ")
 			}
 			sb.WriteString(line + "\n")
+		}
+	}
+	if len(classBuffs) > 0 {
+		sb.WriteString("\nAvailable self-buffs (declare active ones per snapshot via active_buffs; buff level comes from the anchor skill's allocation):\n")
+		hasEndow := false
+		for _, b := range classBuffs {
+			// Defensive: the param is a generic ClassSkill slice; skip any entry
+			// without buff metadata so the field accesses below can't nil-deref.
+			if b.SelfBuff == nil {
+				continue
+			}
+			line := fmt.Sprintf("- %s (anchor %s, %s, %s)", b.SelfBuff.Name, b.AegisName, b.SelfBuff.Kind, b.SelfBuff.Persistence)
+			if b.SelfBuff.Endow != nil && len(b.SelfBuff.Endow.Elements) > 0 {
+				hasEndow = true
+				line += fmt.Sprintf("; endow elements by level: %s", strings.Join(b.SelfBuff.Endow.Elements, ", "))
+			}
+			sb.WriteString(line + "\n")
+		}
+		if hasEndow {
+			sb.WriteString("Match the endow element to the target (e.g. an Undead/Dark target takes more from a Holy endow; pick the endow that maximizes damage vs this snapshot's leveling target).\n")
 		}
 	}
 	sb.WriteString("\nConfirm each scored checkpoint's stat budget with score_build, then submit the trajectory with submit_trajectory and fix any combat-gate failures it reports. It is the authoritative scorer for the canonical checkpoints; describe the build from its numbers.")

@@ -59,6 +59,13 @@ type Skill struct {
 	// joining mob_skill_db × skill catalog. Surfaced via lookup_skill so
 	// the LLM can see which status each skill applies.
 	StatusChange string `json:"status_change,omitempty"`
+
+	// SelfBuff is hand-authored self-buff metadata (Mild Wind / Spurt /
+	// Ranker etc.) layered on at catalog build time from
+	// internal/catalog/data/skill_buffs.yaml. nil for the vast majority of
+	// skills, which are not drivable self-buffs. Not emulator-derived, so
+	// not set in skillFromMap.
+	SelfBuff *SelfBuff `json:"self_buff,omitempty"`
 }
 
 // LoadSkillDB reads a Hercules skill_db.conf and returns one Skill per

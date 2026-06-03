@@ -436,7 +436,7 @@ Not yet done, roughly in priority order:
   are excluded from the Helm chart until this lands.
 - [ ] General prompt tuning - less tokens, more progress.
 - [ ] More server profiles beyond UARO. Drop a YAML, no code change.
-- [ ] More golden fixtures beyond Taekwon Kid. The shim handles all 45 supported classes; only prompt-
+- [ ] More golden fixtures beyond Taekwon Kid. The shim handles all 45 supported classes already
 - [ ] Renewal mode end-to-end. The API rejects `mode: "renewal"` at the boundary today; the data layer is already
   mode-aware. The calc adapter hasn't been validated for renewal.
 - [ ] Rotation simulator with SP economy. Today's scoring uses single-skill DPS + sustained auto-attack as a proxy.

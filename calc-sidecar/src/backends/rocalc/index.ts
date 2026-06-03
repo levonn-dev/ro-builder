@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { ScoreValidationError } from "../../errors.ts";
 import type {
   BasePlus,
+  Buff,
   CombatResults,
   DerivedStats,
   EnemyStats,
@@ -884,12 +885,170 @@ export function createShim(): ShimSession {
     win.StCalc();
   }
 
+  // BUFF_BINDINGS maps a semantic buff name to ordered rocalc actions. Each
+  // action drives an existing control. skill_slot writes an m_JobBuff A_skill
+  // slot (rocalc's internal skill id, indexOf'd into m_JobBuff[classId]);
+  // weapon_endow forces the A_Weapon_element select. This is the only place
+  // rocalc's internal ids live; the contract stays semantic. Extend by adding
+  // a binding + (for a new control surface) a driver case below.
+  type BuffAction =
+    | { driver: "skill_slot"; rocalcId: number; level: number | "buffLevel" }
+    | { driver: "weapon_endow" };
+  const BUFF_BINDINGS: Record<string, BuffAction[]> = {
+    taekwon_ranker: [{ driver: "skill_slot", rocalcId: 345, level: 1 }],
+    spurt: [
+      { driver: "skill_slot", rocalcId: 379, level: 1 }, // Spurt status (+STR/ATK); m_JobBuff[41] index 4
+      { driver: "skill_slot", rocalcId: 329, level: "buffLevel" }, // Sprint unarmed mastery; m_JobBuff[41] index 3; drives combat damage (not ATK), verified barehanded TK lv7 adds ~94 ave damage vs neutral mob
+    ],
+    mild_wind: [{ driver: "weapon_endow" }],
+  };
+
+  // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
+  // i.e. leave the weapon's native element, there is no force-neutral option).
+  const ENDOW_ELEMENT_VALUES: Record<string, string> = {
+    neutral: "0",
+    water: "1",
+    earth: "2",
+    fire: "3",
+    wind: "4",
+    poison: "5",
+    holy: "6",
+    shadow: "7",
+    ghost: "8",
+    undead: "9",
+  };
+  // MILD_WIND_ORDER mirrors the endow.elements list in
+  // internal/catalog/data/skill_buffs.yaml (TK_SEVENWIND entry).
+  // That YAML list is the SOURCE OF TRUTH; this const is a defense-in-depth
+  // copy because the sidecar cannot read the catalog at runtime. Keep the two
+  // in sync: any reorder in the YAML must be reflected here, and the
+  // behavioral pinning tests in test/backends/rocalc/buffs.test.ts assert the
+  // boundary conditions so a divergence fails a test.
+  //
+  // Element index (1-based) == required Mild Wind level: earth=1..holy=7.
+  const MILD_WIND_ORDER = [
+    "earth",
+    "wind",
+    "water",
+    "fire",
+    "ghost",
+    "shadow",
+    "holy",
+  ];
+
+  // Returns true if the slot was found and written, false if this class's
+  // m_JobBuff has no entry for rocalcId (the engine doesn't model this skill
+  // for the active class). setBuffs uses the return to tell a buff that was
+  // fully applied from one that is entirely inapplicable to the class.
+  function applySkillSlot(rocalcId: number, level: number): boolean {
+    const classId = parseInt(form.A_JOB.value, 10);
+    const jobBuff = win.m_JobBuff?.[classId];
+    if (!Array.isArray(jobBuff)) {
+      throw new Error(
+        `m_JobBuff[${classId}] missing; class buff list not loaded by ClickJob`,
+      );
+    }
+    const slotIndex = jobBuff.indexOf(rocalcId);
+    if (slotIndex < 0) {
+      // Buff's rocalc id not modeled for this class; report unapplied so the
+      // caller can decide whether the buff applied at all (mirrors setSkills'
+      // silent skip per action, but surfaces the miss to setBuffs).
+      return false;
+    }
+    const select = form[`A_skill${slotIndex}`];
+    if (!select) {
+      throw new Error(
+        `form has no A_skill${slotIndex}; buff slot index out of form range`,
+      );
+    }
+    let maxLevel = 0;
+    for (let i = 0; i < select.options.length; i++) {
+      const v = parseInt(select.options[i].value, 10);
+      if (Number.isFinite(v) && v > maxLevel) maxLevel = v;
+    }
+    if (maxLevel === 0) maxLevel = 10;
+    select.value = String(Math.max(0, Math.min(maxLevel, level)));
+    return true;
+  }
+
+  function applyWeaponEndow(buff: Buff): void {
+    const element = buff.element ?? "";
+    const value = ENDOW_ELEMENT_VALUES[element];
+    if (value === undefined) {
+      throw new ScoreValidationError(
+        `unknown endow element ${JSON.stringify(element)}; expected one of: ${Object.keys(ENDOW_ELEMENT_VALUES).join(", ")}`,
+      );
+    }
+    // Level-unlock check is Mild Wind-specific (earth=1..holy=7 by skill level).
+    // A second endow buff with a different unlock table will need its own check.
+    const order = MILD_WIND_ORDER.indexOf(element) + 1; // 1-based; 0 if not in list
+    const level = buff.level ?? 0;
+    if (order > 0 && order > level) {
+      throw new ScoreValidationError(
+        `endow element ${JSON.stringify(element)} (order ${order}) exceeds Mild Wind level ${level}`,
+      );
+    }
+    form.A_Weapon_element.value = value;
+  }
+
+  function setBuffs(buffs: Buff[]): void {
+    if (buffs.length === 0) return;
+    // Resilience: reject a buff repeated in one request. The Go resolver
+    // rejects duplicates upstream, but the backend must not silently
+    // last-write-wins (or double-apply) on a repeat that slips through.
+    const seen = new Set<string>();
+    for (const buff of buffs) {
+      if (seen.has(buff.name)) {
+        throw new ScoreValidationError(
+          `duplicate buff ${JSON.stringify(buff.name)}; each buff may appear at most once`,
+        );
+      }
+      seen.add(buff.name);
+    }
+    for (const buff of buffs) {
+      const actions = BUFF_BINDINGS[buff.name];
+      if (!actions) {
+        throw new ScoreValidationError(
+          `unknown buff ${JSON.stringify(buff.name)}; expected one of: ${Object.keys(BUFF_BINDINGS).join(", ")}`,
+        );
+      }
+      // Track whether the buff produced any effect. An endow always applies (or
+      // throws); a skill_slot applies only if the class's m_JobBuff has the
+      // slot. A buff that touches the engine in zero ways is inapplicable to
+      // the active class: surface it rather than scoring unbuffed numbers as if
+      // the buff were active.
+      let applied = false;
+      for (const action of actions) {
+        if (action.driver === "skill_slot") {
+          const level =
+            action.level === "buffLevel" ? (buff.level ?? 0) : action.level;
+          if (applySkillSlot(action.rocalcId, level)) applied = true;
+        } else {
+          applyWeaponEndow(buff);
+          applied = true;
+        }
+      }
+      if (!applied) {
+        throw new ScoreValidationError(
+          `buff ${JSON.stringify(buff.name)} is not applicable to the active class (no engine slot); the calc cannot model it for this class`,
+        );
+      }
+    }
+    // StAllCalc + StCalc: the pair setSkills fires. calc(): additionally needed
+    // when a weapon_endow action changed A_Weapon_element, since the element-vs-
+    // enemy multiplier is computed in calc(), not StAllCalc.
+    win.StAllCalc();
+    win.StCalc();
+    win.calc();
+  }
+
   const session: ShimSession = {
     setStats,
     setLevel,
     setClass,
     equip,
     setSkills,
+    setBuffs,
     setEnemy,
     setEnemyInline,
     readDerivedStats,

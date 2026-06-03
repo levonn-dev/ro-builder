@@ -54,6 +54,7 @@ const (
 	defaultOutPath      = "internal/catalog/data/catalog.json"
 	immunityOverlayPath = "internal/catalog/data/item_immunities.yaml"
 	mobThreatsPath      = "internal/catalog/data/mob_threats.yaml"
+	skillBuffsPath      = "internal/catalog/data/skill_buffs.yaml"
 )
 
 type catalogFile struct {
@@ -139,6 +140,22 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Default().Info("merged immunity overlay", slog.Int("applied", applied))
+
+	// Layer the hand-authored self-buff overlay onto skill records. Lives at
+	// internal/catalog/data/skill_buffs.yaml; see that file's comment block for
+	// the editing rules and the spec reference.
+	skillBuffsAbs := resolvePath(repoRoot, skillBuffsPath)
+	skillBuffs, err := loadSkillBuffs(skillBuffsAbs)
+	if err != nil {
+		slog.Default().Error("load skill buffs overlay", slog.String("path", skillBuffsAbs), slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	appliedBuffs, err := applySkillBuffs(skills, skillBuffs)
+	if err != nil {
+		slog.Default().Error("apply skill buffs overlay", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	slog.Default().Info("merged skill buffs overlay", slog.Int("applied", appliedBuffs))
 
 	// Compute mob threats programmatically by joining rAthena's
 	// mob_skill_db.txt against each skill's StatusChange field in our
@@ -344,6 +361,111 @@ func applyImmunityOverlay(items []data.Item, overlay map[int]immunityEntry) (int
 		}
 		items[idx].GrantsImmunity = e.GrantsImmunity
 		items[idx].GrantsUninterruptibleCast = e.GrantsUninterruptibleCast
+		applied++
+	}
+	return applied, nil
+}
+
+// skillBuffsFile mirrors internal/catalog/data/skill_buffs.yaml: a top-level
+// `skills:` list of {aegis_name, self_buff}. Matched onto skill records by
+// aegis_name (skills have no stable position the way ids index items).
+type skillBuffsFile struct {
+	Skills []skillBuffEntry `yaml:"skills"`
+}
+
+type skillBuffEntry struct {
+	AegisName string         `yaml:"aegis_name"`
+	SelfBuff  *data.SelfBuff `yaml:"self_buff"`
+}
+
+// validateSkillBuffEntry enforces the overlay's invariants. Strict so a typo
+// fails the build instead of silently dropping the tag.
+func validateSkillBuffEntry(i int, e skillBuffEntry) error {
+	if e.AegisName == "" {
+		return fmt.Errorf("entry %d: aegis_name is required", i)
+	}
+	if e.SelfBuff == nil {
+		return fmt.Errorf("entry %d (%s): self_buff is required", i, e.AegisName)
+	}
+	b := e.SelfBuff
+	if b.Name == "" {
+		return fmt.Errorf("entry %d (%s): self_buff.name is required", i, e.AegisName)
+	}
+	if !data.IsValidBuffKind(b.Kind) {
+		return fmt.Errorf("entry %d (%s): unknown kind %q (valid: %v)", i, e.AegisName, b.Kind, data.AllBuffKinds)
+	}
+	if !data.IsValidPersistence(b.Persistence) {
+		return fmt.Errorf("entry %d (%s): unknown persistence %q (valid: %v)", i, e.AegisName, b.Persistence, data.AllPersistence)
+	}
+	if b.Kind == data.BuffKindWeaponEndow {
+		if b.Endow == nil || len(b.Endow.Elements) == 0 {
+			return fmt.Errorf("entry %d (%s): weapon_endow requires endow.elements", i, e.AegisName)
+		}
+		seenEl := make(map[string]struct{}, len(b.Endow.Elements))
+		for _, el := range b.Endow.Elements {
+			if !data.IsValidElement(el) {
+				return fmt.Errorf("entry %d (%s): unknown endow element %q (valid: %v)", i, e.AegisName, el, data.AllElements)
+			}
+			// A repeat would make the element's 1-based position (which encodes
+			// the level unlock) ambiguous; resolver and sidecar both match on
+			// the first occurrence, so a dup silently mis-gates the later one.
+			if _, dup := seenEl[el]; dup {
+				return fmt.Errorf("entry %d (%s): duplicate endow element %q", i, e.AegisName, el)
+			}
+			seenEl[el] = struct{}{}
+		}
+	} else if b.Endow != nil {
+		return fmt.Errorf("entry %d (%s): endow set on non-weapon_endow kind %q", i, e.AegisName, b.Kind)
+	}
+	return nil
+}
+
+// loadSkillBuffs reads and validates the overlay, keyed by aegis_name.
+func loadSkillBuffs(path string) (map[string]*data.SelfBuff, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read: %w", err)
+	}
+	var f skillBuffsFile
+	if err := yaml.Unmarshal(src, &f); err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	out := make(map[string]*data.SelfBuff, len(f.Skills))
+	// Buff names must be unique across entries: the resolver and list_class_buffs
+	// key on self_buff.name, so two skills sharing a name would silently collide
+	// (last-write-wins) and resolve the wrong anchor skill / element table.
+	seenName := make(map[string]string, len(f.Skills)) // buff name -> first aegis
+	for i, e := range f.Skills {
+		if err := validateSkillBuffEntry(i, e); err != nil {
+			return nil, err
+		}
+		if _, dup := out[e.AegisName]; dup {
+			return nil, fmt.Errorf("entry %d: duplicate aegis_name %q", i, e.AegisName)
+		}
+		if prev, dup := seenName[e.SelfBuff.Name]; dup {
+			return nil, fmt.Errorf("entry %d (%s): duplicate self_buff.name %q (already used by %s)", i, e.AegisName, e.SelfBuff.Name, prev)
+		}
+		out[e.AegisName] = e.SelfBuff
+		seenName[e.SelfBuff.Name] = e.AegisName
+	}
+	return out, nil
+}
+
+// applySkillBuffs mutates skills in place, setting SelfBuff on each record
+// present in the overlay. Errors if any overlay aegis_name is missing from
+// the catalog (typo, or skill not in this mode).
+func applySkillBuffs(skills []data.Skill, overlay map[string]*data.SelfBuff) (int, error) {
+	byAegis := make(map[string]int, len(skills))
+	for i := range skills {
+		byAegis[skills[i].AegisName] = i
+	}
+	applied := 0
+	for aegis, b := range overlay {
+		idx, ok := byAegis[aegis]
+		if !ok {
+			return applied, fmt.Errorf("skill buff aegis %q not found in catalog (typo or skill not in this mode?)", aegis)
+		}
+		skills[idx].SelfBuff = b
 		applied++
 	}
 	return applied, nil

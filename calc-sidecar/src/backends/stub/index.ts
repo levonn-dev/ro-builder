@@ -7,6 +7,7 @@
 // (see ../registry.ts).
 
 import type {
+  Buff,
   CombatResults,
   DerivedStats,
   EnemyStats,
@@ -90,6 +91,9 @@ export function createShim(): ShimSession {
     },
     setSkills(skills) {
       state.skills = skills;
+    },
+    setBuffs(_buffs: Buff[]): void {
+      // stub: deterministic fiction, buffs don't alter output
     },
     setEnemy(id) {
       state.enemy = id;

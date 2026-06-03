@@ -164,6 +164,7 @@ type ScoreRequest struct {
 	Level     *Level                `json:"level,omitempty"`
 	Stats     *Stats                `json:"stats,omitempty"`
 	Skills    []SkillAlloc          `json:"skills,omitempty"`
+	Buffs     []Buff                `json:"buffs,omitempty"`
 	Equipment map[SlotKey]EquipSpec `json:"equipment,omitempty"`
 	// Enemy and EnemyInline are mutually exclusive; set one or neither.
 	// Enemy is an iRO mob id translated through rocalc's mapping; the
@@ -206,6 +207,17 @@ type EnemyStats struct {
 type SkillAlloc struct {
 	ID    int `json:"id"`
 	Level int `json:"level"`
+}
+
+// Buff is one resolved active self-buff sent to the calc shim. Mirrors the TS
+// Buff in calc-sidecar/src/types.ts (keep in lock-step). Name is the semantic
+// buff key; Level is the resolved buff level (filled from the anchor skill's
+// allocation, not LLM-authored); Element is the chosen weapon element for
+// endow buffs.
+type Buff struct {
+	Name    string `json:"name"`
+	Level   int    `json:"level,omitempty"`
+	Element string `json:"element,omitempty"`
 }
 
 // ScoreResponse is the POST /score success body. Combat is non-nil iff the

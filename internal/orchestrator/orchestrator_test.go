@@ -645,7 +645,7 @@ func TestFormatUserPrompt(t *testing.T) {
 	t.Run("budget_line_appears", func(t *testing.T) {
 		got := formatUserPrompt(
 			GenerateRequest{Class: "taekwon_kid", Mode: "pre-renewal"},
-			nil, skills, 99, 50, 58)
+			nil, skills, nil, 99, 50, 58)
 		if !strings.Contains(got, "Endgame skill point budget: 58") {
 			t.Errorf("budget line missing; got:\n%s", got)
 		}
@@ -654,7 +654,7 @@ func TestFormatUserPrompt(t *testing.T) {
 	t.Run("prereq_annotation_on_ready_stance", func(t *testing.T) {
 		got := formatUserPrompt(
 			GenerateRequest{Class: "taekwon_kid"},
-			nil, skills, 99, 50, 58)
+			nil, skills, nil, 99, 50, 58)
 		if !strings.Contains(got, "requires: TK_STORMKICK lv1") {
 			t.Errorf("prereq annotation missing for TK_READYSTORM; got:\n%s", got)
 		}
@@ -663,7 +663,7 @@ func TestFormatUserPrompt(t *testing.T) {
 	t.Run("no_prereq_on_plain_skill", func(t *testing.T) {
 		got := formatUserPrompt(
 			GenerateRequest{Class: "taekwon_kid"},
-			nil, skills, 0, 0, 0)
+			nil, skills, nil, 0, 0, 0)
 		// TK_STORMKICK has no prereqs; its line must not have a "requires:" token.
 		for _, line := range strings.Split(got, "\n") {
 			if strings.Contains(line, "TK_STORMKICK") && !strings.Contains(line, "TK_READYSTORM") {
@@ -679,7 +679,7 @@ func TestFormatUserPrompt(t *testing.T) {
 		// from the description whether Ranker intent applies.
 		got := formatUserPrompt(
 			GenerateRequest{Class: "taekwon_kid", Description: "I want to become a Ranker"},
-			nil, skills, 99, 50, 58)
+			nil, skills, nil, 99, 50, 58)
 		if !strings.Contains(got, "TK_MISSION") {
 			t.Errorf("options block should mention TK_MISSION; got:\n%s", got)
 		}
@@ -693,7 +693,7 @@ func TestFormatUserPrompt(t *testing.T) {
 		// the LLM will read the block and choose not to allocate.
 		got := formatUserPrompt(
 			GenerateRequest{Class: "taekwon_kid", Description: "pure farming build"},
-			nil, skills, 99, 50, 58)
+			nil, skills, nil, 99, 50, 58)
 		if !strings.Contains(got, "Taekwon Kid options") {
 			t.Errorf("options block should be unconditional for taekwon_kid; got:\n%s", got)
 		}
@@ -706,7 +706,7 @@ func TestFormatUserPrompt(t *testing.T) {
 		for _, c := range []string{"knight", "star_gladiator", "soul_linker"} {
 			got := formatUserPrompt(
 				GenerateRequest{Class: c, Description: "I want to reach high ranking"},
-				nil, skills, 99, 70, 69)
+				nil, skills, nil, 99, 70, 69)
 			if strings.Contains(got, "Taekwon Kid options") {
 				t.Errorf("options block should not appear for class %q; got:\n%s", c, got)
 			}
@@ -716,7 +716,7 @@ func TestFormatUserPrompt(t *testing.T) {
 	t.Run("zero_budget_omits_budget_line", func(t *testing.T) {
 		got := formatUserPrompt(
 			GenerateRequest{Class: "taekwon_kid"},
-			nil, nil, 0, 0, 0)
+			nil, nil, nil, 0, 0, 0)
 		if strings.Contains(got, "skill point budget") {
 			t.Errorf("budget line should be absent when budget=0; got:\n%s", got)
 		}
@@ -731,7 +731,7 @@ func TestFormatUserPrompt(t *testing.T) {
 		}
 		got := formatUserPrompt(
 			GenerateRequest{Class: "magician"},
-			nil, magic, 99, 50, 49)
+			nil, magic, nil, 99, 50, 49)
 		if !strings.Contains(got, "type=magic") {
 			t.Errorf("attack type not rendered in skill line; got:\n%s", got)
 		}
@@ -743,7 +743,7 @@ func TestFormatUserPrompt(t *testing.T) {
 	t.Run("element_and_attack_type_omitted_when_empty", func(t *testing.T) {
 		got := formatUserPrompt(
 			GenerateRequest{Class: "taekwon_kid"},
-			nil, skills, 99, 50, 58)
+			nil, skills, nil, 99, 50, 58)
 		if strings.Contains(got, "type=") || strings.Contains(got, "elem=") {
 			t.Errorf("type=/elem= tokens must be absent when skills carry no attack type/element; got:\n%s", got)
 		}
