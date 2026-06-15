@@ -26,6 +26,26 @@ func TestFormatUserPrompt_HighPriestDebuffs(t *testing.T) {
 	}
 }
 
+func TestFormatUserPrompt_ProfessorLand(t *testing.T) {
+	cat, err := catalog.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, _ := cat.ClassBuffs("professor")
+	out := formatUserPrompt(GenerateRequest{Class: "professor"}, nil, nil, buffs, 99, 50, 0)
+	if !strings.Contains(out, "volcano") {
+		t.Fatalf("prompt missing Scholar land buffs:\n%s", out)
+	}
+	// The prompt must include the land guidance sentence (not just the word
+	// "land" appearing in a buff-kind field). The guidance sentence teaches
+	// the LLM that kind=land buffs are ground effects that amplify all damage
+	// of their element.
+	const wantGuidance = "amplifies ALL damage"
+	if !strings.Contains(out, wantGuidance) {
+		t.Fatalf("prompt missing land guidance (want %q):\n%s", wantGuidance, out)
+	}
+}
+
 func TestFormatUserPrompt_IncludesBuffs(t *testing.T) {
 	cat, err := catalog.Load()
 	if err != nil {

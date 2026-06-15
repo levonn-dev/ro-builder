@@ -830,6 +830,16 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 		if hasDebuff {
 			sb.WriteString("Some entries are kind=debuff: skills you cast on the target (e.g. Lex Aeterna, Decrease AGI, Signum Crucis). Declare them in active_buffs like any buff; the calc applies them to this snapshot's leveling target. Signum Crucis and a Holy (Aspersio) endow only help vs Undead/Demon targets.\n")
 		}
+		hasLand := false
+		for _, b := range classBuffs {
+			if b.SelfBuff != nil && b.SelfBuff.Kind == data.BuffKindLand {
+				hasLand = true
+				break
+			}
+		}
+		if hasLand {
+			sb.WriteString("Some entries are kind=land: ground effects (Volcano, Deluge, Violent Gale) the character casts and stands on. Each amplifies ALL damage of its element (fire/water/wind), spells included. Only one land is active at a time; it pairs with a matching-element endow or bolt. Declare it in active_buffs like any buff.\n")
+		}
 	}
 	sb.WriteString("\nConfirm each scored checkpoint's stat budget with score_build, then submit the trajectory with submit_trajectory and fix any combat-gate failures it reports. It is the authoritative scorer for the canonical checkpoints; describe the build from its numbers.")
 	return sb.String()
