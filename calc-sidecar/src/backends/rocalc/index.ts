@@ -874,6 +874,7 @@ export function createShim(): ShimSession {
     // debufSW(0)) instead.
     win.n_SkillSW = 0;
     win.n_debufSW = 0;
+    win.n_Skill6SW = 0;
     // Zero the n_B_debuf[] array directly. ClickB_Enemy only re-reads from
     // form into n_B_debuf[] when n_debufSW is truthy; with n_debufSW = 0,
     // stale values (e.g. n_B_debuf[6]=1 from Lex Aeterna) persist in memory
@@ -890,6 +891,13 @@ export function createShim(): ShimSession {
     // directly ensures the post-reset StAllCalc sees no support-buff residue.
     if (Array.isArray(win.n_A_Buf2)) {
       for (let i = 0; i < win.n_A_Buf2.length; i++) win.n_A_Buf2[i] = 0;
+    }
+    // Zero n_A_Buf6[] (land bank). calc() reads the land effect from n_A_Buf6[]
+    // WITHOUT re-checking n_Skill6SW (e.g. `0==n_A_Buf6[0] && n_A_Buf6[1]>=1`),
+    // so a stale Volcano/Deluge/Violent Gale level would leak into the next
+    // request even with the gate off. Same vector as n_B_debuf[].
+    if (Array.isArray(win.n_A_Buf6)) {
+      for (let i = 0; i < win.n_A_Buf6.length; i++) win.n_A_Buf6[i] = 0;
     }
     restoreForm(form, initialFormState);
     win.StAllCalc();
@@ -985,7 +993,8 @@ export function createShim(): ShimSession {
         field: string;
         control: "select" | "checkbox";
         forceEnable?: boolean;
-      };
+      }
+    | { driver: "land_buff"; landType: 0 | 1 | 2 };
   const BUFF_BINDINGS: Record<string, BuffAction[]> = {
     // Taekwon (existing)
     taekwon_ranker: [{ driver: "skill_slot", rocalcId: 345, level: 1 }],
@@ -1032,6 +1041,31 @@ export function createShim(): ShimSession {
         forceEnable: true,
       },
     ],
+    // Scholar (Professor / Sage) weapon endows -- existing weapon_endow driver.
+    // Element comes from the resolved buff.element (overlay endow.elements).
+    flame_launcher: [{ driver: "weapon_endow" }],
+    frost_weapon: [{ driver: "weapon_endow" }],
+    lightning_loader: [{ driver: "weapon_endow" }],
+    seismic_weapon: [{ driver: "weapon_endow" }],
+    // Scholar enemy debuffs -- existing enemy_debuf driver.
+    mind_breaker: [
+      { driver: "enemy_debuf", field: "B_debuf18", control: "select" },
+    ],
+    spider_web: [
+      { driver: "enemy_debuf", field: "B_debuf17", control: "checkbox" },
+    ],
+    // Scholar A_skill passives -- existing skill_slot driver (rocalc internal ids).
+    energy_coat: [{ driver: "skill_slot", rocalcId: 58, level: "buffLevel" }],
+    study: [{ driver: "skill_slot", rocalcId: 224, level: "buffLevel" }],
+    dragonology: [{ driver: "skill_slot", rocalcId: 234, level: "buffLevel" }],
+    foresight: [{ driver: "skill_slot", rocalcId: 322, level: "buffLevel" }], // iRO PF_MEMORIZE
+    double_casting: [
+      { driver: "skill_slot", rocalcId: 441, level: "buffLevel" },
+    ], // iRO PF_DOUBLECASTING
+    // Scholar land buffs -- new land_buff driver (A6_Skill0 land type + A6_Skill1 level).
+    volcano: [{ driver: "land_buff", landType: 0 }],
+    deluge: [{ driver: "land_buff", landType: 1 }],
+    violent_gale: [{ driver: "land_buff", landType: 2 }],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
@@ -1208,6 +1242,25 @@ export function createShim(): ShimSession {
     setSelectClamped(el, level);
   }
 
+  // applyLandBuff drives the land controls: A6_Skill0 = land type
+  // (Volcano=0/Deluge=1/Violent Gale=2), A6_Skill1 = land level. Both controls
+  // always exist (installBuffControls injects them into #SIENSKILL alongside the
+  // support bank, not rocalc's native #SP_SIEN04, which holds pet controls we
+  // keep). The section gate n_Skill6SW is set by setBuffs once any land action
+  // ran. Last-wins on A6_Skill0/A6_Skill1 if two land buffs are declared (one
+  // land at a time, like one weapon element).
+  function applyLandBuff(landType: 0 | 1 | 2, level: number): void {
+    const typeSel = form["A6_Skill0"];
+    const lvlSel = form["A6_Skill1"];
+    if (!typeSel || !lvlSel) {
+      throw new Error(
+        "land controls A6_Skill0/A6_Skill1 missing; installBuffControls not run?",
+      );
+    }
+    typeSel.value = String(landType);
+    setSelectClamped(lvlSel, level);
+  }
+
   function applyWeaponEndow(buff: Buff): void {
     const element = buff.element ?? "";
     const value = ENDOW_ELEMENT_VALUES[element];
@@ -1254,6 +1307,7 @@ export function createShim(): ShimSession {
     }
     let usedSupport = false;
     let usedDebuf = false;
+    let usedLand = false;
     for (const buff of buffs) {
       const actions = BUFF_BINDINGS[buff.name];
       if (!actions) {
@@ -1294,6 +1348,11 @@ export function createShim(): ShimSession {
             applied = true;
             usedDebuf = true;
             break;
+          case "land_buff":
+            applyLandBuff(action.landType, buff.level ?? 0);
+            applied = true;
+            usedLand = true;
+            break;
         }
       }
       if (!applied) {
@@ -1309,6 +1368,10 @@ export function createShim(): ShimSession {
     // Enable the enemy-debuff section so the combat calc reads the B_debuf* bank.
     // Same leak-free reasoning as usedSupport: reset() restores controls to 0.
     if (usedDebuf) win.n_debufSW = 1;
+    // Enable the land section so calc() reads the A6_Skill bank into n_A_Buf6[].
+    // Same leak-free reasoning: reset() restores the controls to 0 AND zeros
+    // n_A_Buf6[] (the land effect reads it without re-checking the gate).
+    if (usedLand) win.n_Skill6SW = 1;
     // StAllCalc + StCalc: the pair setSkills fires. calc(): additionally needed
     // when a weapon_endow action changed A_Weapon_element, since the element-vs-
     // enemy multiplier is computed in calc(), not StAllCalc.
@@ -1372,6 +1435,15 @@ function installBuffControls(doc: Document): void {
   // Enemy-debuff bank: read range n_B_debuf[0..24]; these indices are selects,
   // the rest checkboxes.
   const DEBUF_SELECTS = new Set([0, 1, 11, 12, 18, 23, 24]);
+  // Land / ground bank: read range n_A_Buf6[]. The section gate n_Skill6SW makes
+  // rocalc read every one of these (by name), so all must exist as form
+  // controls. We drive only A6_Skill0 (land type: Volcano=0/Deluge=1/Violent
+  // Gale=2) and A6_Skill1 (land level 0..5); the rest exist inert (default
+  // 0/unchecked). Injected into #SIENSKILL alongside the support bank because
+  // they only need to be form elements bound by the name proxies, not in their
+  // native #SP_SIEN04 container (which holds pet/other controls we must keep).
+  const LAND_SELECTS = [0, 1, 4, 5, 18];
+  const LAND_CHECKS = [3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
   // 0..max option range for the controls WE drive; everything else -> "0" only.
   const SELECT_MAX: Record<string, number> = {
     A2_Skill0: 10,
@@ -1381,6 +1453,9 @@ function installBuffControls(doc: Document): void {
     A2_Skill10: 3,
     B_debuf11: 10,
     B_debuf12: 10,
+    B_debuf18: 5,
+    A6_Skill0: 2,
+    A6_Skill1: 5,
   };
   const options = (name: string): string => {
     const max = SELECT_MAX[name] ?? 0;
@@ -1397,6 +1472,8 @@ function installBuffControls(doc: Document): void {
   for (const i of SUPPORT_SELECTS) support += sel(`A2_Skill${i}`);
   for (const i of SUPPORT_CHECKS) support += chk(`A2_Skill${i}`);
   for (let i = 0; i <= 5; i++) support += chk(`A5_Skill${i}`);
+  for (const i of LAND_SELECTS) support += sel(`A6_Skill${i}`);
+  for (const i of LAND_CHECKS) support += chk(`A6_Skill${i}`);
 
   let debuf = "";
   for (let i = 0; i <= 24; i++) {
@@ -1422,6 +1499,8 @@ function installBuffControls(doc: Document): void {
   for (const i of SUPPORT_CHECKS) managed.push(`A2_Skill${i}`);
   for (let i = 0; i <= 5; i++) managed.push(`A5_Skill${i}`);
   for (let i = 0; i <= 24; i++) managed.push(`B_debuf${i}`);
+  for (const i of LAND_SELECTS) managed.push(`A6_Skill${i}`);
+  for (const i of LAND_CHECKS) managed.push(`A6_Skill${i}`);
   for (const name of managed) {
     for (const el of Array.from(doc.querySelectorAll(`[name="${name}"]`))) {
       el.remove();
