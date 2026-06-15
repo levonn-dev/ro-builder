@@ -73,3 +73,33 @@ func TestMildWindOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestClassBuffs_HighPriest(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("high_priest")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for high_priest")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			t.Errorf("buff skill %s has nil SelfBuff", b.AegisName)
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"blessing": "stat_buff", "increase_agi": "stat_buff", "impositio_manus": "stat_buff",
+		"gloria": "stat_buff", "angelus": "stat_buff", "assumptio": "status",
+		"suffragium": "stat_buff", "aspersio": "weapon_endow",
+		"lex_aeterna": "debuff", "decrease_agi": "debuff", "signum_crucis": "debuff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q (present=%v)", name, got[name], kind, got[name] != "")
+		}
+	}
+}

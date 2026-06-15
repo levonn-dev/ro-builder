@@ -32,3 +32,35 @@ skills:
       name: taekwon_ranker
       kind: status
       persistence: permanent
+
+  # --- High Priest (and inherited Acolyte/Priest) self-buffs ---
+  # Player support buffs -> sidecar support_slot driver (A2_Skill* bank).
+  - aegis_name: AL_BLESSING            # Blessing, id 34, max 10
+    self_buff: { name: blessing, kind: stat_buff, persistence: transient }
+  - aegis_name: AL_INCAGI              # Increase AGI, id 29, max 10
+    self_buff: { name: increase_agi, kind: stat_buff, persistence: transient }
+  - aegis_name: PR_IMPOSITIO           # Impositio Manus, id 66, max 5
+    self_buff: { name: impositio_manus, kind: stat_buff, persistence: transient }
+  - aegis_name: PR_GLORIA              # Gloria, id 75, max 5
+    self_buff: { name: gloria, kind: stat_buff, persistence: transient }
+  - aegis_name: AL_ANGELUS             # Angelus, id 33, max 10
+    self_buff: { name: angelus, kind: stat_buff, persistence: transient }
+  - aegis_name: HP_ASSUMPTIO           # Assumptio, id 361, max 5 (High Priest)
+    self_buff: { name: assumptio, kind: status, persistence: transient }
+  - aegis_name: PR_SUFFRAGIUM          # Suffragium, id 67, max 3 (cast-time; applied but not yet scored)
+    self_buff: { name: suffragium, kind: stat_buff, persistence: transient }
+  # Holy weapon endow -> existing weapon_endow driver (A_Weapon_element). Holy only.
+  - aegis_name: PR_ASPERSIO            # Aspersio, max 5
+    self_buff:
+      name: aspersio
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [holy]
+  # Player-cast enemy debuffs -> sidecar enemy_debuf driver (B_debuf* bank).
+  - aegis_name: PR_LEXAETERNA          # Lex Aeterna, id (Gravity) max 1; B_debuf6 checkbox; e*=2
+    self_buff: { name: lex_aeterna, kind: debuff, persistence: transient }
+  - aegis_name: AL_DECAGI              # Decrease AGI, max 10; B_debuf11 select; enemy flee/aspd down
+    self_buff: { name: decrease_agi, kind: debuff, persistence: transient }
+  - aegis_name: AL_CRUCIS              # Signum Crucis, max 10; B_debuf12 select; enemy DEF down (undead/demon only)
+    self_buff: { name: signum_crucis, kind: debuff, persistence: transient }

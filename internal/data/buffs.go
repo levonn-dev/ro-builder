@@ -15,13 +15,17 @@ const (
 	BuffKindWeaponEndow = "weapon_endow"
 	BuffKindStatBuff    = "stat_buff"
 	BuffKindStatus      = "status"
+	// debuff is a player-cast enemy debuff (Lex Aeterna, Decrease AGI, Signum
+	// Crucis): it modifies the combat-sim target, not the player, but the build
+	// declares it like any self-buff. Driven via the enemy_debuf sidecar driver.
+	BuffKindDebuff = "debuff"
 
 	PersistencePermanent = "permanent"
 	PersistenceTransient = "transient"
 )
 
 // AllBuffKinds is the canonical kind set (for overlay validation).
-var AllBuffKinds = []string{BuffKindWeaponEndow, BuffKindStatBuff, BuffKindStatus}
+var AllBuffKinds = []string{BuffKindWeaponEndow, BuffKindStatBuff, BuffKindStatus, BuffKindDebuff}
 
 // AllPersistence is the canonical persistence set (for overlay validation).
 var AllPersistence = []string{PersistencePermanent, PersistenceTransient}
