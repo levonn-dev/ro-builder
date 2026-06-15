@@ -103,3 +103,64 @@ func TestClassBuffs_HighPriest(t *testing.T) {
 		}
 	}
 }
+
+func TestClassBuffs_Professor(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("professor")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for professor")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"flame_launcher": "weapon_endow", "frost_weapon": "weapon_endow",
+		"lightning_loader": "weapon_endow", "seismic_weapon": "weapon_endow",
+		"volcano": "land", "deluge": "land", "violent_gale": "land",
+		"mind_breaker": "debuff", "spider_web": "debuff",
+		"energy_coat": "status", "study": "stat_buff", "dragonology": "stat_buff",
+		"foresight": "stat_buff", "double_casting": "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 14 {
+		t.Fatalf("test expects 14 professor buffs, listed %d", len(want))
+	}
+}
+
+func TestClassBuffs_Sage_ExcludesProfessorOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("sage")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for sage")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	for _, name := range []string{"flame_launcher", "volcano", "energy_coat", "study", "dragonology"} {
+		if !have[name] {
+			t.Errorf("sage should have buff %q", name)
+		}
+	}
+	for _, name := range []string{"mind_breaker", "spider_web", "foresight", "double_casting"} {
+		if have[name] {
+			t.Errorf("sage must NOT have Professor-only buff %q", name)
+		}
+	}
+}

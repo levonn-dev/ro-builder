@@ -41,3 +41,12 @@ func TestBuffKindDebuffIsValid(t *testing.T) {
 		t.Fatalf("BuffKindDebuff = %q, want \"debuff\"", BuffKindDebuff)
 	}
 }
+
+func TestBuffKindLandIsValid(t *testing.T) {
+	if !IsValidBuffKind(BuffKindLand) {
+		t.Fatalf("BuffKindLand (%q) not accepted by IsValidBuffKind", BuffKindLand)
+	}
+	if BuffKindLand != "land" {
+		t.Fatalf("BuffKindLand = %q, want \"land\"", BuffKindLand)
+	}
+}

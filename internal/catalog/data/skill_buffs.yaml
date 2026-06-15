@@ -3,7 +3,7 @@
 # buff comes from. Semantic only: no rocalc ids (the sidecar binding maps
 # name -> engine controls). See docs/superpowers/specs/2026-06-01-rocalc-self-buffs-design.md.
 #
-# kind: weapon_endow | stat_buff | status   (data.AllBuffKinds)
+# kind: weapon_endow | stat_buff | status | debuff | land   (data.AllBuffKinds)
 # persistence: permanent | transient        (data.AllPersistence)
 # endow.elements: ordered; index (1-based) == required buff level. Element
 #   names from data.AllElements.
@@ -64,3 +64,60 @@ skills:
     self_buff: { name: decrease_agi, kind: debuff, persistence: transient }
   - aegis_name: AL_CRUCIS              # Signum Crucis, max 10; B_debuf12 select; enemy DEF down (undead/demon only)
     self_buff: { name: signum_crucis, kind: debuff, persistence: transient }
+
+  # --- Scholar (Professor / Sage) self-buffs ---
+  # Elemental weapon endows -> existing weapon_endow driver (A_Weapon_element).
+  # Single-element each (like Aspersio); resolveBuffs forces the matching element.
+  - aegis_name: SA_FLAMELAUNCHER       # Flame Launcher (Endow Blaze), rocalc 280, max 5
+    self_buff:
+      name: flame_launcher
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [fire]
+  - aegis_name: SA_FROSTWEAPON         # Frost Weapon (Endow Tsunami), rocalc 281, max 5
+    self_buff:
+      name: frost_weapon
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [water]
+  - aegis_name: SA_LIGHTNINGLOADER     # Lightning Loader (Endow Tornado), rocalc 282, max 5
+    self_buff:
+      name: lightning_loader
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [wind]
+  - aegis_name: SA_SEISMICWEAPON       # Seismic Weapon (Endow Quake), rocalc 283, max 5
+    self_buff:
+      name: seismic_weapon
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [earth]
+  # Land / ground buffs -> NEW land_buff driver (A6_Skill0 type + A6_Skill1 level).
+  # Amplify all same-element damage (auto-attack AND bolts); one active at a time.
+  - aegis_name: SA_VOLCANO             # Volcano, max 5 -> amplifies fire
+    self_buff: { name: volcano, kind: land, persistence: transient }
+  - aegis_name: SA_DELUGE              # Deluge, max 5 -> amplifies water
+    self_buff: { name: deluge, kind: land, persistence: transient }
+  - aegis_name: SA_VIOLENTGALE         # Violent Gale (Whirlwind), max 5 -> amplifies wind
+    self_buff: { name: violent_gale, kind: land, persistence: transient }
+  # Player-cast enemy debuffs -> existing enemy_debuf driver (B_debuf* bank).
+  - aegis_name: PF_MINDBREAKER         # Mind Breaker, max 5; B_debuf18 select; enemy MDEF -12%/lvl
+    self_buff: { name: mind_breaker, kind: debuff, persistence: transient }
+  - aegis_name: PF_SPIDERWEB           # Spider Web (Fiber Lock), max 1; B_debuf17 checkbox; +fire dmg, flee down
+    self_buff: { name: spider_web, kind: debuff, persistence: transient }
+  # A_skill passives / self-cast -> existing skill_slot driver (rocalc ids; allocation
+  # alone drops them due to iRO<->rocalc id divergence).
+  - aegis_name: MG_ENERGYCOAT          # Energy Coat, rocalc 58, max 1; cuts incoming physical
+    self_buff: { name: energy_coat, kind: status, persistence: transient }
+  - aegis_name: SA_ADVANCEDBOOK        # Study (Advanced Book), rocalc 224, max 10; +HIT/+ASPD with a book
+    self_buff: { name: study, kind: stat_buff, persistence: permanent }
+  - aegis_name: SA_DRAGONOLOGY         # Dragonology, rocalc 234, max 5; +MATK (derived-only in the auto-attack sim)
+    self_buff: { name: dragonology, kind: stat_buff, persistence: permanent }
+  - aegis_name: PF_MEMORIZE            # Foresight (Memorize), rocalc 322, max 1; cast-time (not yet scored)
+    self_buff: { name: foresight, kind: stat_buff, persistence: transient }
+  - aegis_name: PF_DOUBLECASTING       # Double Casting, rocalc 441, max 5; bolt double (not yet scored)
+    self_buff: { name: double_casting, kind: stat_buff, persistence: transient }
