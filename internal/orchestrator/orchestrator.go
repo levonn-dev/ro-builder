@@ -36,6 +36,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/levonn-dev/ro-builder/internal/catalog"
+	"github.com/levonn-dev/ro-builder/internal/data"
 	"github.com/levonn-dev/ro-builder/internal/domain"
 	"github.com/levonn-dev/ro-builder/internal/llm"
 	"github.com/levonn-dev/ro-builder/internal/llm/tools"
@@ -818,6 +819,16 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 		}
 		if hasEndow {
 			sb.WriteString("Match the endow element to the target (e.g. an Undead/Dark target takes more from a Holy endow; pick the endow that maximizes damage vs this snapshot's leveling target).\n")
+		}
+		hasDebuff := false
+		for _, b := range classBuffs {
+			if b.SelfBuff != nil && b.SelfBuff.Kind == data.BuffKindDebuff {
+				hasDebuff = true
+				break
+			}
+		}
+		if hasDebuff {
+			sb.WriteString("Some entries are kind=debuff: skills you cast on the target (e.g. Lex Aeterna, Decrease AGI, Signum Crucis). Declare them in active_buffs like any buff; the calc applies them to this snapshot's leveling target. Signum Crucis and a Holy (Aspersio) endow only help vs Undead/Demon targets.\n")
 		}
 	}
 	sb.WriteString("\nConfirm each scored checkpoint's stat budget with score_build, then submit the trajectory with submit_trajectory and fix any combat-gate failures it reports. It is the authoritative scorer for the canonical checkpoints; describe the build from its numbers.")
