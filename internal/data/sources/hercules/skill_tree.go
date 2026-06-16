@@ -3,6 +3,7 @@ package hercules
 import (
 	"fmt"
 	"os"
+	"sort"
 )
 
 // ClassSkillTree is one job's allocatable skill list. Inherits captures
@@ -122,6 +123,11 @@ func classFromMap(name string, m map[string]any) (ClassSkillTree, error) {
 			out.Skills = append(out.Skills, entry)
 		}
 	}
+	// skillsMap is a Go map, whose range order is randomized; sort by aegis
+	// name so cmd/build-catalog emits a reproducible skill list every run.
+	sort.Slice(out.Skills, func(i, j int) bool {
+		return out.Skills[i].AegisName < out.Skills[j].AegisName
+	})
 	return out, nil
 }
 
