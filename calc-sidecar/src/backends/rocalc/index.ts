@@ -1066,6 +1066,28 @@ export function createShim(): ShimSession {
     volcano: [{ driver: "land_buff", landType: 0 }],
     deluge: [{ driver: "land_buff", landType: 1 }],
     violent_gale: [{ driver: "land_buff", landType: 2 }],
+    // Assassin Cross (m_JobBuff[22] = [537,13,14,79,80,81,262,266,381]; base
+    // Assassin row 8 = [537,13,14,79,80,81,381]). rocalc ids diverge from Aegis
+    // ids, so allocation alone drops these passives; drive them explicitly.
+    enchant_deadly_poison: [
+      { driver: "skill_slot", rocalcId: 266, level: "buffLevel" },
+    ],
+    enchant_poison: [{ driver: "weapon_endow" }],
+    advanced_katar_mastery: [
+      { driver: "skill_slot", rocalcId: 262, level: "buffLevel" },
+    ],
+    katar_mastery: [{ driver: "skill_slot", rocalcId: 81, level: "buffLevel" }],
+    right_hand_mastery: [
+      { driver: "skill_slot", rocalcId: 79, level: "buffLevel" },
+    ],
+    left_hand_mastery: [
+      { driver: "skill_slot", rocalcId: 80, level: "buffLevel" },
+    ],
+    double_attack: [{ driver: "skill_slot", rocalcId: 13, level: "buffLevel" }],
+    improve_dodge: [{ driver: "skill_slot", rocalcId: 14, level: "buffLevel" }],
+    sonic_acceleration: [
+      { driver: "skill_slot", rocalcId: 381, level: "buffLevel" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
