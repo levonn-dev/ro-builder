@@ -164,3 +164,72 @@ func TestClassBuffs_Sage_ExcludesProfessorOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestClassBuffs_AssassinCross(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("assassin_cross")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for assassin_cross")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"enchant_deadly_poison":  "stat_buff",
+		"enchant_poison":         "weapon_endow",
+		"advanced_katar_mastery": "stat_buff",
+		"katar_mastery":          "stat_buff",
+		"right_hand_mastery":     "stat_buff",
+		"left_hand_mastery":      "stat_buff",
+		"double_attack":          "stat_buff",
+		"improve_dodge":          "stat_buff",
+		"sonic_acceleration":     "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 9 {
+		t.Fatalf("test expects 9 assassin_cross buffs, listed %d", len(want))
+	}
+}
+
+func TestClassBuffs_Assassin_ExcludesTransOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("assassin")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for assassin")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	// Base Assassin (and inherited Thief) skills.
+	for _, name := range []string{
+		"enchant_poison", "katar_mastery", "right_hand_mastery",
+		"left_hand_mastery", "double_attack", "improve_dodge", "sonic_acceleration",
+	} {
+		if !have[name] {
+			t.Errorf("assassin should have buff %q", name)
+		}
+	}
+	// Trans-only (Assassin Cross) skills must NOT surface for base Assassin.
+	for _, name := range []string{"enchant_deadly_poison", "advanced_katar_mastery"} {
+		if have[name] {
+			t.Errorf("assassin must NOT have trans-only buff %q", name)
+		}
+	}
+}

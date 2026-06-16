@@ -121,3 +121,31 @@ skills:
     self_buff: { name: foresight, kind: stat_buff, persistence: transient }
   - aegis_name: PF_DOUBLECASTING       # Double Casting, rocalc 441, max 5; bolt double (not yet scored)
     self_buff: { name: double_casting, kind: stat_buff, persistence: transient }
+
+  # --- Assassin Cross (and inherited Thief / Assassin) self-buffs ---
+  # All driven via existing seams: weapon_endow (Enchant Poison) and skill_slot
+  # (everything else). rocalc ids diverge from Aegis ids, so allocation alone
+  # drops these passives -- the skill_slot bindings carry the rocalc id.
+  - aegis_name: ASC_EDP                # Enchant Deadly Poison, rocalc 266, max 5; big ATK multiplier (no element change in pre-renewal)
+    self_buff: { name: enchant_deadly_poison, kind: stat_buff, persistence: transient }
+  - aegis_name: AS_ENCHANTPOISON       # Enchant Poison, rocalc 85, max 10 -> poison weapon endow
+    self_buff:
+      name: enchant_poison
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [poison]
+  - aegis_name: ASC_KATAR              # Advanced Katar Mastery, rocalc 262, max 5
+    self_buff: { name: advanced_katar_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: AS_KATAR               # Katar Mastery, rocalc 81, max 10
+    self_buff: { name: katar_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: AS_RIGHT               # Right-Hand Mastery, rocalc 79, max 5
+    self_buff: { name: right_hand_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: AS_LEFT                # Left-Hand Mastery, rocalc 80, max 5
+    self_buff: { name: left_hand_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: TF_DOUBLE              # Double Attack, rocalc 13, max 10
+    self_buff: { name: double_attack, kind: stat_buff, persistence: permanent }
+  - aegis_name: TF_MISS                # Improve Dodge, rocalc 14, max 10
+    self_buff: { name: improve_dodge, kind: stat_buff, persistence: permanent }
+  - aegis_name: AS_SONICACCEL          # Sonic Acceleration, rocalc 381, max 1; enhances Sonic Blow only -- NOT scored in the auto-attack sim
+    self_buff: { name: sonic_acceleration, kind: status, persistence: permanent }
