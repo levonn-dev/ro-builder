@@ -3,7 +3,7 @@
 # buff comes from. Semantic only: no rocalc ids (the sidecar binding maps
 # name -> engine controls). See docs/superpowers/specs/2026-06-01-rocalc-self-buffs-design.md.
 #
-# kind: weapon_endow | stat_buff | status   (data.AllBuffKinds)
+# kind: weapon_endow | stat_buff | status | debuff | land   (data.AllBuffKinds)
 # persistence: permanent | transient        (data.AllPersistence)
 # endow.elements: ordered; index (1-based) == required buff level. Element
 #   names from data.AllElements.
@@ -32,3 +32,139 @@ skills:
       name: taekwon_ranker
       kind: status
       persistence: permanent
+
+  # --- High Priest (and inherited Acolyte/Priest) self-buffs ---
+  # Player support buffs -> sidecar support_slot driver (A2_Skill* bank).
+  - aegis_name: AL_BLESSING            # Blessing, id 34, max 10
+    self_buff: { name: blessing, kind: stat_buff, persistence: transient }
+  - aegis_name: AL_INCAGI              # Increase AGI, id 29, max 10
+    self_buff: { name: increase_agi, kind: stat_buff, persistence: transient }
+  - aegis_name: PR_IMPOSITIO           # Impositio Manus, id 66, max 5
+    self_buff: { name: impositio_manus, kind: stat_buff, persistence: transient }
+  - aegis_name: PR_GLORIA              # Gloria, id 75, max 5
+    self_buff: { name: gloria, kind: stat_buff, persistence: transient }
+  - aegis_name: AL_ANGELUS             # Angelus, id 33, max 10
+    self_buff: { name: angelus, kind: stat_buff, persistence: transient }
+  - aegis_name: HP_ASSUMPTIO           # Assumptio, id 361, max 5 (High Priest)
+    self_buff: { name: assumptio, kind: status, persistence: transient }
+  - aegis_name: PR_SUFFRAGIUM          # Suffragium, id 67, max 3 (cast-time; applied but not yet scored)
+    self_buff: { name: suffragium, kind: stat_buff, persistence: transient }
+  # Holy weapon endow -> existing weapon_endow driver (A_Weapon_element). Holy only.
+  - aegis_name: PR_ASPERSIO            # Aspersio, max 5
+    self_buff:
+      name: aspersio
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [holy]
+  # Player-cast enemy debuffs -> sidecar enemy_debuf driver (B_debuf* bank).
+  - aegis_name: PR_LEXAETERNA          # Lex Aeterna, id (Gravity) max 1; B_debuf6 checkbox; e*=2
+    self_buff: { name: lex_aeterna, kind: debuff, persistence: transient }
+  - aegis_name: AL_DECAGI              # Decrease AGI, max 10; B_debuf11 select; enemy flee/aspd down
+    self_buff: { name: decrease_agi, kind: debuff, persistence: transient }
+  - aegis_name: AL_CRUCIS              # Signum Crucis, max 10; B_debuf12 select; enemy DEF down (undead/demon only)
+    self_buff: { name: signum_crucis, kind: debuff, persistence: transient }
+
+  # --- Scholar (Professor / Sage) self-buffs ---
+  # Elemental weapon endows -> existing weapon_endow driver (A_Weapon_element).
+  # Single-element each (like Aspersio); resolveBuffs forces the matching element.
+  - aegis_name: SA_FLAMELAUNCHER       # Flame Launcher (Endow Blaze), rocalc 280, max 5
+    self_buff:
+      name: flame_launcher
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [fire]
+  - aegis_name: SA_FROSTWEAPON         # Frost Weapon (Endow Tsunami), rocalc 281, max 5
+    self_buff:
+      name: frost_weapon
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [water]
+  - aegis_name: SA_LIGHTNINGLOADER     # Lightning Loader (Endow Tornado), rocalc 282, max 5
+    self_buff:
+      name: lightning_loader
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [wind]
+  - aegis_name: SA_SEISMICWEAPON       # Seismic Weapon (Endow Quake), rocalc 283, max 5
+    self_buff:
+      name: seismic_weapon
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [earth]
+  # Land / ground buffs -> NEW land_buff driver (A6_Skill0 type + A6_Skill1 level).
+  # Amplify all same-element damage (auto-attack AND bolts); one active at a time.
+  - aegis_name: SA_VOLCANO             # Volcano, max 5 -> amplifies fire
+    self_buff: { name: volcano, kind: land, persistence: transient }
+  - aegis_name: SA_DELUGE              # Deluge, max 5 -> amplifies water
+    self_buff: { name: deluge, kind: land, persistence: transient }
+  - aegis_name: SA_VIOLENTGALE         # Violent Gale (Whirlwind), max 5 -> amplifies wind
+    self_buff: { name: violent_gale, kind: land, persistence: transient }
+  # Player-cast enemy debuffs -> existing enemy_debuf driver (B_debuf* bank).
+  - aegis_name: PF_MINDBREAKER         # Mind Breaker, max 5; B_debuf18 select; enemy MDEF -12%/lvl
+    self_buff: { name: mind_breaker, kind: debuff, persistence: transient }
+  - aegis_name: PF_SPIDERWEB           # Spider Web (Fiber Lock), max 1; B_debuf17 checkbox; +fire dmg, flee down
+    self_buff: { name: spider_web, kind: debuff, persistence: transient }
+  # A_skill passives / self-cast -> existing skill_slot driver (rocalc ids; allocation
+  # alone drops them due to iRO<->rocalc id divergence).
+  - aegis_name: MG_ENERGYCOAT          # Energy Coat, rocalc 58, max 1; cuts incoming physical
+    self_buff: { name: energy_coat, kind: status, persistence: transient }
+  - aegis_name: SA_ADVANCEDBOOK        # Study (Advanced Book), rocalc 224, max 10; +HIT/+ASPD with a book
+    self_buff: { name: study, kind: stat_buff, persistence: permanent }
+  - aegis_name: SA_DRAGONOLOGY         # Dragonology, rocalc 234, max 5; +MATK (derived-only in the auto-attack sim)
+    self_buff: { name: dragonology, kind: stat_buff, persistence: permanent }
+  - aegis_name: PF_MEMORIZE            # Foresight (Memorize), rocalc 322, max 1; cast-time (not yet scored)
+    self_buff: { name: foresight, kind: stat_buff, persistence: transient }
+  - aegis_name: PF_DOUBLECASTING       # Double Casting, rocalc 441, max 5; bolt double (not yet scored)
+    self_buff: { name: double_casting, kind: stat_buff, persistence: transient }
+
+  # --- Assassin Cross (and inherited Thief / Assassin) self-buffs ---
+  # All driven via existing seams: weapon_endow (Enchant Poison) and skill_slot
+  # (everything else). rocalc ids diverge from Aegis ids, so allocation alone
+  # drops these passives -- the skill_slot bindings carry the rocalc id.
+  - aegis_name: ASC_EDP                # Enchant Deadly Poison, rocalc 266, max 5; big ATK multiplier (no element change in pre-renewal)
+    self_buff: { name: enchant_deadly_poison, kind: stat_buff, persistence: transient }
+  - aegis_name: AS_ENCHANTPOISON       # Enchant Poison, rocalc 85, max 10 -> poison weapon endow
+    self_buff:
+      name: enchant_poison
+      kind: weapon_endow
+      persistence: transient
+      endow:
+        elements: [poison]
+  - aegis_name: ASC_KATAR              # Advanced Katar Mastery, rocalc 262, max 5
+    self_buff: { name: advanced_katar_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: AS_KATAR               # Katar Mastery, rocalc 81, max 10
+    self_buff: { name: katar_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: AS_RIGHT               # Right-Hand Mastery, rocalc 79, max 5
+    self_buff: { name: right_hand_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: AS_LEFT                # Left-Hand Mastery, rocalc 80, max 5
+    self_buff: { name: left_hand_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: TF_DOUBLE              # Double Attack, rocalc 13, max 10
+    self_buff: { name: double_attack, kind: stat_buff, persistence: permanent }
+  - aegis_name: TF_MISS                # Improve Dodge, rocalc 14, max 10
+    self_buff: { name: improve_dodge, kind: stat_buff, persistence: permanent }
+  - aegis_name: AS_SONICACCEL          # Sonic Acceleration, rocalc 381, max 1; enhances Sonic Blow only -- NOT scored in the auto-attack sim
+    self_buff: { name: sonic_acceleration, kind: status, persistence: permanent }
+
+  # --- Sniper (and inherited Archer / Hunter) self-buffs ---
+  # All driven via the existing skill_slot seam (m_JobBuff A_skill bank). rocalc
+  # ids diverge from Aegis ids, so allocation alone drops these -- the bindings
+  # carry the rocalc id. Owl's / Vulture's scale +1/level (up to +10).
+  - aegis_name: AC_OWL                 # Owl's Eye, rocalc 38, max 10; DEX +1/level (up to +10)
+    self_buff: { name: owls_eye, kind: stat_buff, persistence: permanent }
+  - aegis_name: AC_VULTURE             # Vulture's Eye, rocalc 39, max 10; HIT +1/level (up to +10) + bow range
+    self_buff: { name: vultures_eye, kind: stat_buff, persistence: permanent }
+  - aegis_name: AC_CONCENTRATION       # Improve Concentration, rocalc 42, max 10; AGI & DEX % steroid
+    self_buff: { name: improve_concentration, kind: stat_buff, persistence: transient }
+  - aegis_name: HT_BEASTBANE           # Beast Bane, rocalc 116, max 10; +ATK vs Brute/Insect race only
+    self_buff: { name: beast_bane, kind: stat_buff, persistence: permanent }
+  - aegis_name: HT_STEELCROW           # Steel Crow, rocalc 119, max 10; +Blitz Beat damage -- auto-attack sim does not score Blitz Beat, so not reflected yet
+    self_buff: { name: steel_crow, kind: status, persistence: permanent }
+  - aegis_name: SN_SIGHT               # True Sight (catalog "Falcon Eyes"), rocalc 270, max 10; trans-only; all stats +5, +ATK/HIT/CRIT
+    self_buff: { name: true_sight, kind: stat_buff, persistence: transient }
+  - aegis_name: SN_WINDWALK            # Wind Walk (catalog "Wind Walker"), rocalc 273, max 10; trans-only; +flee, +move speed
+    self_buff: { name: wind_walk, kind: stat_buff, persistence: transient }

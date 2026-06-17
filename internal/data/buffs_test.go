@@ -32,3 +32,21 @@ func TestIsValidElement(t *testing.T) {
 		t.Error("IsValidElement accepted bogus element")
 	}
 }
+
+func TestBuffKindDebuffIsValid(t *testing.T) {
+	if !IsValidBuffKind(BuffKindDebuff) {
+		t.Fatalf("BuffKindDebuff (%q) not accepted by IsValidBuffKind", BuffKindDebuff)
+	}
+	if BuffKindDebuff != "debuff" {
+		t.Fatalf("BuffKindDebuff = %q, want \"debuff\"", BuffKindDebuff)
+	}
+}
+
+func TestBuffKindLandIsValid(t *testing.T) {
+	if !IsValidBuffKind(BuffKindLand) {
+		t.Fatalf("BuffKindLand (%q) not accepted by IsValidBuffKind", BuffKindLand)
+	}
+	if BuffKindLand != "land" {
+		t.Fatalf("BuffKindLand = %q, want \"land\"", BuffKindLand)
+	}
+}

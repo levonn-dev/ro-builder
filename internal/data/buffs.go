@@ -15,13 +15,22 @@ const (
 	BuffKindWeaponEndow = "weapon_endow"
 	BuffKindStatBuff    = "stat_buff"
 	BuffKindStatus      = "status"
+	// debuff is a player-cast enemy debuff (Lex Aeterna, Decrease AGI, Signum
+	// Crucis): it modifies the combat-sim target, not the player, but the build
+	// declares it like any self-buff. Driven via the enemy_debuf sidecar driver.
+	BuffKindDebuff = "debuff"
+	// land is a self-cast ground effect (Volcano, Deluge, Violent Gale) that
+	// amplifies all same-element damage (auto-attack and spells) of those
+	// standing on it. One land is active at a time. Driven via the land_buff
+	// sidecar driver (the A6_Skill ground bank).
+	BuffKindLand = "land"
 
 	PersistencePermanent = "permanent"
 	PersistenceTransient = "transient"
 )
 
 // AllBuffKinds is the canonical kind set (for overlay validation).
-var AllBuffKinds = []string{BuffKindWeaponEndow, BuffKindStatBuff, BuffKindStatus}
+var AllBuffKinds = []string{BuffKindWeaponEndow, BuffKindStatBuff, BuffKindStatus, BuffKindDebuff, BuffKindLand}
 
 // AllPersistence is the canonical persistence set (for overlay validation).
 var AllPersistence = []string{PersistencePermanent, PersistenceTransient}

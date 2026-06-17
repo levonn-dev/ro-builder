@@ -394,12 +394,29 @@ export function createShim(): ShimSession {
 
   const form: RocalcForm = doc.forms.calcForm;
   doc.calcForm = form;
+  // installBuffControls must run BEFORE installFormNameProxies so the
+  // A2_Skill*/A5_Skill*/B_debuf* controls are in form.elements when the
+  // proxy getters are installed. The proxies use form.elements.namedItem(key)
+  // as a live lookup, so they remain valid even after the DOM under a given
+  // name changes (e.g. ClickJob rebuilding option lists). We also need the
+  // controls present before rocalc loads so rocalc's own init path (which
+  // accesses c.A2_Skill* via these proxies) doesn't throw on missing elements.
+  installBuffControls(doc);
   installFormNameProxies(form);
   tolerateStaleParentChecks(win);
 
   for (const file of ROCALC_FILES) {
     win.eval(readFileSync(resolve(VENDOR, file), "utf-8"));
   }
+
+  // foot.js's init block (top-level code at the end of the file) calls
+  // refreshFields() which calls BufSW(n_SkillSW). Since n_SkillSW=0 at
+  // that point, BufSW takes the else branch and rebuilds #SIENSKILL with
+  // just a collapsed header row -- wiping our installBuffControls-injected
+  // A2_Skill* controls. Reinstall them now so the live proxy getters can
+  // resolve the controls again. installBuffControls removes any existing
+  // controls by name before injecting, so calling it twice is idempotent.
+  installBuffControls(doc);
 
   // Backfill the per-class skill-buff arrays IFF rocalc didn't allocate
   // them. ClickJob references n_A_BufN[i] = ... for several N (no
@@ -443,6 +460,28 @@ export function createShim(): ShimSession {
   // lists, so it refreshes the snapshot too; reset() after setClass rolls
   // back to the new class's baseline, not the original Novice one.
   let initialFormState = snapshotForm(form);
+
+  // pendingDebufActions stores the enemy_debuf actions from the most recent
+  // setBuffs call so setEnemyInline/setEnemy can re-apply them after Bskill.
+  // Background: StAllCalc() (called at the end of setBuffs) triggers
+  // ClickB_Enemy() -> debufSW(n_debufSW), which rebuilds #EnemyDebuf with
+  // fresh empty controls and re-reads n_B_debuf[] from form. If the active
+  // enemy at that point is NOT undead/demon, debufSW explicitly zeros
+  // n_B_debuf[12] (Signum) and disables the control, discarding the value we
+  // just set. Re-applying the form values AFTER the enemy scratch slot is
+  // written but BEFORE calc() -- and calling ClickB_Enemy() again with the
+  // actual target in place -- lets debufSW run with the correct enemy context
+  // so race-gated debuffs are not zeroed. Lex Aeterna (B_debuf6, checkbox)
+  // survives the first round-trip because debufSW writes n_B_debuf[6] back
+  // to c.B_debuf6.checked without a race gate, so the round-trip is lossless
+  // for checkboxes; selects (B_debuf11, B_debuf12) need this second pass.
+  type PendingDebuf = {
+    field: string;
+    control: "select" | "checkbox";
+    level: number;
+    forceEnable: boolean;
+  };
+  let pendingDebufActions: PendingDebuf[] = [];
 
   function setStats({ str, agi, vit, int: int_, dex, luk }: Stats): void {
     form.A_STR.value = String(str);
@@ -699,6 +738,14 @@ export function createShim(): ShimSession {
     try {
       form.B_Enemy.value = String(SCRATCH_SLOT);
       win.Bskill();
+      // Re-apply race-gated enemy debuffs (Signum Crucis, Decrease AGI) now
+      // that the actual target is in the scratch slot. setBuffs's StAllCalc
+      // ran ClickB_Enemy with the default enemy (not undead/demon), causing
+      // debufSW to zero n_B_debuf[12] for non-qualifying targets. Now that
+      // the undead/demon target is in place, reapplyPendingDebufs re-writes
+      // the form controls and calls ClickB_Enemy() again so debufSW reads
+      // the correct race/element and doesn't zero them.
+      reapplyPendingDebufs();
       win.calc();
     } finally {
       // Restore-before-read invariant: this finally restores
@@ -744,6 +791,9 @@ export function createShim(): ShimSession {
     }
     form.B_Enemy.value = String(rocalcMobId);
     win.Bskill();
+    // Re-apply race-gated enemy debuffs with the actual target in place.
+    // Same rationale as setEnemyInline; see reapplyPendingDebufs comment.
+    reapplyPendingDebufs();
     win.calc();
   }
 
@@ -809,6 +859,46 @@ export function createShim(): ShimSession {
   }
 
   function reset(): void {
+    // Clear pending debuf actions so a subsequent setClass/setEnemy* does not
+    // re-apply stale debuffs from a prior request.
+    pendingDebufActions = [];
+    // Zero the section-gate globals. restoreForm() only restores form field
+    // values; n_SkillSW and n_debufSW are rocalc JS globals that setBuffs
+    // set to 1. If they stay at 1, the next setClass() triggers ClickJob ->
+    // StAllCalc -> ClickB_Enemy -> debufSW(1) / BufSW(1), which runs the
+    // full panel-rebuild path (BufSW uses myInnerHtml to build #SIENSKILL,
+    // debufSW uses myInnerHtml to build #EnemyDebuf). Those myInnerHtml calls
+    // can hit elements that don't exist under the current DOM state, causing
+    // "Cannot read properties of null" errors. Zeroing here makes the
+    // subsequent setClass trigger the safe collapsed-header paths (BufSW(0) /
+    // debufSW(0)) instead.
+    win.n_SkillSW = 0;
+    win.n_debufSW = 0;
+    win.n_Skill6SW = 0;
+    // Zero the n_B_debuf[] array directly. ClickB_Enemy only re-reads from
+    // form into n_B_debuf[] when n_debufSW is truthy; with n_debufSW = 0,
+    // stale values (e.g. n_B_debuf[6]=1 from Lex Aeterna) persist in memory
+    // and still influence the damage formula in calc() even without n_debufSW.
+    // Zeroing explicitly ensures the next calc() sees a clean debuff state.
+    if (Array.isArray(win.n_B_debuf)) {
+      for (let i = 0; i < win.n_B_debuf.length; i++) win.n_B_debuf[i] = 0;
+    }
+    // Zero n_A_Buf2[] (support skill effects). StAllCalc reads n_A_Buf2 into
+    // derived stat calculations ONLY when n_SkillSW is truthy (see foot.js:
+    // `n_SkillSW && (n_A_Buf2[0]=1*c.A2_Skill0.value, ...)`). With
+    // n_SkillSW = 0, stale n_A_Buf2 values (blessing = STR/DEX bonus, etc.)
+    // persist in memory and still influence the stat calculations. Zeroing
+    // directly ensures the post-reset StAllCalc sees no support-buff residue.
+    if (Array.isArray(win.n_A_Buf2)) {
+      for (let i = 0; i < win.n_A_Buf2.length; i++) win.n_A_Buf2[i] = 0;
+    }
+    // Zero n_A_Buf6[] (land bank). calc() reads the land effect from n_A_Buf6[]
+    // WITHOUT re-checking n_Skill6SW (e.g. `0==n_A_Buf6[0] && n_A_Buf6[1]>=1`),
+    // so a stale Volcano/Deluge/Violent Gale level would leak into the next
+    // request even with the gate off. Same vector as n_B_debuf[].
+    if (Array.isArray(win.n_A_Buf6)) {
+      for (let i = 0; i < win.n_A_Buf6.length; i++) win.n_A_Buf6[i] = 0;
+    }
     restoreForm(form, initialFormState);
     win.StAllCalc();
     win.StCalc();
@@ -888,19 +978,129 @@ export function createShim(): ShimSession {
   // BUFF_BINDINGS maps a semantic buff name to ordered rocalc actions. Each
   // action drives an existing control. skill_slot writes an m_JobBuff A_skill
   // slot (rocalc's internal skill id, indexOf'd into m_JobBuff[classId]);
-  // weapon_endow forces the A_Weapon_element select. This is the only place
-  // rocalc's internal ids live; the contract stays semantic. Extend by adding
-  // a binding + (for a new control surface) a driver case below.
+  // weapon_endow forces the A_Weapon_element select; support_slot writes one
+  // of the A2_Skill* player-support controls (n_SkillSW section); enemy_debuf
+  // writes a B_debuf* enemy-debuff control (n_debufSW section).
+  // This is the only place rocalc's internal ids live; the contract stays
+  // semantic. Extend by adding a binding + (for a new control surface) a
+  // driver case below.
   type BuffAction =
     | { driver: "skill_slot"; rocalcId: number; level: number | "buffLevel" }
-    | { driver: "weapon_endow" };
+    | { driver: "weapon_endow" }
+    | { driver: "support_slot"; field: string; control: "select" | "checkbox" }
+    | {
+        driver: "enemy_debuf";
+        field: string;
+        control: "select" | "checkbox";
+        forceEnable?: boolean;
+      }
+    | { driver: "land_buff"; landType: 0 | 1 | 2 };
   const BUFF_BINDINGS: Record<string, BuffAction[]> = {
+    // Taekwon (existing)
     taekwon_ranker: [{ driver: "skill_slot", rocalcId: 345, level: 1 }],
     spurt: [
       { driver: "skill_slot", rocalcId: 379, level: 1 }, // Spurt status (+STR/ATK); m_JobBuff[41] index 4
       { driver: "skill_slot", rocalcId: 329, level: "buffLevel" }, // Sprint unarmed mastery; m_JobBuff[41] index 3; drives combat damage (not ATK), verified barehanded TK lv7 adds ~94 ave damage vs neutral mob
     ],
     mild_wind: [{ driver: "weapon_endow" }],
+    // High Priest player support buffs (A2_Skill* bank)
+    blessing: [
+      { driver: "support_slot", field: "A2_Skill0", control: "select" },
+    ],
+    increase_agi: [
+      { driver: "support_slot", field: "A2_Skill1", control: "select" },
+    ],
+    impositio_manus: [
+      { driver: "support_slot", field: "A2_Skill2", control: "select" },
+    ],
+    gloria: [
+      { driver: "support_slot", field: "A2_Skill3", control: "checkbox" },
+    ],
+    angelus: [
+      { driver: "support_slot", field: "A2_Skill4", control: "select" },
+    ],
+    assumptio: [
+      { driver: "support_slot", field: "A2_Skill5", control: "checkbox" },
+    ],
+    suffragium: [
+      { driver: "support_slot", field: "A2_Skill10", control: "select" },
+    ],
+    aspersio: [{ driver: "weapon_endow" }],
+    // High Priest enemy debuffs (B_debuf* bank)
+    lex_aeterna: [
+      { driver: "enemy_debuf", field: "B_debuf6", control: "checkbox" },
+    ],
+    decrease_agi: [
+      { driver: "enemy_debuf", field: "B_debuf11", control: "select" },
+    ],
+    signum_crucis: [
+      {
+        driver: "enemy_debuf",
+        field: "B_debuf12",
+        control: "select",
+        forceEnable: true,
+      },
+    ],
+    // Scholar (Professor / Sage) weapon endows -- existing weapon_endow driver.
+    // Element comes from the resolved buff.element (overlay endow.elements).
+    flame_launcher: [{ driver: "weapon_endow" }],
+    frost_weapon: [{ driver: "weapon_endow" }],
+    lightning_loader: [{ driver: "weapon_endow" }],
+    seismic_weapon: [{ driver: "weapon_endow" }],
+    // Scholar enemy debuffs -- existing enemy_debuf driver.
+    mind_breaker: [
+      { driver: "enemy_debuf", field: "B_debuf18", control: "select" },
+    ],
+    spider_web: [
+      { driver: "enemy_debuf", field: "B_debuf17", control: "checkbox" },
+    ],
+    // Scholar A_skill passives -- existing skill_slot driver (rocalc internal ids).
+    energy_coat: [{ driver: "skill_slot", rocalcId: 58, level: "buffLevel" }],
+    study: [{ driver: "skill_slot", rocalcId: 224, level: "buffLevel" }],
+    dragonology: [{ driver: "skill_slot", rocalcId: 234, level: "buffLevel" }],
+    foresight: [{ driver: "skill_slot", rocalcId: 322, level: "buffLevel" }], // iRO PF_MEMORIZE
+    double_casting: [
+      { driver: "skill_slot", rocalcId: 441, level: "buffLevel" },
+    ], // iRO PF_DOUBLECASTING
+    // Scholar land buffs -- new land_buff driver (A6_Skill0 land type + A6_Skill1 level).
+    volcano: [{ driver: "land_buff", landType: 0 }],
+    deluge: [{ driver: "land_buff", landType: 1 }],
+    violent_gale: [{ driver: "land_buff", landType: 2 }],
+    // Assassin Cross (m_JobBuff[22] = [537,13,14,79,80,81,262,266,381]; base
+    // Assassin row 8 = [537,13,14,79,80,81,381]). rocalc ids diverge from Aegis
+    // ids, so allocation alone drops these passives; drive them explicitly.
+    enchant_deadly_poison: [
+      { driver: "skill_slot", rocalcId: 266, level: "buffLevel" },
+    ],
+    enchant_poison: [{ driver: "weapon_endow" }],
+    advanced_katar_mastery: [
+      { driver: "skill_slot", rocalcId: 262, level: "buffLevel" },
+    ],
+    katar_mastery: [{ driver: "skill_slot", rocalcId: 81, level: "buffLevel" }],
+    right_hand_mastery: [
+      { driver: "skill_slot", rocalcId: 79, level: "buffLevel" },
+    ],
+    left_hand_mastery: [
+      { driver: "skill_slot", rocalcId: 80, level: "buffLevel" },
+    ],
+    double_attack: [{ driver: "skill_slot", rocalcId: 13, level: "buffLevel" }],
+    improve_dodge: [{ driver: "skill_slot", rocalcId: 14, level: "buffLevel" }],
+    sonic_acceleration: [
+      { driver: "skill_slot", rocalcId: 381, level: "buffLevel" },
+    ],
+    // Sniper (m_JobBuff[24] = [537,38,39,42,116,118,119,270,273,390]; base Hunter
+    // row 10 = [537,38,39,42,116,118,119,390]). rocalc ids diverge from Aegis ids,
+    // so allocation alone drops these; drive them explicitly. Owl's / Vulture's
+    // scale +1/level (up to +10) -- buffLevel carries the allocated level.
+    owls_eye: [{ driver: "skill_slot", rocalcId: 38, level: "buffLevel" }],
+    vultures_eye: [{ driver: "skill_slot", rocalcId: 39, level: "buffLevel" }],
+    improve_concentration: [
+      { driver: "skill_slot", rocalcId: 42, level: "buffLevel" },
+    ],
+    beast_bane: [{ driver: "skill_slot", rocalcId: 116, level: "buffLevel" }],
+    steel_crow: [{ driver: "skill_slot", rocalcId: 119, level: "buffLevel" }],
+    true_sight: [{ driver: "skill_slot", rocalcId: 270, level: "buffLevel" }],
+    wind_walk: [{ driver: "skill_slot", rocalcId: 273, level: "buffLevel" }],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
@@ -971,6 +1171,131 @@ export function createShim(): ShimSession {
     return true;
   }
 
+  // setSelectClamped writes a level to a <select>, clamped to its largest
+  // numeric option (so an over-allocated level can't apply past the control's
+  // real max). Shared by the support_slot and enemy_debuf drivers.
+  function setSelectClamped(select: RocalcForm, level: number): void {
+    let maxLevel = 0;
+    for (let i = 0; i < select.options.length; i++) {
+      const v = parseInt(select.options[i].value, 10);
+      if (Number.isFinite(v) && v > maxLevel) maxLevel = v;
+    }
+    if (maxLevel === 0) maxLevel = 10;
+    select.value = String(Math.max(0, Math.min(maxLevel, level)));
+  }
+
+  // applyEnemyDebuf drives one EnemyDebuf control (B_debuf* bank). The control
+  // always exists (installBuffControls). forceEnable clears the `disabled`
+  // attribute rocalc sets on race-gated debuffs (Signum is disabled off-target);
+  // rocalc's combat code still applies the effect only when the target qualifies
+  // (e.g. Signum's DEF cut only vs undead/demon), so force-enabling is safe and
+  // faithful. The section gate n_debufSW is set by setBuffs once any enemy_debuf
+  // action ran; values round-trip through n_B_debuf[] and survive the later
+  // setEnemy* rebuild (score.ts runs setBuffs first).
+  function applyEnemyDebuf(
+    field: string,
+    control: "select" | "checkbox",
+    level: number,
+    forceEnable: boolean,
+  ): void {
+    const el = form[field];
+    if (!el) {
+      throw new Error(
+        `enemy-debuff control ${field} missing; installBuffControls not run?`,
+      );
+    }
+    if (forceEnable) el.disabled = false;
+    if (control === "checkbox") {
+      el.checked = level > 0;
+    } else {
+      setSelectClamped(el, level);
+    }
+    // Record for re-application after setEnemy*/Bskill. rocalc's debufSW()
+    // (called from ClickB_Enemy -> StAllCalc inside setBuffs) rebuilds
+    // #EnemyDebuf with empty controls and zeros race-gated debuffs (Signum
+    // Crucis, Decrease AGI) when the default enemy is not undead/demon.
+    // setEnemyInline/setEnemy re-apply these after the actual target is in
+    // place, then call ClickB_Enemy() so n_B_debuf[] picks up the correct
+    // values with the right race/element context.
+    pendingDebufActions.push({ field, control, level, forceEnable });
+  }
+
+  // reapplyPendingDebufs re-asserts enemy_debuf form values after the target
+  // enemy slot has been set (scratch or stock). Called inside setEnemyInline /
+  // setEnemy after Bskill() and before calc(). rocalc's debufSW() (called by
+  // ClickB_Enemy inside StAllCalc during setBuffs) zeros race-gated select
+  // debuffs (Signum, Decrease AGI) when the default enemy is not the right
+  // race/element. By re-writing the form controls and calling ClickB_Enemy()
+  // with the actual target in place, we let debufSW run with the correct
+  // n_B[2]/n_B[3] context so Signum is not zeroed for an undead target and
+  // n_B_debuf[12] is correctly read into the combat calculation.
+  // This is a no-op when there are no pending debuf actions (no setBuffs call
+  // with an enemy_debuf buff, or after reset()).
+  function reapplyPendingDebufs(): void {
+    if (pendingDebufActions.length === 0) return;
+    for (const { field, control, level, forceEnable } of pendingDebufActions) {
+      const el = form[field];
+      if (!el) continue; // debufSW rebuilt #EnemyDebuf; element lookup is live via proxy
+      if (forceEnable) el.disabled = false;
+      if (control === "checkbox") {
+        el.checked = level > 0;
+      } else {
+        // debufSW just populated options 0..max for this select; clamping is
+        // safe even though the select was empty before debufSW ran (during the
+        // first StAllCalc in setBuffs). The options are now present because
+        // ClickB_Enemy (called by the Bskill path above) already triggered
+        // debufSW which populates them unconditionally.
+        setSelectClamped(el, level);
+      }
+    }
+    // Re-call ClickB_Enemy so rocalc re-reads n_B_debuf[] from the form
+    // controls (including the values we just wrote) with the current enemy
+    // context. debufSW runs again inside ClickB_Enemy; this time with the
+    // actual target's n_B[2]/n_B[3] so race-gated selects are not zeroed.
+    win.ClickB_Enemy();
+  }
+
+  // applySupportSlot drives one player "Supportive / Party Skills" control
+  // (A2_Skill* bank). The control always exists (installBuffControls), so this
+  // is unconditional; the section gate n_SkillSW is set by setBuffs once any
+  // support action ran. checkbox -> on iff level>0; select -> clamped level.
+  function applySupportSlot(
+    field: string,
+    control: "select" | "checkbox",
+    level: number,
+  ): void {
+    const el = form[field];
+    if (!el) {
+      throw new Error(
+        `support control ${field} missing; installBuffControls not run?`,
+      );
+    }
+    if (control === "checkbox") {
+      el.checked = level > 0;
+      return;
+    }
+    setSelectClamped(el, level);
+  }
+
+  // applyLandBuff drives the land controls: A6_Skill0 = land type
+  // (Volcano=0/Deluge=1/Violent Gale=2), A6_Skill1 = land level. Both controls
+  // always exist (installBuffControls injects them into #SIENSKILL alongside the
+  // support bank, not rocalc's native #SP_SIEN04, which holds pet controls we
+  // keep). The section gate n_Skill6SW is set by setBuffs once any land action
+  // ran. Last-wins on A6_Skill0/A6_Skill1 if two land buffs are declared (one
+  // land at a time, like one weapon element).
+  function applyLandBuff(landType: 0 | 1 | 2, level: number): void {
+    const typeSel = form["A6_Skill0"];
+    const lvlSel = form["A6_Skill1"];
+    if (!typeSel || !lvlSel) {
+      throw new Error(
+        "land controls A6_Skill0/A6_Skill1 missing; installBuffControls not run?",
+      );
+    }
+    typeSel.value = String(landType);
+    setSelectClamped(lvlSel, level);
+  }
+
   function applyWeaponEndow(buff: Buff): void {
     const element = buff.element ?? "";
     const value = ENDOW_ELEMENT_VALUES[element];
@@ -979,20 +1304,30 @@ export function createShim(): ShimSession {
         `unknown endow element ${JSON.stringify(element)}; expected one of: ${Object.keys(ENDOW_ELEMENT_VALUES).join(", ")}`,
       );
     }
-    // Level-unlock check is Mild Wind-specific (earth=1..holy=7 by skill level).
-    // A second endow buff with a different unlock table will need its own check.
-    const order = MILD_WIND_ORDER.indexOf(element) + 1; // 1-based; 0 if not in list
-    const level = buff.level ?? 0;
-    if (order > 0 && order > level) {
-      throw new ScoreValidationError(
-        `endow element ${JSON.stringify(element)} (order ${order}) exceeds Mild Wind level ${level}`,
-      );
+    // Level-unlock check applies only to Mild Wind (earth=1..holy=7 by skill
+    // level). Other weapon-endow buffs (Aspersio, etc.) have no level gating
+    // and must not hit this check. A new buff with its own unlock table adds
+    // its own guard here when the binding is added.
+    if (buff.name === "mild_wind") {
+      const order = MILD_WIND_ORDER.indexOf(element) + 1; // 1-based; 0 if not in list
+      const level = buff.level ?? 0;
+      if (order > 0 && order > level) {
+        throw new ScoreValidationError(
+          `endow element ${JSON.stringify(element)} (order ${order}) exceeds Mild Wind level ${level}`,
+        );
+      }
     }
     form.A_Weapon_element.value = value;
   }
 
   function setBuffs(buffs: Buff[]): void {
     if (buffs.length === 0) return;
+    // Clear the pending-debuf list so a fresh setBuffs call always reflects
+    // only the current request's enemy_debuf actions. This also clears it for
+    // the unbuffed path (empty buffs skips the whole function, so the list
+    // from any prior call is preserved intentionally -- reset() is the
+    // canonical way to clear session state).
+    pendingDebufActions = [];
     // Resilience: reject a buff repeated in one request. The Go resolver
     // rejects duplicates upstream, but the backend must not silently
     // last-write-wins (or double-apply) on a repeat that slips through.
@@ -1005,6 +1340,9 @@ export function createShim(): ShimSession {
       }
       seen.add(buff.name);
     }
+    let usedSupport = false;
+    let usedDebuf = false;
+    let usedLand = false;
     for (const buff of buffs) {
       const actions = BUFF_BINDINGS[buff.name];
       if (!actions) {
@@ -1019,13 +1357,37 @@ export function createShim(): ShimSession {
       // the buff were active.
       let applied = false;
       for (const action of actions) {
-        if (action.driver === "skill_slot") {
-          const level =
-            action.level === "buffLevel" ? (buff.level ?? 0) : action.level;
-          if (applySkillSlot(action.rocalcId, level)) applied = true;
-        } else {
-          applyWeaponEndow(buff);
-          applied = true;
+        switch (action.driver) {
+          case "skill_slot": {
+            const level =
+              action.level === "buffLevel" ? (buff.level ?? 0) : action.level;
+            if (applySkillSlot(action.rocalcId, level)) applied = true;
+            break;
+          }
+          case "weapon_endow":
+            applyWeaponEndow(buff);
+            applied = true;
+            break;
+          case "support_slot":
+            applySupportSlot(action.field, action.control, buff.level ?? 0);
+            applied = true;
+            usedSupport = true;
+            break;
+          case "enemy_debuf":
+            applyEnemyDebuf(
+              action.field,
+              action.control,
+              buff.level ?? 0,
+              action.forceEnable ?? false,
+            );
+            applied = true;
+            usedDebuf = true;
+            break;
+          case "land_buff":
+            applyLandBuff(action.landType, buff.level ?? 0);
+            applied = true;
+            usedLand = true;
+            break;
         }
       }
       if (!applied) {
@@ -1034,6 +1396,17 @@ export function createShim(): ShimSession {
         );
       }
     }
+    // Enable the player-support section so StAllCalc reads the A2_Skill* bank.
+    // Leaving it on across reset() is fine: reset() restores the controls to 0,
+    // so a later unbuffed request reads zeros (no leak).
+    if (usedSupport) win.n_SkillSW = 1;
+    // Enable the enemy-debuff section so the combat calc reads the B_debuf* bank.
+    // Same leak-free reasoning as usedSupport: reset() restores controls to 0.
+    if (usedDebuf) win.n_debufSW = 1;
+    // Enable the land section so calc() reads the A6_Skill bank into n_A_Buf6[].
+    // Same leak-free reasoning: reset() restores the controls to 0 AND zeros
+    // n_A_Buf6[] (the land effect reads it without re-checking the gate).
+    if (usedLand) win.n_Skill6SW = 1;
     // StAllCalc + StCalc: the pair setSkills fires. calc(): additionally needed
     // when a weapon_endow action changed A_Weapon_element, since the element-vs-
     // enemy multiplier is computed in calc(), not StAllCalc.
@@ -1078,6 +1451,99 @@ function restoreForm(form: RocalcForm, state: FormSnapshot): void {
     el.value = snap.value;
     el.checked = snap.checked;
   }
+}
+
+// installBuffControls populates the two stub tables rocalc leaves empty until
+// its BufSW()/AI() builders run: #SIENSKILL (player "Supportive / Party Skills",
+// A2_Skill*/A5_Skill*) and #EnemyDebuf (B_debuf*). We author them statically
+// instead of calling rocalc's builders because those use myInnerHtml (replaces
+// innerHTML, which would break the live-lookup form-name proxies). Only the
+// controls each section's gated read references need to exist; rocalc reads all
+// of them when n_SkillSW / n_debufSW is set (StAllCalc / the enemy calc). Driven
+// selects get their real 0..max option ranges (so the driver's clamp matches
+// rocalc); every other select gets a single "0" option and is read as 0. Runs
+// once per shim, before installFormNameProxies, so the new controls get proxied.
+function installBuffControls(doc: Document): void {
+  // Player support bank: read range n_A_Buf2[0..21].
+  const SUPPORT_SELECTS = [0, 1, 2, 4, 6, 9, 10, 11, 12, 13, 14, 15];
+  const SUPPORT_CHECKS = [3, 5, 7, 8];
+  // Enemy-debuff bank: read range n_B_debuf[0..24]; these indices are selects,
+  // the rest checkboxes.
+  const DEBUF_SELECTS = new Set([0, 1, 11, 12, 18, 23, 24]);
+  // Land / ground bank: read range n_A_Buf6[]. The section gate n_Skill6SW makes
+  // rocalc read every one of these (by name), so all must exist as form
+  // controls. We drive only A6_Skill0 (land type: Volcano=0/Deluge=1/Violent
+  // Gale=2) and A6_Skill1 (land level 0..5); the rest exist inert (default
+  // 0/unchecked). Injected into #SIENSKILL alongside the support bank because
+  // they only need to be form elements bound by the name proxies, not in their
+  // native #SP_SIEN04 container (which holds pet/other controls we must keep).
+  const LAND_SELECTS = [0, 1, 4, 5, 18];
+  const LAND_CHECKS = [3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+  // 0..max option range for the controls WE drive; everything else -> "0" only.
+  const SELECT_MAX: Record<string, number> = {
+    A2_Skill0: 10,
+    A2_Skill1: 10,
+    A2_Skill2: 5,
+    A2_Skill4: 10,
+    A2_Skill10: 3,
+    B_debuf11: 10,
+    B_debuf12: 10,
+    B_debuf18: 5,
+    A6_Skill0: 2,
+    A6_Skill1: 5,
+  };
+  const options = (name: string): string => {
+    const max = SELECT_MAX[name] ?? 0;
+    let h = "";
+    for (let i = 0; i <= max; i++) h += `<option value="${i}">${i}</option>`;
+    return h;
+  };
+  const sel = (name: string): string =>
+    `<select name="${name}" id="${name}">${options(name)}</select>`;
+  const chk = (name: string): string =>
+    `<input type="checkbox" name="${name}" id="${name}">`;
+
+  let support = "";
+  for (const i of SUPPORT_SELECTS) support += sel(`A2_Skill${i}`);
+  for (const i of SUPPORT_CHECKS) support += chk(`A2_Skill${i}`);
+  for (let i = 0; i <= 5; i++) support += chk(`A5_Skill${i}`);
+  for (const i of LAND_SELECTS) support += sel(`A6_Skill${i}`);
+  for (const i of LAND_CHECKS) support += chk(`A6_Skill${i}`);
+
+  let debuf = "";
+  for (let i = 0; i <= 24; i++) {
+    debuf += DEBUF_SELECTS.has(i) ? sel(`B_debuf${i}`) : chk(`B_debuf${i}`);
+  }
+
+  const sien = doc.getElementById("SIENSKILL");
+  const enemy = doc.getElementById("EnemyDebuf");
+  if (!sien || !enemy) {
+    throw new Error(
+      "form-template missing #SIENSKILL or #EnemyDebuf container for buff controls",
+    );
+  }
+
+  // The form-template's #clickjob-stubs div (which must keep its other ~312
+  // controls) holds bare duplicates of these same A2_Skill/A5_Skill/B_debuf
+  // names. Remove those duplicates first so the optioned controls we inject are
+  // the single canonical control per name (form.elements.namedItem would
+  // otherwise depend on document order to return ours, not the bare stub whose
+  // only option is "0" -> every driven level would clamp to 0).
+  const managed: string[] = [];
+  for (const i of SUPPORT_SELECTS) managed.push(`A2_Skill${i}`);
+  for (const i of SUPPORT_CHECKS) managed.push(`A2_Skill${i}`);
+  for (let i = 0; i <= 5; i++) managed.push(`A5_Skill${i}`);
+  for (let i = 0; i <= 24; i++) managed.push(`B_debuf${i}`);
+  for (const i of LAND_SELECTS) managed.push(`A6_Skill${i}`);
+  for (const i of LAND_CHECKS) managed.push(`A6_Skill${i}`);
+  for (const name of managed) {
+    for (const el of Array.from(doc.querySelectorAll(`[name="${name}"]`))) {
+      el.remove();
+    }
+  }
+
+  sien.innerHTML = `<tr><td>${support}</td></tr>`;
+  enemy.innerHTML = `<tr><td>${debuf}</td></tr>`;
 }
 
 // installFormNameProxies projects every named/id'd form control onto the form

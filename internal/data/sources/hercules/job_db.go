@@ -3,6 +3,7 @@ package hercules
 import (
 	"fmt"
 	"os"
+	"sort"
 )
 
 // JobMaxLevels carries the base and job level caps for one class,
@@ -176,5 +177,8 @@ func LoadJobMaxLevelsDB(jobDBPath, expGroupDBPath string) ([]JobMaxLevels, error
 			MaxJobLevel:  groups.Job[r.JobExpGroup],
 		})
 	}
+	// refs is a Go map, so ranging it yields a randomized order; sort by
+	// name to keep the emitted job_max_levels list reproducible.
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
 }

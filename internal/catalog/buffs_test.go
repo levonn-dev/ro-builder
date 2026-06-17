@@ -73,3 +73,229 @@ func TestMildWindOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestClassBuffs_HighPriest(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("high_priest")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for high_priest")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			t.Errorf("buff skill %s has nil SelfBuff", b.AegisName)
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"blessing": "stat_buff", "increase_agi": "stat_buff", "impositio_manus": "stat_buff",
+		"gloria": "stat_buff", "angelus": "stat_buff", "assumptio": "status",
+		"suffragium": "stat_buff", "aspersio": "weapon_endow",
+		"lex_aeterna": "debuff", "decrease_agi": "debuff", "signum_crucis": "debuff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q (present=%v)", name, got[name], kind, got[name] != "")
+		}
+	}
+}
+
+func TestClassBuffs_Professor(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("professor")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for professor")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"flame_launcher": "weapon_endow", "frost_weapon": "weapon_endow",
+		"lightning_loader": "weapon_endow", "seismic_weapon": "weapon_endow",
+		"volcano": "land", "deluge": "land", "violent_gale": "land",
+		"mind_breaker": "debuff", "spider_web": "debuff",
+		"energy_coat": "status", "study": "stat_buff", "dragonology": "stat_buff",
+		"foresight": "stat_buff", "double_casting": "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 14 {
+		t.Fatalf("test expects 14 professor buffs, listed %d", len(want))
+	}
+}
+
+func TestClassBuffs_Sage_ExcludesProfessorOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("sage")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for sage")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	for _, name := range []string{"flame_launcher", "volcano", "energy_coat", "study", "dragonology"} {
+		if !have[name] {
+			t.Errorf("sage should have buff %q", name)
+		}
+	}
+	for _, name := range []string{"mind_breaker", "spider_web", "foresight", "double_casting"} {
+		if have[name] {
+			t.Errorf("sage must NOT have Professor-only buff %q", name)
+		}
+	}
+}
+
+func TestClassBuffs_AssassinCross(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("assassin_cross")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for assassin_cross")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"enchant_deadly_poison":  "stat_buff",
+		"enchant_poison":         "weapon_endow",
+		"advanced_katar_mastery": "stat_buff",
+		"katar_mastery":          "stat_buff",
+		"right_hand_mastery":     "stat_buff",
+		"left_hand_mastery":      "stat_buff",
+		"double_attack":          "stat_buff",
+		"improve_dodge":          "stat_buff",
+		"sonic_acceleration":     "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 9 {
+		t.Fatalf("test expects 9 assassin_cross buffs, listed %d", len(want))
+	}
+}
+
+func TestClassBuffs_Assassin_ExcludesTransOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("assassin")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for assassin")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	// Base Assassin (and inherited Thief) skills.
+	for _, name := range []string{
+		"enchant_poison", "katar_mastery", "right_hand_mastery",
+		"left_hand_mastery", "double_attack", "improve_dodge", "sonic_acceleration",
+	} {
+		if !have[name] {
+			t.Errorf("assassin should have buff %q", name)
+		}
+	}
+	// Trans-only (Assassin Cross) skills must NOT surface for base Assassin.
+	for _, name := range []string{"enchant_deadly_poison", "advanced_katar_mastery"} {
+		if have[name] {
+			t.Errorf("assassin must NOT have trans-only buff %q", name)
+		}
+	}
+}
+
+func TestClassBuffs_Sniper(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("sniper")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for sniper")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"owls_eye":              "stat_buff",
+		"vultures_eye":          "stat_buff",
+		"improve_concentration": "stat_buff",
+		"beast_bane":            "stat_buff",
+		"steel_crow":            "status",
+		"true_sight":            "stat_buff",
+		"wind_walk":             "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 7 {
+		t.Fatalf("test expects 7 sniper buffs, listed %d", len(want))
+	}
+}
+
+func TestClassBuffs_Hunter_ExcludesTransOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("hunter")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for hunter")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	// Archer/Hunter skills available to base Hunter.
+	for _, name := range []string{
+		"owls_eye", "vultures_eye", "improve_concentration", "beast_bane", "steel_crow",
+	} {
+		if !have[name] {
+			t.Errorf("hunter should have buff %q", name)
+		}
+	}
+	// Trans-only (Sniper) skills must NOT surface for base Hunter.
+	for _, name := range []string{"true_sight", "wind_walk"} {
+		if have[name] {
+			t.Errorf("hunter must NOT have trans-only buff %q", name)
+		}
+	}
+}

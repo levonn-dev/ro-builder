@@ -96,7 +96,7 @@ const submitTrajectorySchema = `{
         },
         "active_buffs": {
           "type": "array",
-          "description": "Self-buffs active at this checkpoint. name is a semantic buff key from this class's available buffs (see list_class_buffs / the injected available-buffs block); element (lowercase, e.g. \"holy\") is required only for weapon-endow buffs like Mild Wind and must be within the buff's level. Declare buffs you'd realistically maintain (Ranker is permanent; Spurt/Mild Wind are re-upped). Buff level is taken from the anchor skill's allocation, do not restate it. Only declare buffs whose anchor skill this snapshot allocates.",
+          "description": "Self-buffs active at this checkpoint. name is a semantic buff key from this class's available buffs (see list_class_buffs / the injected available-buffs block); element (lowercase, e.g. \"holy\") is required only for weapon-endow buffs like Mild Wind and must be within the buff's level. Declare buffs you'd realistically maintain (Ranker is permanent; Spurt/Mild Wind are re-upped). Buff level is taken from the anchor skill's allocation, do not restate it. Only declare buffs whose anchor skill this snapshot allocates. Some buffs are enemy debuffs (kind=debuff, e.g. Lex Aeterna) the character casts on the target; declare them the same way.",
           "items": {
             "type": "object",
             "required": ["name"],
