@@ -233,3 +233,69 @@ func TestClassBuffs_Assassin_ExcludesTransOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestClassBuffs_Sniper(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("sniper")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for sniper")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"owls_eye":              "stat_buff",
+		"vultures_eye":          "stat_buff",
+		"improve_concentration": "stat_buff",
+		"beast_bane":            "stat_buff",
+		"steel_crow":            "status",
+		"true_sight":            "stat_buff",
+		"wind_walk":             "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 7 {
+		t.Fatalf("test expects 7 sniper buffs, listed %d", len(want))
+	}
+}
+
+func TestClassBuffs_Hunter_ExcludesTransOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("hunter")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for hunter")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	// Archer/Hunter skills available to base Hunter.
+	for _, name := range []string{
+		"owls_eye", "vultures_eye", "improve_concentration", "beast_bane", "steel_crow",
+	} {
+		if !have[name] {
+			t.Errorf("hunter should have buff %q", name)
+		}
+	}
+	// Trans-only (Sniper) skills must NOT surface for base Hunter.
+	for _, name := range []string{"true_sight", "wind_walk"} {
+		if have[name] {
+			t.Errorf("hunter must NOT have trans-only buff %q", name)
+		}
+	}
+}

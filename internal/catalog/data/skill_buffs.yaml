@@ -149,3 +149,22 @@ skills:
     self_buff: { name: improve_dodge, kind: stat_buff, persistence: permanent }
   - aegis_name: AS_SONICACCEL          # Sonic Acceleration, rocalc 381, max 1; enhances Sonic Blow only -- NOT scored in the auto-attack sim
     self_buff: { name: sonic_acceleration, kind: status, persistence: permanent }
+
+  # --- Sniper (and inherited Archer / Hunter) self-buffs ---
+  # All driven via the existing skill_slot seam (m_JobBuff A_skill bank). rocalc
+  # ids diverge from Aegis ids, so allocation alone drops these -- the bindings
+  # carry the rocalc id. Owl's / Vulture's scale +1/level (up to +10).
+  - aegis_name: AC_OWL                 # Owl's Eye, rocalc 38, max 10; DEX +1/level (up to +10)
+    self_buff: { name: owls_eye, kind: stat_buff, persistence: permanent }
+  - aegis_name: AC_VULTURE             # Vulture's Eye, rocalc 39, max 10; HIT +1/level (up to +10) + bow range
+    self_buff: { name: vultures_eye, kind: stat_buff, persistence: permanent }
+  - aegis_name: AC_CONCENTRATION       # Improve Concentration, rocalc 42, max 10; AGI & DEX % steroid
+    self_buff: { name: improve_concentration, kind: stat_buff, persistence: transient }
+  - aegis_name: HT_BEASTBANE           # Beast Bane, rocalc 116, max 10; +ATK vs Brute/Insect race only
+    self_buff: { name: beast_bane, kind: stat_buff, persistence: permanent }
+  - aegis_name: HT_STEELCROW           # Steel Crow, rocalc 119, max 10; +Blitz Beat damage -- auto-attack sim does not score Blitz Beat, so not reflected yet
+    self_buff: { name: steel_crow, kind: status, persistence: permanent }
+  - aegis_name: SN_SIGHT               # True Sight (catalog "Falcon Eyes"), rocalc 270, max 10; trans-only; all stats +5, +ATK/HIT/CRIT
+    self_buff: { name: true_sight, kind: stat_buff, persistence: transient }
+  - aegis_name: SN_WINDWALK            # Wind Walk (catalog "Wind Walker"), rocalc 273, max 10; trans-only; +flee, +move speed
+    self_buff: { name: wind_walk, kind: stat_buff, persistence: transient }
