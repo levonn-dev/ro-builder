@@ -1088,6 +1088,19 @@ export function createShim(): ShimSession {
     sonic_acceleration: [
       { driver: "skill_slot", rocalcId: 381, level: "buffLevel" },
     ],
+    // Sniper (m_JobBuff[24] = [537,38,39,42,116,118,119,270,273,390]; base Hunter
+    // row 10 = [537,38,39,42,116,118,119,390]). rocalc ids diverge from Aegis ids,
+    // so allocation alone drops these; drive them explicitly. Owl's / Vulture's
+    // scale +1/level (up to +10) -- buffLevel carries the allocated level.
+    owls_eye: [{ driver: "skill_slot", rocalcId: 38, level: "buffLevel" }],
+    vultures_eye: [{ driver: "skill_slot", rocalcId: 39, level: "buffLevel" }],
+    improve_concentration: [
+      { driver: "skill_slot", rocalcId: 42, level: "buffLevel" },
+    ],
+    beast_bane: [{ driver: "skill_slot", rocalcId: 116, level: "buffLevel" }],
+    steel_crow: [{ driver: "skill_slot", rocalcId: 119, level: "buffLevel" }],
+    true_sight: [{ driver: "skill_slot", rocalcId: 270, level: "buffLevel" }],
+    wind_walk: [{ driver: "skill_slot", rocalcId: 273, level: "buffLevel" }],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
