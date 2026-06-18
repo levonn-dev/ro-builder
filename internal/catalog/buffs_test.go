@@ -299,3 +299,73 @@ func TestClassBuffs_Hunter_ExcludesTransOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestClassBuffs_Whitesmith(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("whitesmith")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for whitesmith")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"over_thrust":              "stat_buff",
+		"maximum_over_thrust":      "stat_buff",
+		"maximize_power":           "stat_buff",
+		"adrenaline_rush":          "stat_buff",
+		"advanced_adrenaline_rush": "stat_buff",
+		"weaponry_research":        "stat_buff",
+		"crazy_uproar":             "stat_buff",
+		"hilt_binding":             "stat_buff",
+		"skin_tempering":           "status",
+		"weapon_perfection":        "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 10 {
+		t.Fatalf("test expects 10 whitesmith buffs, listed %d", len(want))
+	}
+}
+
+func TestClassBuffs_Blacksmith_ExcludesTransOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("blacksmith")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for blacksmith")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	// Merchant/Blacksmith skills available to base Blacksmith (9 of 10).
+	for _, name := range []string{
+		"over_thrust", "maximize_power", "adrenaline_rush", "advanced_adrenaline_rush",
+		"weaponry_research", "crazy_uproar", "hilt_binding", "skin_tempering", "weapon_perfection",
+	} {
+		if !have[name] {
+			t.Errorf("blacksmith should have buff %q", name)
+		}
+	}
+	// Trans-only (Whitesmith) skill must NOT surface for base Blacksmith.
+	for _, name := range []string{"maximum_over_thrust"} {
+		if have[name] {
+			t.Errorf("blacksmith must NOT have trans-only buff %q", name)
+		}
+	}
+}

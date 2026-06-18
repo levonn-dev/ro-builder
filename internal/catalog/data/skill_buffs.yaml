@@ -168,3 +168,30 @@ skills:
     self_buff: { name: true_sight, kind: stat_buff, persistence: transient }
   - aegis_name: SN_WINDWALK            # Wind Walk (catalog "Wind Walker"), rocalc 273, max 10; trans-only; +flee, +move speed
     self_buff: { name: wind_walk, kind: stat_buff, persistence: transient }
+
+  # --- Whitesmith (and inherited Merchant / Blacksmith) self-buffs ---
+  # Nine ride the existing skill_slot seam (m_JobBuff A_skill bank); rocalc ids
+  # diverge from Aegis ids, so the bindings carry the rocalc id. Weapon
+  # Perfection is not in the job bank -- rocalc models it as a supportive buff,
+  # so it rides support_slot (A2_Skill7 checkbox). rocalc deliberately omits
+  # Weapon Perfection from m_JobBuff[26] (skips its id 153).
+  - aegis_name: BS_OVERTHRUST          # Over Thrust ("Power-Thrust"), rocalc 154, max 5; +%ATK
+    self_buff: { name: over_thrust, kind: stat_buff, persistence: transient }
+  - aegis_name: WS_OVERTHRUSTMAX       # Maximum Over Thrust (catalog "Maximum Power Thrust"), rocalc 327, max 5; Whitesmith-only; bigger +%ATK
+    self_buff: { name: maximum_over_thrust, kind: stat_buff, persistence: transient }
+  - aegis_name: BS_MAXIMIZE            # Maximize Power, rocalc 155, max 5; weapon damage always max roll
+    self_buff: { name: maximize_power, kind: stat_buff, persistence: transient }
+  - aegis_name: BS_ADRENALINE          # Adrenaline Rush, rocalc 152, max 5; +ASPD/+HIT for Axe & Mace
+    self_buff: { name: adrenaline_rush, kind: stat_buff, persistence: transient }
+  - aegis_name: BS_ADRENALINE2         # Advanced Adrenaline Rush, rocalc 389, max 1; +ASPD for all weapons
+    self_buff: { name: advanced_adrenaline_rush, kind: stat_buff, persistence: transient }
+  - aegis_name: BS_WEAPONRESEARCH      # Weaponry Research, rocalc 148, max 10; +2 ATK & +2 HIT per level
+    self_buff: { name: weaponry_research, kind: stat_buff, persistence: permanent }
+  - aegis_name: MC_LOUD                # Crazy Uproar, rocalc 68, max 1; +5 STR (note: catalog id 155 != rocalc id 155 = Maximize)
+    self_buff: { name: crazy_uproar, kind: stat_buff, persistence: transient }
+  - aegis_name: BS_HILTBINDING         # Hilt Binding, rocalc 146, max 1; +1 ATK passive
+    self_buff: { name: hilt_binding, kind: stat_buff, persistence: permanent }
+  - aegis_name: BS_SKINTEMPER          # Skin Tempering, rocalc 150, max 5; fire/neutral resist -- defensive, not scored by the auto-attack sim
+    self_buff: { name: skin_tempering, kind: status, persistence: permanent }
+  - aegis_name: BS_WEAPONPERFECT       # Weapon Perfection, support bank A2_Skill7 checkbox, max 5; ignore weapon size penalty
+    self_buff: { name: weapon_perfection, kind: stat_buff, persistence: transient }
