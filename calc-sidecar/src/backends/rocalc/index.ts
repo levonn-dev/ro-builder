@@ -1101,6 +1101,40 @@ export function createShim(): ShimSession {
     steel_crow: [{ driver: "skill_slot", rocalcId: 119, level: "buffLevel" }],
     true_sight: [{ driver: "skill_slot", rocalcId: 270, level: "buffLevel" }],
     wind_walk: [{ driver: "skill_slot", rocalcId: 273, level: "buffLevel" }],
+    // Whitesmith (m_JobBuff[26] = [537,59,68,146,148,150,152,154,155,327,389,311];
+    // base Blacksmith row 12 is identical minus 327). rocalc ids diverge from
+    // Aegis ids (Crazy Uproar is catalog 155 but rocalc 68; rocalc 155 is
+    // Maximize Power), so allocation alone drops these; drive them by rocalc id.
+    // 537 (Enlarge Weight Limit R) and 59 (Enlarge Weight Limit) are utility
+    // weight skills, not combat buffs; 311 is rocalc's mastered-smith-skills
+    // counter (drives the Veteran Axe bonus). None are bound.
+    over_thrust: [{ driver: "skill_slot", rocalcId: 154, level: "buffLevel" }],
+    maximum_over_thrust: [
+      { driver: "skill_slot", rocalcId: 327, level: "buffLevel" },
+    ],
+    maximize_power: [
+      { driver: "skill_slot", rocalcId: 155, level: "buffLevel" },
+    ],
+    adrenaline_rush: [
+      { driver: "skill_slot", rocalcId: 152, level: "buffLevel" },
+    ],
+    advanced_adrenaline_rush: [
+      { driver: "skill_slot", rocalcId: 389, level: "buffLevel" },
+    ],
+    weaponry_research: [
+      { driver: "skill_slot", rocalcId: 148, level: "buffLevel" },
+    ],
+    crazy_uproar: [{ driver: "skill_slot", rocalcId: 68, level: "buffLevel" }],
+    hilt_binding: [{ driver: "skill_slot", rocalcId: 146, level: "buffLevel" }],
+    skin_tempering: [
+      { driver: "skill_slot", rocalcId: 150, level: "buffLevel" },
+    ],
+    // Weapon Perfection is not in the job bank; rocalc models it as a supportive
+    // buff (A2_Skill7 checkbox, already injected by installBuffControls). Ignore
+    // weapon-size penalty -> only moves damage vs a size-penalized target.
+    weapon_perfection: [
+      { driver: "support_slot", field: "A2_Skill7", control: "checkbox" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
