@@ -195,3 +195,62 @@ skills:
     self_buff: { name: skin_tempering, kind: status, persistence: permanent }
   - aegis_name: BS_WEAPONPERFECT       # Weapon Perfection, support bank A2_Skill7 checkbox, max 5; ignore weapon size penalty
     self_buff: { name: weapon_perfection, kind: stat_buff, persistence: transient }
+
+  # --- Lord Knight (and inherited Swordman / Knight) self-buffs ---
+  # All 13 live in the rocalc job-buff bank (m_JobBuff[21]) and ride the
+  # skill_slot seam; rocalc ids diverge from Aegis ids, so the bindings carry the
+  # rocalc id. The four LK_ skills (Aura Blade, Concentration, Berserk, Parrying)
+  # are trans-only; the SM_/KN_ skills are inherited down the Swordman/Knight
+  # line. 537 (ALL_INCCARRY, universal carry-weight) is left unbound -- see the
+  # comment on the Lord Knight block in index.ts.
+  - aegis_name: SM_SWORD               # Sword Mastery, rocalc 3, max 10; +ATK with 1H swords
+    self_buff: { name: sword_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: SM_TWOHAND             # Two-Handed Sword Mastery, rocalc 4, max 10; +ATK with 2H swords
+    self_buff: { name: two_handed_sword_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: KN_SPEARMASTERY        # Spear Mastery, rocalc 69, max 10; +ATK with spears
+    self_buff: { name: spear_mastery, kind: stat_buff, persistence: permanent }
+  - aegis_name: KN_TWOHANDQUICKEN      # Twohand Quicken, rocalc 74, max 10; +ASPD with 2H swords
+    self_buff: { name: twohand_quicken, kind: stat_buff, persistence: transient }
+  - aegis_name: KN_ONEHAND             # Onehand Quicken, rocalc 386, max 1; +ASPD with 1H swords (Soul Link)
+    self_buff: { name: onehand_quicken, kind: stat_buff, persistence: transient }
+  - aegis_name: LK_AURABLADE           # Aura Blade, rocalc 254, max 5; trans-only; +fixed added damage
+    self_buff: { name: aura_blade, kind: stat_buff, persistence: transient }
+  - aegis_name: LK_CONCENTRATION       # Concentration (Spear Dynamo), rocalc 256, max 5; trans-only; +ATK/+HIT, -DEF/-flee
+    self_buff: { name: concentration, kind: stat_buff, persistence: transient }
+  - aegis_name: LK_BERSERK             # Berserk (catalog "Frenzy"), rocalc 258, max 1; trans-only; +ATK/+ASPD, DEF->0
+    self_buff: { name: berserk, kind: stat_buff, persistence: transient }
+  - aegis_name: SM_AUTOBERSERK         # Auto Berserk, rocalc 12, max 1; rocalc applies a Provoke-like ATK boost + enemy DEF reduction through the combat sim
+    self_buff: { name: auto_berserk, kind: stat_buff, persistence: permanent }
+  - aegis_name: SM_ENDURE              # Endure, rocalc 9, max 10; knockback resist / +MDEF -- defensive, not scored by the auto-attack sim
+    self_buff: { name: endure, kind: status, persistence: transient }
+  - aegis_name: SM_RECOVERY            # Increase HP Recovery, rocalc 5, max 10; HP regen -- sustain, not scored by the auto-attack sim
+    self_buff: { name: increase_hp_recovery, kind: status, persistence: permanent }
+  - aegis_name: KN_CAVALIERMASTERY     # Cavalier Mastery, rocalc 78, max 5; mounted ASPD-penalty reduction -- inert unmounted
+    self_buff: { name: cavalier_mastery, kind: status, persistence: permanent }
+  - aegis_name: LK_PARRYING            # Parrying, rocalc 255, max 10; trans-only; frontal physical block -- defensive
+    self_buff: { name: parrying, kind: status, persistence: transient }
+
+  # --- Champion (and inherited Monk / Acolyte) self-buffs ---
+  # All 8 live in the rocalc job-buff bank (m_JobBuff[29], identical to Monk's
+  # [15] -- no trans gating), driven via the skill_slot seam; rocalc ids diverge
+  # from Aegis ids, so the bindings carry the rocalc id. AL_DEMONBANE / AL_DP are
+  # Acolyte skills, so they also light up for the rest of the Acolyte tree
+  # (Priest / High Priest / Monk). Excluded from the bank: 537 (ALL_INCCARRY
+  # weight), 301 (rocalc triple-attack-delay counter), 362 (SG_FRIEND, a Star
+  # Gladiator skill Monk cannot learn) -- see the Champion block in index.ts.
+  - aegis_name: AL_DEMONBANE           # Demon Bane, rocalc 24, max 10; +ATK vs Undead element / Demon race (scored via damage.ave vs those targets)
+    self_buff: { name: demon_bane, kind: stat_buff, persistence: permanent }
+  - aegis_name: MO_IRONHAND            # Iron Fists, rocalc 183, max 10; +damage with fist/knuckle weapons
+    self_buff: { name: iron_fists, kind: stat_buff, persistence: permanent }
+  - aegis_name: MO_TRIPLEATTACK        # Raging Trifecta Blow (Triple Attack), rocalc 187, max 10; 3-hit proc, scored via damage.secondAve
+    self_buff: { name: triple_attack, kind: stat_buff, persistence: permanent }
+  - aegis_name: MO_DODGE               # Dodge, rocalc 191, max 10; +flee (scored via readDerivedStats().flee)
+    self_buff: { name: dodge, kind: stat_buff, persistence: permanent }
+  - aegis_name: MO_EXPLOSIONSPIRITS    # Fury (Critical Explosion), rocalc 195, max 5; +crit (scored via readDerivedStats().cri), active toggle
+    self_buff: { name: fury, kind: stat_buff, persistence: transient }
+  - aegis_name: MO_SPIRITSRECOVERY     # Spiritual Cadence (Spirits Recovery), rocalc 184, max 5; HP/SP regen -- sustain, not scored by the auto-attack sim
+    self_buff: { name: spiritual_cadence, kind: status, persistence: permanent }
+  - aegis_name: AL_DP                  # Divine Protection, rocalc 23, max 10; +DEF/MDEF vs Undead/Demon -- defensive, not scored by the auto-attack sim
+    self_buff: { name: divine_protection, kind: status, persistence: permanent }
+  - aegis_name: MO_STEELBODY           # Mental Strength (Steel Body), rocalc 196, max 5; DEF/MDEF->90% but -ASPD/-move -- defensive, may lower offense
+    self_buff: { name: mental_strength, kind: status, persistence: transient }

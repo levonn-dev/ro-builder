@@ -369,3 +369,139 @@ func TestClassBuffs_Blacksmith_ExcludesTransOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestClassBuffs_LordKnight(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("lord_knight")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for lord_knight")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"sword_mastery":            "stat_buff",
+		"two_handed_sword_mastery": "stat_buff",
+		"spear_mastery":            "stat_buff",
+		"twohand_quicken":          "stat_buff",
+		"onehand_quicken":          "stat_buff",
+		"aura_blade":               "stat_buff",
+		"concentration":            "stat_buff",
+		"berserk":                  "stat_buff",
+		"auto_berserk":             "stat_buff",
+		"endure":                   "status",
+		"increase_hp_recovery":     "status",
+		"cavalier_mastery":         "status",
+		"parrying":                 "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 13 {
+		t.Fatalf("test expects 13 lord_knight buffs, listed %d", len(want))
+	}
+}
+
+func TestClassBuffs_Knight_ExcludesTransOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("knight")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for knight")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	// Swordman/Knight skills available to base Knight (9 of 13).
+	for _, name := range []string{
+		"sword_mastery", "two_handed_sword_mastery", "spear_mastery", "twohand_quicken",
+		"onehand_quicken", "endure", "increase_hp_recovery", "auto_berserk", "cavalier_mastery",
+	} {
+		if !have[name] {
+			t.Errorf("knight should have buff %q", name)
+		}
+	}
+	// Trans-only (Lord Knight) skills must NOT surface for base Knight.
+	for _, name := range []string{"aura_blade", "concentration", "berserk", "parrying"} {
+		if have[name] {
+			t.Errorf("knight must NOT have trans-only buff %q", name)
+		}
+	}
+}
+
+func TestClassBuffs_Champion(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("champion")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for champion")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"demon_bane":        "stat_buff",
+		"iron_fists":        "stat_buff",
+		"triple_attack":     "stat_buff",
+		"dodge":             "stat_buff",
+		"fury":              "stat_buff",
+		"spiritual_cadence": "status",
+		"divine_protection": "status",
+		"mental_strength":   "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(want) != 8 {
+		t.Fatalf("test expects 8 champion buffs, listed %d", len(want))
+	}
+}
+
+// Monk and Champion share an identical rocalc job-buff bank, so Monk surfaces the
+// same 8 buffs (no trans-only gating). Pins that these buffs are not Champion-gated.
+func TestClassBuffs_Monk(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("monk")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for monk")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	for _, name := range []string{
+		"demon_bane", "iron_fists", "triple_attack", "dodge", "fury",
+		"spiritual_cadence", "divine_protection", "mental_strength",
+	} {
+		if !have[name] {
+			t.Errorf("monk should have buff %q (shares Champion's bank)", name)
+		}
+	}
+}
