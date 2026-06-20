@@ -1135,6 +1135,63 @@ export function createShim(): ShimSession {
     weapon_perfection: [
       { driver: "support_slot", field: "A2_Skill7", control: "checkbox" },
     ],
+    // Lord Knight (m_JobBuff[21] = [537,5,3,4,12,69,74,78,254,256,258,255,386,9];
+    // base Knight row 7 is the same minus the four LK_ trans skills
+    // 254/256/258/255). rocalc ids diverge from Aegis ids (Sword Mastery is
+    // catalog 2 but rocalc 3; Berserk is catalog 359 but rocalc 258), so
+    // allocation alone drops these; drive them by rocalc id. 537 (Enlarge Weight
+    // Limit R, ALL_INCCARRY) is the universal carry-weight control present in
+    // every class bank with no combat effect; an overlay row for it would add a
+    // weight buff to all 45 classes, so it stays unbound (as in Whitesmith).
+    sword_mastery: [{ driver: "skill_slot", rocalcId: 3, level: "buffLevel" }],
+    two_handed_sword_mastery: [
+      { driver: "skill_slot", rocalcId: 4, level: "buffLevel" },
+    ],
+    spear_mastery: [{ driver: "skill_slot", rocalcId: 69, level: "buffLevel" }],
+    twohand_quicken: [
+      { driver: "skill_slot", rocalcId: 74, level: "buffLevel" },
+    ],
+    onehand_quicken: [
+      { driver: "skill_slot", rocalcId: 386, level: "buffLevel" },
+    ],
+    aura_blade: [{ driver: "skill_slot", rocalcId: 254, level: "buffLevel" }],
+    concentration: [
+      { driver: "skill_slot", rocalcId: 256, level: "buffLevel" },
+    ],
+    berserk: [{ driver: "skill_slot", rocalcId: 258, level: "buffLevel" }],
+    endure: [{ driver: "skill_slot", rocalcId: 9, level: "buffLevel" }],
+    increase_hp_recovery: [
+      { driver: "skill_slot", rocalcId: 5, level: "buffLevel" },
+    ],
+    auto_berserk: [{ driver: "skill_slot", rocalcId: 12, level: "buffLevel" }],
+    cavalier_mastery: [
+      { driver: "skill_slot", rocalcId: 78, level: "buffLevel" },
+    ],
+    parrying: [{ driver: "skill_slot", rocalcId: 255, level: "buffLevel" }],
+    // Champion (m_JobBuff[29] = [537,184,23,24,183,187,191,195,196,301,362];
+    // identical to Monk's [15], so no trans-only gating). rocalc ids diverge from
+    // Aegis ids (Iron Fists is catalog 259 but rocalc 183; Fury is catalog 270 but
+    // rocalc 195), so allocation alone drops these; drive them by rocalc id.
+    // Excluded from the bank: 537 (ALL_INCCARRY universal weight), 301 (rocalc's
+    // triple-attack delay counter, not a real skill), 362 (SG_FRIEND -- a Star
+    // Gladiator skill Monk cannot learn; an overlay would surface it for Star
+    // Gladiator, not here).
+    demon_bane: [{ driver: "skill_slot", rocalcId: 24, level: "buffLevel" }],
+    iron_fists: [{ driver: "skill_slot", rocalcId: 183, level: "buffLevel" }],
+    triple_attack: [
+      { driver: "skill_slot", rocalcId: 187, level: "buffLevel" },
+    ],
+    dodge: [{ driver: "skill_slot", rocalcId: 191, level: "buffLevel" }],
+    fury: [{ driver: "skill_slot", rocalcId: 195, level: "buffLevel" }],
+    spiritual_cadence: [
+      { driver: "skill_slot", rocalcId: 184, level: "buffLevel" },
+    ],
+    divine_protection: [
+      { driver: "skill_slot", rocalcId: 23, level: "buffLevel" },
+    ],
+    mental_strength: [
+      { driver: "skill_slot", rocalcId: 196, level: "buffLevel" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
