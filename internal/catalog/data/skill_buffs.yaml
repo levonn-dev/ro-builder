@@ -254,3 +254,31 @@ skills:
     self_buff: { name: divine_protection, kind: status, persistence: permanent }
   - aegis_name: MO_STEELBODY           # Mental Strength (Steel Body), rocalc 196, max 5; DEF/MDEF->90% but -ASPD/-move -- defensive, may lower offense
     self_buff: { name: mental_strength, kind: status, persistence: transient }
+
+  # --- Paladin (Crusader-rooted) self-buffs ---
+  # Only Faith and Spear Quicken are new here; the other 9 entries in Paladin's bank
+  # (m_JobBuff[27], identical to Crusader's [13] -- no trans gating) are already bound
+  # via the Lord Knight (Sword / Two-Hand / Spear Mastery, Auto Berserk, Endure,
+  # Increase HP Recovery, Cavalier Mastery) and Champion (Demon Bane, Divine
+  # Protection) overlay rows. Both new skills are CR_ (Crusader-only root), so they
+  # light up for Crusader and Paladin only. Spear Quicken's ASPD applies to two-handed
+  # spears only (correct rocalc behavior). See the Paladin block in index.ts.
+  - aegis_name: CR_TRUST               # Faith, rocalc 156, max 10; +MaxHP / +Holy resist (scored via readDerivedStats().maxHp)
+    self_buff: { name: faith, kind: stat_buff, persistence: transient }
+  - aegis_name: CR_SPEARQUICKEN        # Spear Quicken, rocalc 166, max 10; +ASPD with two-handed spears (scored via readDerivedStats().aspd)
+    self_buff: { name: spear_quicken, kind: stat_buff, persistence: transient }
+
+  # --- Stalker (Rogue line) self-buffs ---
+  # Only Close Confine, Stealth (Chase Walk), and Counter Instinct (Reject Sword) are
+  # new here; the other 4 entries in Stalker's bank (m_JobBuff[28]) -- Double Attack /
+  # Improve Dodge (Assassin Cross), Sword Mastery (Lord Knight), Vulture's Eye (Sniper)
+  # -- are already bound. close_confine is a base Rogue skill (Rogue + Stalker); stealth
+  # and counter_instinct are Stalker trans-only. Excluded: 537 (weight), 301 (rocalc
+  # triple-attack-delay counter), 187 (Raging Trifecta Blow = MO_TRIPLEATTACK,
+  # Plagiarism-only, not in the native tree). See the Stalker block in index.ts.
+  - aegis_name: RG_CLOSECONFINE        # Close Confine, rocalc 383, max 1; locks user+target, +flee while active (scored via readDerivedStats().flee)
+    self_buff: { name: close_confine, kind: stat_buff, persistence: transient }
+  - aegis_name: ST_CHASEWALK           # Stealth (Chase Walk), rocalc 286, max 5; +STR while stealthed -> +ATK (scored via readCombatResults().damage.ave)
+    self_buff: { name: stealth, kind: stat_buff, persistence: transient }
+  - aegis_name: ST_REJECTSWORD         # Counter Instinct (Reject Sword), rocalc 287, max 5; reflects physical from sword/dagger/2H-sword -- defensive, not scored by the auto-attack sim
+    self_buff: { name: counter_instinct, kind: status, persistence: transient }

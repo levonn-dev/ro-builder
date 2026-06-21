@@ -1192,6 +1192,36 @@ export function createShim(): ShimSession {
     mental_strength: [
       { driver: "skill_slot", rocalcId: 196, level: "buffLevel" },
     ],
+    // Paladin (m_JobBuff[27] = [537,5,3,4,12,156,69,166,24,23,78,9]; identical to
+    // Crusader's [13], so no trans-only gating). Only Faith (156) and Spear Quicken
+    // (166) are new here; the other 9 bank entries are already bound above -- Sword /
+    // Two-Hand / Spear Mastery, Auto Berserk, Endure, Increase HP Recovery, Cavalier
+    // Mastery from Lord Knight; Demon Bane, Divine Protection from Champion. rocalc
+    // ids diverge from Aegis ids (Faith catalog 248 / rocalc 156; Spear Quicken
+    // catalog 258 / rocalc 166), so the bindings carry the rocalc id. 537
+    // (ALL_INCCARRY weight) is left unbound, as in every class. Spear Quicken's ASPD
+    // applies to two-handed spears (W_2HSPEAR) only -- correct rocalc behavior.
+    faith: [{ driver: "skill_slot", rocalcId: 156, level: "buffLevel" }],
+    spear_quicken: [
+      { driver: "skill_slot", rocalcId: 166, level: "buffLevel" },
+    ],
+    // Stalker (m_JobBuff[28] = [537,13,14,3,39,286,287,187,383,301]; Rogue's [14] is
+    // the same minus the two ST_ trans skills 286/287). Only Close Confine (383),
+    // Stealth (286), and Counter Instinct (287) are new here; Double Attack 13 /
+    // Improve Dodge 14 (Assassin Cross), Sword Mastery 3 (Lord Knight), Vulture's Eye
+    // 39 (Sniper) are already bound above. rocalc ids diverge from Aegis ids (Close
+    // Confine catalog 1005 / rocalc 383; Stealth catalog 389 / rocalc 286; Counter
+    // Instinct catalog 390 / rocalc 287), so the bindings carry the rocalc id.
+    // Excluded: 537 (ALL_INCCARRY weight), 301 (rocalc triple-attack-delay counter),
+    // 187 (Raging Trifecta Blow = MO_TRIPLEATTACK -- Plagiarism-only, not in the
+    // Rogue/Stalker native tree, so the triple_attack overlay never surfaces here).
+    close_confine: [
+      { driver: "skill_slot", rocalcId: 383, level: "buffLevel" },
+    ],
+    stealth: [{ driver: "skill_slot", rocalcId: 286, level: "buffLevel" }],
+    counter_instinct: [
+      { driver: "skill_slot", rocalcId: 287, level: "buffLevel" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
