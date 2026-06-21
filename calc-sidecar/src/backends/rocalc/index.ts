@@ -1222,6 +1222,30 @@ export function createShim(): ShimSession {
     counter_instinct: [
       { driver: "skill_slot", rocalcId: 287, level: "buffLevel" },
     ],
+    // Gunslinger (m_JobBuff[45] = [537,425,426,427,416,420,421,422,433]; Expanded
+    // class, single bank, no trans split, nothing inherited). rocalc ids diverge from
+    // Aegis/catalog ids, so each binding carries the rocalc id. Guns are already
+    // mapped, so these verify against a real revolver / gatling (Gatling Fever needs
+    // a W_GATLING like Drifter, not a grenade launcher). Excluded: 537 (ALL_INCCARRY
+    // weight). flip_the_coin moves damage.ave (rocalc models the coin-damage bonus).
+    single_action: [
+      { driver: "skill_slot", rocalcId: 425, level: "buffLevel" },
+    ],
+    snake_eye: [{ driver: "skill_slot", rocalcId: 426, level: "buffLevel" }],
+    increasing_accuracy: [
+      { driver: "skill_slot", rocalcId: 422, level: "buffLevel" },
+    ],
+    madness_canceller: [
+      { driver: "skill_slot", rocalcId: 420, level: "buffLevel" },
+    ],
+    adjustment: [{ driver: "skill_slot", rocalcId: 421, level: "buffLevel" }],
+    chain_action: [{ driver: "skill_slot", rocalcId: 427, level: "buffLevel" }],
+    gatling_fever: [
+      { driver: "skill_slot", rocalcId: 433, level: "buffLevel" },
+    ],
+    flip_the_coin: [
+      { driver: "skill_slot", rocalcId: 416, level: "buffLevel" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"

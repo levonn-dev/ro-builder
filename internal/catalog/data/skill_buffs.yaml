@@ -282,3 +282,28 @@ skills:
     self_buff: { name: stealth, kind: stat_buff, persistence: transient }
   - aegis_name: ST_REJECTSWORD         # Counter Instinct (Reject Sword), rocalc 287, max 5; reflects physical from sword/dagger/2H-sword -- defensive, not scored by the auto-attack sim
     self_buff: { name: counter_instinct, kind: status, persistence: transient }
+
+  # --- Gunslinger self-buffs ---
+  # Expanded class: a single skill_slot bank (m_JobBuff[45]), no trans gating, and the
+  # GS_ skills are gun-class-exclusive in pre-renewal (they also appear in renewal
+  # Rebellion / baby trees, out of scope). Nothing is inherited. Excluded: 537
+  # (ALL_INCCARRY weight). Guns are already mapped (revolver / rifle / shotgun /
+  # gatling / grenade), so all 8 verify against a real gun (Gatling Fever needs a
+  # W_GATLING like Drifter, not a grenade launcher). flip_the_coin moves damage.ave
+  # (rocalc models the coin-damage bonus). See the Gunslinger block in index.ts.
+  - aegis_name: GS_SINGLEACTION        # Single Action, rocalc 425, max 10; +HIT/+ASPD with a gun (readDerivedStats().hit + .aspd)
+    self_buff: { name: single_action, kind: stat_buff, persistence: transient }
+  - aegis_name: GS_SNAKEEYE            # Snake Eye, rocalc 426, max 10; +HIT/+range with guns (readDerivedStats().hit)
+    self_buff: { name: snake_eye, kind: stat_buff, persistence: transient }
+  - aegis_name: GS_INCREASING          # Increasing Accuracy, rocalc 422, max 1; +20 HIT/+4 DEX/+4 AGI (readDerivedStats().hit)
+    self_buff: { name: increasing_accuracy, kind: stat_buff, persistence: transient }
+  - aegis_name: GS_MADNESSCANCEL       # Madness Canceller (Last Stand), rocalc 420, max 1; +100 ATK/+15% ASPD (readCombatResults().damage.ave)
+    self_buff: { name: madness_canceller, kind: stat_buff, persistence: transient }
+  - aegis_name: GS_ADJUSTMENT          # Adjustment (Gunslinger's Panic), rocalc 421, max 1; +30 FLEE, -HIT, -ranged dmg (readDerivedStats().flee)
+    self_buff: { name: adjustment, kind: stat_buff, persistence: transient }
+  - aegis_name: GS_CHAINACTION         # Chain Action, rocalc 427, max 10; chance of double damage on normal attacks (readCombatResults().damage.secondAve; confirmed scored in combat sim)
+    self_buff: { name: chain_action, kind: stat_buff, persistence: transient }
+  - aegis_name: GS_GATLINGFEVER        # Gatling Fever, rocalc 433, max 10; +ASPD with a gatling (W_GATLING), -FLEE (readDerivedStats().aspd)
+    self_buff: { name: gatling_fever, kind: stat_buff, persistence: transient }
+  - aegis_name: GS_GLITTERING          # Flip the Coin, rocalc 416, max 5; rocalc models the coin-damage bonus, scales with level (readCombatResults().damage.ave)
+    self_buff: { name: flip_the_coin, kind: stat_buff, persistence: transient }

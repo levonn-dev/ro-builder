@@ -617,6 +617,46 @@ func TestClassBuffs_Stalker(t *testing.T) {
 	}
 }
 
+func TestClassBuffs_Gunslinger(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("gunslinger")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for gunslinger")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"single_action":       "stat_buff",
+		"snake_eye":           "stat_buff",
+		"increasing_accuracy": "stat_buff",
+		"madness_canceller":   "stat_buff",
+		"adjustment":          "stat_buff",
+		"chain_action":        "stat_buff",
+		"gatling_fever":       "stat_buff",
+		"flip_the_coin":       "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	// Regression lock: Gunslinger's bank is exactly these 8 (m_JobBuff[45] minus 537
+	// ALL_INCCARRY). It is an Expanded class with no trans split and no inherited
+	// buffs, so this set must not change unless a GS skill is added or removed
+	// deliberately.
+	if len(buffs) != 8 {
+		t.Fatalf("ClassBuffs(gunslinger) returned %d buffs, want 8", len(buffs))
+	}
+}
+
 // Stealth (Chase Walk) and Counter Instinct (Reject Sword) are Stalker trans-only;
 // base Rogue gets only Close Confine on top of the 4 inherited buffs.
 func TestClassBuffs_Rogue_ExcludesTransOnly(t *testing.T) {
