@@ -78,7 +78,7 @@ func TestIntegration_StalkerBuffs_RaiseScoredStats(t *testing.T) {
 	if !(*buffAve > *baseAve) {
 		t.Fatalf("stealth did not raise damage.ave: base=%v buffed=%v", *baseAve, *buffAve)
 	}
-	if !(respBuff.Derived.Flee > respBase.Derived.Flee) {
+	if respBuff.Derived.Flee <= respBase.Derived.Flee {
 		t.Fatalf("close_confine did not raise Flee: base=%d buffed=%d", respBase.Derived.Flee, respBuff.Derived.Flee)
 	}
 }

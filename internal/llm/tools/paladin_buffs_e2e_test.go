@@ -69,7 +69,7 @@ func TestIntegration_PaladinBuffs_RaiseDerivedStats(t *testing.T) {
 
 	t.Logf("maxHp: base=%d buffed=%d | aspd: base=%.1f buffed=%.1f",
 		respBase.Derived.MaxHP, respBuff.Derived.MaxHP, respBase.Derived.Aspd, respBuff.Derived.Aspd)
-	if !(respBuff.Derived.MaxHP > respBase.Derived.MaxHP) {
+	if respBuff.Derived.MaxHP <= respBase.Derived.MaxHP {
 		t.Fatalf("faith did not raise MaxHP: base=%d buffed=%d", respBase.Derived.MaxHP, respBuff.Derived.MaxHP)
 	}
 	if !(respBuff.Derived.Aspd > respBase.Derived.Aspd) {
