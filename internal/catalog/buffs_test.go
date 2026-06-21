@@ -505,3 +505,147 @@ func TestClassBuffs_Monk(t *testing.T) {
 		}
 	}
 }
+
+func TestClassBuffs_Paladin(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("paladin")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for paladin")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"sword_mastery":            "stat_buff",
+		"two_handed_sword_mastery": "stat_buff",
+		"spear_mastery":            "stat_buff",
+		"auto_berserk":             "stat_buff",
+		"demon_bane":               "stat_buff",
+		"faith":                    "stat_buff",
+		"spear_quicken":            "stat_buff",
+		"divine_protection":        "status",
+		"cavalier_mastery":         "status",
+		"endure":                   "status",
+		"increase_hp_recovery":     "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	// Regression lock on the inherited blast radius: Paladin's bank is exactly
+	// these 11 (9 inherited from Lord Knight / Champion + Faith + Spear Quicken).
+	// A future onboarding that lights up another Swordman/Acolyte skill for
+	// Paladin must update this number deliberately.
+	if len(buffs) != 11 {
+		t.Fatalf("ClassBuffs(paladin) returned %d buffs, want 11", len(buffs))
+	}
+}
+
+// Crusader and Paladin share an identical rocalc job-buff bank, so Crusader
+// surfaces the same 11 buffs (no trans-only gating). Pins that the two new CR_
+// buffs are not Paladin-gated.
+func TestClassBuffs_Crusader(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("crusader")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for crusader")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	for _, name := range []string{
+		"sword_mastery", "two_handed_sword_mastery", "spear_mastery",
+		"auto_berserk", "demon_bane", "faith", "spear_quicken",
+		"divine_protection", "cavalier_mastery", "endure", "increase_hp_recovery",
+	} {
+		if !have[name] {
+			t.Errorf("crusader should have buff %q (shares Paladin's bank)", name)
+		}
+	}
+}
+
+func TestClassBuffs_Stalker(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("stalker")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for stalker")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"double_attack":    "stat_buff",
+		"improve_dodge":    "stat_buff",
+		"sword_mastery":    "stat_buff",
+		"vultures_eye":     "stat_buff",
+		"close_confine":    "stat_buff",
+		"stealth":          "stat_buff",
+		"counter_instinct": "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	// Regression lock: Stalker's bank is exactly these 7 (4 inherited from Assassin
+	// Cross / Lord Knight / Sniper + Close Confine + Stealth + Counter Instinct). A
+	// future onboarding that lights up another Thief/Swordman/Archer skill for
+	// Stalker must update this number deliberately.
+	if len(buffs) != 7 {
+		t.Fatalf("ClassBuffs(stalker) returned %d buffs, want 7", len(buffs))
+	}
+}
+
+// Stealth (Chase Walk) and Counter Instinct (Reject Sword) are Stalker trans-only;
+// base Rogue gets only Close Confine on top of the 4 inherited buffs.
+func TestClassBuffs_Rogue_ExcludesTransOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("rogue")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for rogue")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	// Inherited + base-Rogue skills available to Rogue.
+	for _, name := range []string{
+		"double_attack", "improve_dodge", "sword_mastery", "vultures_eye", "close_confine",
+	} {
+		if !have[name] {
+			t.Errorf("rogue should have buff %q", name)
+		}
+	}
+	// Trans-only (Stalker) skills must NOT surface for base Rogue.
+	for _, name := range []string{"stealth", "counter_instinct"} {
+		if have[name] {
+			t.Errorf("rogue must NOT have trans-only buff %q", name)
+		}
+	}
+}
