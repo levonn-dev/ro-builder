@@ -744,6 +744,53 @@ func TestClassBuffs_MusicPassiveGating(t *testing.T) {
 	}
 }
 
+func TestClassBuffs_StarGladiator(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("star_gladiator")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for star_gladiator")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		// 3 inherited from the Taekwon line
+		"taekwon_ranker": "status",
+		"spurt":          "stat_buff",
+		"mild_wind":      "weapon_endow",
+		// 7 scored SG buffs
+		"sls_solar_wrath":        "stat_buff",
+		"sls_lunar_wrath":        "stat_buff",
+		"sls_stellar_wrath":      "stat_buff",
+		"sls_solar_protection":   "stat_buff",
+		"sls_lunar_protection":   "stat_buff",
+		"sls_stellar_protection": "stat_buff",
+		"sls_union":              "stat_buff",
+		// 3 wired-but-inert SG buffs
+		"sls_demon":     "status",
+		"sls_knowledge": "status",
+		"sls_blessing":  "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	// Regression lock: 3 inherited TK buffs + 10 SG buffs. SG_ skills are
+	// Star Gladiator-exclusive in pre-renewal, so this set must not change
+	// unless an SG buff is added or removed deliberately.
+	if len(buffs) != 13 {
+		t.Fatalf("ClassBuffs(star_gladiator) returned %d buffs, want 13", len(buffs))
+	}
+}
+
 // Stealth (Chase Walk) and Counter Instinct (Reject Sword) are Stalker trans-only;
 // base Rogue gets only Close Confine on top of the 4 inherited buffs.
 func TestClassBuffs_Rogue_ExcludesTransOnly(t *testing.T) {
