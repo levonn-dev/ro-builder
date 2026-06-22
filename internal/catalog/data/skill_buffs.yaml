@@ -307,3 +307,16 @@ skills:
     self_buff: { name: gatling_fever, kind: stat_buff, persistence: transient }
   - aegis_name: GS_GLITTERING          # Flip the Coin, rocalc 416, max 5; rocalc models the coin-damage bonus, scales with level (readCombatResults().damage.ave)
     self_buff: { name: flip_the_coin, kind: stat_buff, persistence: transient }
+
+  # --- Clown / Gypsy performer passives ---
+  # Musical Lesson (Bard/Clown) and Dancing Lesson (Dancer/Gypsy) boost the
+  # performer's own weapon damage (Instrument / Whip respectively), so they are
+  # real self-buffs on the existing skill_slot seam (job bank m_JobBuff slot 4:
+  # rocalc 198 Bard, 206 Dancer). The Bard/Dancer SONGS are a separate control
+  # surface (the A3 bank) and do NOT affect the performer, so they get no row
+  # here -- see the music driver + bindings in index.ts. The 3 inherited Archer
+  # buffs (owls_eye/vultures_eye/improve_concentration) already gate+drive.
+  - aegis_name: BA_MUSICALLESSON       # Musical Lesson, rocalc 198, max 10; +Instrument damage (readCombatResults().damage.ave, instrument-only)
+    self_buff: { name: musical_lesson, kind: stat_buff, persistence: permanent }
+  - aegis_name: DC_DANCINGLESSON       # Dancing Lesson, rocalc 206, max 10; +Whip damage (readCombatResults().damage.ave, whip-only)
+    self_buff: { name: dancing_lesson, kind: stat_buff, persistence: permanent }
