@@ -875,6 +875,7 @@ export function createShim(): ShimSession {
     win.n_SkillSW = 0;
     win.n_debufSW = 0;
     win.n_Skill6SW = 0;
+    win.n_Skill3SW = 0;
     // Zero the n_B_debuf[] array directly. ClickB_Enemy only re-reads from
     // form into n_B_debuf[] when n_debufSW is truthy; with n_debufSW = 0,
     // stale values (e.g. n_B_debuf[6]=1 from Lex Aeterna) persist in memory
@@ -898,6 +899,12 @@ export function createShim(): ShimSession {
     // request even with the gate off. Same vector as n_B_debuf[].
     if (Array.isArray(win.n_A_Buf6)) {
       for (let i = 0; i < win.n_A_Buf6.length; i++) win.n_A_Buf6[i] = 0;
+    }
+    // Zero n_A_Buf3[] (music-and-dance bank). StAllCalc reads it only when
+    // n_Skill3SW is truthy, but zero it directly so no stale song level leaks
+    // into the next request (same vector as n_A_Buf2[]/n_A_Buf6[]).
+    if (Array.isArray(win.n_A_Buf3)) {
+      for (let i = 0; i < win.n_A_Buf3.length; i++) win.n_A_Buf3[i] = 0;
     }
     restoreForm(form, initialFormState);
     win.StAllCalc();
@@ -994,7 +1001,17 @@ export function createShim(): ShimSession {
         control: "select" | "checkbox";
         forceEnable?: boolean;
       }
-    | { driver: "land_buff"; landType: 0 | 1 | 2 };
+    | { driver: "land_buff"; landType: 0 | 1 | 2 }
+    | {
+        driver: "music";
+        primary: string; // A3 primary control, e.g. "A3_Skill0_1"
+        maxLevel: number; // option range to populate (10 solos, 5 ensembles)
+        level: number | "buffLevel";
+        // performer sub-param controls -> seed values (rocalc Skill3SW_2
+        // defaults). The synthetic form ships these selects empty, so the
+        // driver populates options before writing.
+        subparams?: Record<string, number>;
+      };
   const BUFF_BINDINGS: Record<string, BuffAction[]> = {
     // Taekwon (existing)
     taekwon_ranker: [{ driver: "skill_slot", rocalcId: 345, level: 1 }],
@@ -1246,6 +1263,124 @@ export function createShim(): ShimSession {
     flip_the_coin: [
       { driver: "skill_slot", rocalcId: 416, level: "buffLevel" },
     ],
+
+    // Clown / Gypsy performer passives (job bank skill_slot; rocalc gates them
+    // to Instrument / Whip respectively, so the effect only shows with the
+    // matching weapon class -- see clown_gypsy_buffs.test.ts negative cases).
+    musical_lesson: [
+      { driver: "skill_slot", rocalcId: 198, level: "buffLevel" },
+    ],
+    dancing_lesson: [
+      { driver: "skill_slot", rocalcId: 206, level: "buffLevel" },
+    ],
+
+    // A3 "Music and Dance Skills" bank -- backend-only (Bard/Dancer SONGS do not
+    // affect the performer, so no overlay row; these are driven only by
+    // music_bank.test.ts). Levels/sub-param defaults mirror rocalc Skill3SW_2.
+    a_whistle: [
+      {
+        driver: "music",
+        primary: "A3_Skill0_1",
+        maxLevel: 10,
+        level: "buffLevel",
+        subparams: { A3_Skill0_2: 100, A3_Skill0_3: 10, A3_Skill0_4: 100 },
+      },
+    ],
+    assassin_cross_of_sunset: [
+      {
+        driver: "music",
+        primary: "A3_Skill1_1",
+        maxLevel: 10,
+        level: "buffLevel",
+        subparams: { A3_Skill1_2: 100, A3_Skill1_3: 10 },
+      },
+    ],
+    poem_of_bragi: [
+      {
+        driver: "music",
+        primary: "A3_Skill2_1",
+        maxLevel: 10,
+        level: "buffLevel",
+        subparams: { A3_Skill2_2: 100, A3_Skill2_3: 100, A3_Skill2_4: 10 },
+      },
+    ],
+    apple_of_idun: [
+      {
+        driver: "music",
+        primary: "A3_Skill3_1",
+        maxLevel: 10,
+        level: "buffLevel",
+        subparams: { A3_Skill3_2: 100, A3_Skill3_3: 10 },
+      },
+    ],
+    humming: [
+      {
+        driver: "music",
+        primary: "A3_Skill4_1",
+        maxLevel: 10,
+        level: "buffLevel",
+        subparams: { A3_Skill4_2: 130, A3_Skill4_3: 10 },
+      },
+    ],
+    fortunes_kiss: [
+      {
+        driver: "music",
+        primary: "A3_Skill5_1",
+        maxLevel: 10,
+        level: "buffLevel",
+        subparams: { A3_Skill5_2: 50, A3_Skill5_3: 10 },
+      },
+    ],
+    service_for_you: [
+      {
+        driver: "music",
+        primary: "A3_Skill6_1",
+        maxLevel: 10,
+        level: "buffLevel",
+        subparams: { A3_Skill6_2: 50, A3_Skill6_3: 10 },
+      },
+    ],
+    dont_forget_me: [
+      {
+        driver: "music",
+        primary: "A3_Skill12_1",
+        maxLevel: 10,
+        level: "buffLevel",
+        subparams: { A3_Skill12_2: 130, A3_Skill12_3: 130, A3_Skill12_4: 10 },
+      },
+    ],
+    invulnerable_siegfried: [
+      {
+        driver: "music",
+        primary: "A3_Skill7",
+        maxLevel: 5,
+        level: "buffLevel",
+      },
+    ],
+    rich_man_kim: [
+      {
+        driver: "music",
+        primary: "A3_Skill8",
+        maxLevel: 5,
+        level: "buffLevel",
+      },
+    ],
+    drum_on_the_battlefield: [
+      {
+        driver: "music",
+        primary: "A3_Skill9",
+        maxLevel: 5,
+        level: "buffLevel",
+      },
+    ],
+    ring_of_nibelungen: [
+      {
+        driver: "music",
+        primary: "A3_Skill10",
+        maxLevel: 5,
+        level: "buffLevel",
+      },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"
@@ -1441,6 +1576,51 @@ export function createShim(): ShimSession {
     setSelectClamped(lvlSel, level);
   }
 
+  // ensureMusicOptions populates an A3 <select> with numeric options 0..maxOpt
+  // if it is empty. rocalc's Buf3SW would do this, but it also myInnerHtml's
+  // into DOM cells (EN*_3) our synthetic form omits and therefore throws, so the
+  // driver populates only what StAllCalc reads.
+  function ensureMusicOptions(sel: RocalcForm, maxOpt: number): void {
+    if (sel.options.length === 0) {
+      for (let i = 0; i <= maxOpt; i++) sel.options[i] = new win.Option(i, i);
+    }
+  }
+
+  // applyMusicBuff drives one A3 "Music and Dance Skills" entry: it writes the
+  // song level into the primary control and the performer sub-params (AGI/LUK/
+  // etc., seeded to rocalc's own defaults) into the secondary controls. The
+  // section gate n_Skill3SW is set by setBuffs once any music action ran (so
+  // StAllCalc reads the A3_Skill* bank into n_A_Buf3[]). reset() zeros the gate
+  // and n_A_Buf3[]. These are Bard/Dancer SONGS, wired as a backend capability:
+  // they do not affect the performer, so they are never surfaced as self-buffs.
+  function applyMusicBuff(
+    primary: string,
+    maxLevel: number,
+    level: number,
+    subparams: Record<string, number> | undefined,
+  ): void {
+    const sel = form[primary];
+    if (!sel) {
+      throw new Error(
+        `music control ${primary} missing; form-template incomplete`,
+      );
+    }
+    ensureMusicOptions(sel, maxLevel);
+    sel.value = String(Math.max(0, Math.min(maxLevel, level)));
+    if (subparams) {
+      for (const [name, val] of Object.entries(subparams)) {
+        const ss = form[name];
+        if (!ss) {
+          throw new Error(
+            `music subparam ${name} missing; form-template incomplete`,
+          );
+        }
+        ensureMusicOptions(ss, Math.max(val, maxLevel));
+        ss.value = String(val);
+      }
+    }
+  }
+
   function applyWeaponEndow(buff: Buff): void {
     const element = buff.element ?? "";
     const value = ENDOW_ELEMENT_VALUES[element];
@@ -1488,6 +1668,7 @@ export function createShim(): ShimSession {
     let usedSupport = false;
     let usedDebuf = false;
     let usedLand = false;
+    let usedMusic = false;
     for (const buff of buffs) {
       const actions = BUFF_BINDINGS[buff.name];
       if (!actions) {
@@ -1533,6 +1714,16 @@ export function createShim(): ShimSession {
             applied = true;
             usedLand = true;
             break;
+          case "music":
+            applyMusicBuff(
+              action.primary,
+              action.maxLevel,
+              action.level === "buffLevel" ? (buff.level ?? 0) : action.level,
+              action.subparams,
+            );
+            applied = true;
+            usedMusic = true;
+            break;
         }
       }
       if (!applied) {
@@ -1552,6 +1743,10 @@ export function createShim(): ShimSession {
     // Same leak-free reasoning: reset() restores the controls to 0 AND zeros
     // n_A_Buf6[] (the land effect reads it without re-checking the gate).
     if (usedLand) win.n_Skill6SW = 1;
+    // Enable the music-and-dance section so StAllCalc reads the A3_Skill* bank
+    // into n_A_Buf3[]. Same leak-free reasoning as usedLand: reset() restores
+    // controls to 0 AND zeros n_A_Buf3[].
+    if (usedMusic) win.n_Skill3SW = 1;
     // StAllCalc + StCalc: the pair setSkills fires. calc(): additionally needed
     // when a weapon_endow action changed A_Weapon_element, since the element-vs-
     // enemy multiplier is computed in calc(), not StAllCalc.

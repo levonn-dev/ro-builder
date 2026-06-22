@@ -657,6 +657,93 @@ func TestClassBuffs_Gunslinger(t *testing.T) {
 	}
 }
 
+func TestClassBuffs_Clown(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("clown")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for clown")
+	}
+	got := map[string]string{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			got[b.SelfBuff.Name] = b.SelfBuff.Kind
+		}
+	}
+	// 3 inherited from the Archer line (Sniper) + the Bard performer passive.
+	want := map[string]string{
+		"owls_eye":              "stat_buff",
+		"vultures_eye":          "stat_buff",
+		"improve_concentration": "stat_buff",
+		"musical_lesson":        "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(buffs) != 4 {
+		t.Fatalf("ClassBuffs(clown) returned %d buffs, want 4", len(buffs))
+	}
+}
+
+func TestClassBuffs_Gypsy(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("gypsy")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for gypsy")
+	}
+	got := map[string]string{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			got[b.SelfBuff.Name] = b.SelfBuff.Kind
+		}
+	}
+	want := map[string]string{
+		"owls_eye":              "stat_buff",
+		"vultures_eye":          "stat_buff",
+		"improve_concentration": "stat_buff",
+		"dancing_lesson":        "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(buffs) != 4 {
+		t.Fatalf("ClassBuffs(gypsy) returned %d buffs, want 4", len(buffs))
+	}
+}
+
+// Cross-class gating: the instrument passive is Bard-line only; the whip
+// passive is Dancer-line only. They must not bleed across.
+func TestClassBuffs_MusicPassiveGating(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	has := func(class, buff string) bool {
+		buffs, _ := c.ClassBuffs(class)
+		for _, b := range buffs {
+			if b.SelfBuff != nil && b.SelfBuff.Name == buff {
+				return true
+			}
+		}
+		return false
+	}
+	if has("gypsy", "musical_lesson") {
+		t.Error("musical_lesson must not surface for gypsy")
+	}
+	if has("clown", "dancing_lesson") {
+		t.Error("dancing_lesson must not surface for clown")
+	}
+}
+
 // Stealth (Chase Walk) and Counter Instinct (Reject Sword) are Stalker trans-only;
 // base Rogue gets only Close Confine on top of the 4 inherited buffs.
 func TestClassBuffs_Rogue_ExcludesTransOnly(t *testing.T) {
