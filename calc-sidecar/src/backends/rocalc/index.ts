@@ -1381,6 +1381,44 @@ export function createShim(): ShimSession {
         level: "buffLevel",
       },
     ],
+
+    // Star Gladiator (m_JobBuff[42] = [537,363,340,341,329,379,338,342,380,352,353,
+    // 354,355,356,357,367,361,364,365]). Pure-data, skill_slot only. rocalc ids
+    // diverge from Aegis ids, so each binding carries the rocalc id. The three Wrath
+    // skills are enemy size+maxHP gated INSIDE rocalc (Solar=Small, Lunar=Medium
+    // maxHP>=6000, Stellar=Large maxHP>=20000) -- the driver only sets the level; the
+    // gate is the combat-sim enemy (see the negative-size cases in
+    // star_gladiator_buffs.test.ts). sls_solar_protection lowers incoming damage
+    // (defensive, applied in BattleCalc like assumptio). Buffs apply before the enemy
+    // in score.ts, so union / solar_protection are scored. Excluded: 537 (weight),
+    // SG_MIRACLE (not learnable), SG_*_WARM (not in bank); bank ids 329/379/340/341/
+    // 338/342/380 are TK-inherited (shared Taekwon bank) and bind via the TK block /
+    // class tree, not here. demon / knowledge / blessing are inert (broken aspd /
+    // carry weight / exp), bound per the bind-every-control directive.
+    sls_solar_wrath: [
+      { driver: "skill_slot", rocalcId: 352, level: "buffLevel" },
+    ],
+    sls_lunar_wrath: [
+      { driver: "skill_slot", rocalcId: 353, level: "buffLevel" },
+    ],
+    sls_stellar_wrath: [
+      { driver: "skill_slot", rocalcId: 354, level: "buffLevel" },
+    ],
+    sls_solar_protection: [
+      { driver: "skill_slot", rocalcId: 355, level: "buffLevel" },
+    ],
+    sls_lunar_protection: [
+      { driver: "skill_slot", rocalcId: 356, level: "buffLevel" },
+    ],
+    sls_stellar_protection: [
+      { driver: "skill_slot", rocalcId: 357, level: "buffLevel" },
+    ],
+    sls_union: [{ driver: "skill_slot", rocalcId: 364, level: "buffLevel" }],
+    sls_demon: [{ driver: "skill_slot", rocalcId: 361, level: "buffLevel" }],
+    sls_knowledge: [
+      { driver: "skill_slot", rocalcId: 363, level: "buffLevel" },
+    ],
+    sls_blessing: [{ driver: "skill_slot", rocalcId: 367, level: "buffLevel" }],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"

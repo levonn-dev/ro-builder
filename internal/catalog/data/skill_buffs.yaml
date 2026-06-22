@@ -320,3 +320,37 @@ skills:
     self_buff: { name: musical_lesson, kind: stat_buff, persistence: permanent }
   - aegis_name: DC_DANCINGLESSON       # Dancing Lesson, rocalc 206, max 10; +Whip damage (readCombatResults().damage.ave, whip-only)
     self_buff: { name: dancing_lesson, kind: stat_buff, persistence: permanent }
+
+  # --- Star Gladiator self-buffs ---
+  # 13th class (rocalc job id 42, m_JobBuff[42] = [537,363,340,341,329,379,338,
+  # 342,380,352,353,354,355,356,357,367,361,364,365]). Pure-data: every buff uses
+  # the skill_slot driver. SG_ skills are Star Gladiator-exclusive in pre-renewal,
+  # so no blast radius; 3 TK buffs (mild_wind / spurt / taekwon_ranker) are already
+  # inherited and need no row. Excluded: 537 (ALL_INCCARRY weight), SG_MIRACLE
+  # (not learnable -- no tree anchor), SG_*_WARM (absent from rocalc's bank). The
+  # three Wrath skills are enemy size+maxHP gated inside rocalc (Solar=Small,
+  # Lunar=Medium maxHP>=6000, Stellar=Large maxHP>=20000); solar_protection is
+  # defensive (lowers incoming damage). rocalc collapses the 3 Bless skills into one
+  # bank slot (367), anchored here to SG_SUN_BLESS. See the Star Gladiator block in
+  # index.ts; verified deltas in the 2026-06-22 spec.
+  - aegis_name: SG_SUN_ANGER           # Solar Wrath, rocalc 352, max 3; +damage vs Small monsters (readCombatResults().damage.ave)
+    self_buff: { name: sls_solar_wrath, kind: stat_buff, persistence: transient }
+  - aegis_name: SG_MOON_ANGER          # Lunar Wrath, rocalc 353, max 3; +damage vs Medium maxHP>=6000 (readCombatResults().damage.ave)
+    self_buff: { name: sls_lunar_wrath, kind: stat_buff, persistence: transient }
+  - aegis_name: SG_STAR_ANGER          # Stellar Wrath, rocalc 354, max 3; +damage vs Large maxHP>=20000 (readCombatResults().damage.ave)
+    self_buff: { name: sls_stellar_wrath, kind: stat_buff, persistence: transient }
+  - aegis_name: SG_SUN_COMFORT         # Solar Protection, rocalc 355, max 4; +VIT-def, lowers incoming (readCombatResults().incoming.ave)
+    self_buff: { name: sls_solar_protection, kind: stat_buff, persistence: transient }
+  - aegis_name: SG_MOON_COMFORT        # Lunar Protection, rocalc 356, max 4; +FLEE (readDerivedStats().flee)
+    self_buff: { name: sls_lunar_protection, kind: stat_buff, persistence: transient }
+  - aegis_name: SG_STAR_COMFORT        # Stellar Protection, rocalc 357, max 4; +ASPD (readDerivedStats().aspd)
+    self_buff: { name: sls_stellar_protection, kind: stat_buff, persistence: transient }
+  - aegis_name: SG_FUSION              # Union, rocalc 364, max 1; +damage / "increases most things" (readCombatResults().damage.ave)
+    self_buff: { name: sls_union, kind: stat_buff, persistence: transient }
+  - aegis_name: SG_DEVIL               # Demon, rocalc 361, max 10; intended +ASPD but broken in rocalc -- wired-but-inert
+    self_buff: { name: sls_demon, kind: status, persistence: permanent }
+  - aegis_name: SG_KNOWLEDGE           # Knowledge (rocalc "Courier"), rocalc 363, max 10; carry-weight only -- wired-but-inert
+    self_buff: { name: sls_knowledge, kind: status, persistence: permanent }
+  - aegis_name: SG_SUN_BLESS           # Blessings, rocalc 367, max 5; rocalc collapses the 3 Bless skills to one slot; exp-rate only -- wired-but-inert
+    # persistence transient (vs the passive demon/knowledge above): Blessing is a timed self-cast, not an always-on passive. Documentary only -- the scorer does not read persistence.
+    self_buff: { name: sls_blessing, kind: status, persistence: transient }
