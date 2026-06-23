@@ -686,6 +686,34 @@ func loadJobMaxLevels(herculesPath, repoRoot string) ([]data.JobMaxLevels, error
 	return data.LoadJobMaxLevels(full, data.PreRenewal)
 }
 
+// usabilityExclusions removes skills that Hercules's skill_tree.conf carries as
+// allocated (inherited) for a class but which the class cannot actually USE. A
+// Soul Linker / Star Gladiator was a TaeKwon Kid, so the flattened tree carries
+// every TK skill, but only a usable subset remains. Taekwon Ranker (TK_MISSION)
+// is TaeKwon-Kid-only (rocalc models it solely in m_JobBuff[41]); without this it
+// would wrongly surface as a self-buff for both 2nd classes. Keyed by shim-style
+// class name -> set of aegis names to drop.
+var usabilityExclusions = map[string]map[string]bool{
+	"soul_linker":    {"TK_MISSION": true},
+	"star_gladiator": {"TK_MISSION": true},
+}
+
+// filterSkills returns skills with any entry whose AegisName is in drop removed.
+// A nil/empty drop is a no-op (returns skills unchanged).
+func filterSkills(skills []data.ClassSkillEntry, drop map[string]bool) []data.ClassSkillEntry {
+	if len(drop) == 0 {
+		return skills
+	}
+	out := make([]data.ClassSkillEntry, 0, len(skills))
+	for _, e := range skills {
+		if drop[e.AegisName] {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
 // buildClassMap reads Hercules's skill_tree.conf, flattens inherits so
 // every class's Skills slice carries its full allocatable set, and
 // keys the result by shim-style class names ("taekwon", "high_wizard",
@@ -710,6 +738,7 @@ func buildClassMap(herculesPath, repoRoot string) (map[string]data.ClassSkillTre
 	for _, c := range raw {
 		flat := flattenSkills(c, out)
 		key := classKeyFromHerculesName(c.Name)
+		flat = filterSkills(flat, usabilityExclusions[key])
 		out[key] = data.ClassSkillTree{
 			Name:    c.Name,
 			Inherit: c.Inherit,

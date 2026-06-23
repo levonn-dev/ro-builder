@@ -22,7 +22,9 @@ func TestListClassBuffs_Taekwon(t *testing.T) {
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Buffs) != 3 {
-		t.Fatalf("expected 3 taekwon buffs, got %d: %s", len(out.Buffs), raw)
+	// 3 base TK buffs (mild_wind/spurt/taekwon_ranker) + 4 shared TaeKwon skills
+	// (tumbling/peaceful_break/happy_break/kihop, added with Soul Linker) = 7.
+	if len(out.Buffs) != 7 {
+		t.Fatalf("expected 7 taekwon buffs, got %d: %s", len(out.Buffs), raw)
 	}
 }

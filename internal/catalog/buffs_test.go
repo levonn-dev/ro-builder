@@ -14,7 +14,11 @@ func TestClassBuffs_Taekwon(t *testing.T) {
 	if !ok {
 		t.Fatal("ClassBuffs returned ok=false for taekwon_kid")
 	}
-	want := map[string]bool{"mild_wind": false, "spurt": false, "taekwon_ranker": false}
+	want := map[string]bool{
+		"mild_wind": false, "spurt": false, "taekwon_ranker": false,
+		// 4 shared TaeKwon skills (also surface for Star Gladiator / Soul Linker), inert
+		"tumbling": false, "peaceful_break": false, "happy_break": false, "kihop": false,
+	}
 	for _, b := range buffs {
 		if b.SelfBuff == nil {
 			t.Errorf("ClassBuffs returned a skill with nil SelfBuff: %s", b.AegisName)
@@ -26,6 +30,10 @@ func TestClassBuffs_Taekwon(t *testing.T) {
 		if !found {
 			t.Errorf("expected buff %q in taekwon ClassBuffs, missing", name)
 		}
+	}
+	// Regression lock: 3 base TK buffs (incl. TK-only taekwon_ranker) + 4 shared = 7.
+	if len(buffs) != 7 {
+		t.Fatalf("ClassBuffs(taekwon) returned %d buffs, want 7", len(buffs))
 	}
 }
 
@@ -761,10 +769,14 @@ func TestClassBuffs_StarGladiator(t *testing.T) {
 		got[b.SelfBuff.Name] = b.SelfBuff.Kind
 	}
 	want := map[string]string{
-		// 3 inherited from the Taekwon line
-		"taekwon_ranker": "status",
-		"spurt":          "stat_buff",
-		"mild_wind":      "weapon_endow",
+		// 2 inherited from the Taekwon line (taekwon_ranker is TaeKwon-Kid-only -- excluded)
+		"spurt":     "stat_buff",
+		"mild_wind": "weapon_endow",
+		// 4 shared TaeKwon skills (now also surface for Star Gladiator), inert
+		"tumbling":       "status",
+		"peaceful_break": "status",
+		"happy_break":    "status",
+		"kihop":          "status",
 		// 7 scored SG buffs
 		"sls_solar_wrath":        "stat_buff",
 		"sls_lunar_wrath":        "stat_buff",
@@ -783,11 +795,13 @@ func TestClassBuffs_StarGladiator(t *testing.T) {
 			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
 		}
 	}
-	// Regression lock: 3 inherited TK buffs + 10 SG buffs. SG_ skills are
-	// Star Gladiator-exclusive in pre-renewal, so this set must not change
-	// unless an SG buff is added or removed deliberately.
-	if len(buffs) != 13 {
-		t.Fatalf("ClassBuffs(star_gladiator) returned %d buffs, want 13", len(buffs))
+	// taekwon_ranker is TaeKwon-Kid-only and must NOT surface for Star Gladiator.
+	if _, found := got["taekwon_ranker"]; found {
+		t.Errorf("star_gladiator must NOT have taekwon_ranker (TaeKwon-Kid-only)")
+	}
+	// Regression lock: 2 inherited (mild_wind/spurt) + 4 shared TaeKwon + 10 SG = 16.
+	if len(buffs) != 16 {
+		t.Fatalf("ClassBuffs(star_gladiator) returned %d buffs, want 16", len(buffs))
 	}
 }
 
@@ -858,5 +872,89 @@ func TestClassBuffs_Ninja(t *testing.T) {
 	// Ninja buff is added or removed deliberately.
 	if len(buffs) != 3 {
 		t.Fatalf("ClassBuffs(ninja) returned %d buffs, want 3", len(buffs))
+	}
+}
+
+// Soul Linker (Expanded, TaeKwon branch) inherits mild_wind/spurt, adds the
+// SL-specific kaina (the only scored SL buff, +maxSp), and shares the 4 inert
+// TaeKwon skills (tumbling/peaceful_break/happy_break/kihop) with TK and SG.
+// taekwon_ranker is TaeKwon-Kid-only (usability exclusion in cmd/build-catalog),
+// so it must NOT surface here. The Soul Link / Ka / Es skills are not in rocalc's bank.
+func TestClassBuffs_SoulLinker(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("soul_linker")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for soul_linker")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"mild_wind":      "weapon_endow",
+		"spurt":          "stat_buff",
+		"kaina":          "stat_buff",
+		"tumbling":       "status",
+		"peaceful_break": "status",
+		"happy_break":    "status",
+		"kihop":          "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	// taekwon_ranker is TaeKwon-Kid-only and must NOT surface for Soul Linker.
+	if _, found := got["taekwon_ranker"]; found {
+		t.Errorf("soul_linker must NOT have taekwon_ranker (TaeKwon-Kid-only)")
+	}
+	// Regression lock: 2 inherited (mild_wind/spurt) + kaina + 4 shared TaeKwon = 7.
+	if len(buffs) != 7 {
+		t.Fatalf("ClassBuffs(soul_linker) returned %d buffs, want 7", len(buffs))
+	}
+}
+
+// Alchemist (base) and Creator (trans) have identical rocalc banks
+// (m_JobBuff[19] == m_JobBuff[33] == [537,59,68,241]), so both expose the same
+// two buffs: axe_mastery (new) + crazy_uproar (inherited via the Merchant tree).
+// 537/59 (carry-weight) are excluded. No trans split -- this asserts both keys.
+func TestClassBuffs_Alchemist(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := map[string]string{
+		"axe_mastery":  "stat_buff",
+		"crazy_uproar": "stat_buff",
+	}
+	for _, class := range []string{"alchemist", "creator"} {
+		buffs, ok := c.ClassBuffs(class)
+		if !ok {
+			t.Fatalf("ClassBuffs returned ok=false for %s", class)
+		}
+		got := map[string]string{} // name -> kind
+		for _, b := range buffs {
+			if b.SelfBuff == nil {
+				continue
+			}
+			got[b.SelfBuff.Name] = b.SelfBuff.Kind
+		}
+		for name, kind := range want {
+			if got[name] != kind {
+				t.Errorf("%s buff %q: kind %q, want %q", class, name, got[name], kind)
+			}
+		}
+		// Regression lock: exactly axe_mastery + crazy_uproar. Axe Mastery is the
+		// only new buff; 537/59 carry-weight are excluded. Must not change unless
+		// an Alchemist/Creator buff is added or removed deliberately.
+		if len(buffs) != 2 {
+			t.Errorf("ClassBuffs(%s) returned %d buffs, want 2", class, len(buffs))
+		}
 	}
 }
