@@ -388,3 +388,29 @@ skills:
   # Verified deltas in docs/superpowers/specs/2026-06-22-alchemist-creator-self-buffs-design.md.
   - aegis_name: AM_AXEMASTERY           # Axe Mastery, rocalc 241, cat 226, max 10; +ATK with axes (readCombatResults().damage.ave, axe-only)
     self_buff: { name: axe_mastery, kind: stat_buff, persistence: permanent }
+
+  # --- Soul Linker self-buffs ---
+  # 16th class (rocalc job id 43, m_JobBuff[43] = [537,340,341,329,338,342,380,372,
+  # 379]). Pure-data: skill_slot only. Expanded class on the TaeKwon branch; it
+  # inherits mild_wind/spurt (already mapped). Kaina (SL_KAINA) is the one
+  # SL-specific buff and the only one scored: it raises maxSp (readDerivedStats().
+  # maxSp / Go Derived.MaxSP), +30/level, a sustain/defense-side stat_buff like
+  # Paladin faith->maxHp. The 4 TaeKwon skills below (Tumbling/Peaceful Break/Happy
+  # Break/Kihop) are SHARED across the TaeKwon branch (m_JobBuff[41]/[42]/[43]), so
+  # these rows also surface for TaeKwon Kid and Star Gladiator (count-locks 7 and 16).
+  # All 4 are inert across the scored field set (broad-field probe) -- bound per
+  # bind-every-control. taekwon_ranker (TK_MISSION) is NOT here: it is TaeKwon-Kid-only
+  # and is removed from the SL/SG trees by usabilityExclusions in cmd/build-catalog.
+  # Excluded: 537 (carry-weight) and 380 (Kihop party-count sub-param). The Soul Link
+  # / Ka / Es skills are NOT in rocalc's bank, so they have no control surface and are
+  # ignored. Verified deltas in docs/superpowers/specs/2026-06-22-soul-linker-self-buffs-design.md.
+  - aegis_name: SL_KAINA                # Kaina, rocalc 372, cat 466, max 7; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
+    self_buff: { name: kaina, kind: stat_buff, persistence: permanent }
+  - aegis_name: TK_DODGE                # Tumbling (Break Fall), rocalc 338, cat 420, max 1; dodge -- wired-but-inert
+    self_buff: { name: tumbling, kind: status, persistence: permanent }
+  - aegis_name: TK_HPTIME               # Peaceful Break, rocalc 340, cat 422, max 10; HP rest -- wired-but-inert
+    self_buff: { name: peaceful_break, kind: status, persistence: permanent }
+  - aegis_name: TK_SPTIME               # Happy Break, rocalc 341, cat 423, max 10; SP rest -- wired-but-inert
+    self_buff: { name: happy_break, kind: status, persistence: permanent }
+  - aegis_name: TK_POWER                # Kihop (Fighting Chant), rocalc 342, cat 424, max 5; party ATK -- wired-but-inert
+    self_buff: { name: kihop, kind: status, persistence: transient }

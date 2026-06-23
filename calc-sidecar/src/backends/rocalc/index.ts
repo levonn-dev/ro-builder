@@ -1442,6 +1442,20 @@ export function createShim(): ShimSession {
     // only; non-axe weapons see no change), and the bonus is combat-sim mastery
     // ATK -- it moves damage.ave, not derived atk.base. See alchemist_buffs.test.ts.
     axe_mastery: [{ driver: "skill_slot", rocalcId: 241, level: "buffLevel" }],
+    // Soul Linker (m_JobBuff[43] = [537,340,341,329,338,342,380,372,379]). Pure-data,
+    // skill_slot only. spurt (329+379) is already bound (inherited TaeKwon). kaina is
+    // SL-specific and scored (+maxSp). The 4 TaeKwon skills (tumbling/peaceful_break/
+    // happy_break/kihop) are shared across the TaeKwon branch (also in m_JobBuff[41]
+    // and [42]) and wired-but-inert per bind-every-control. taekwon_ranker is NOT here
+    // (TaeKwon-Kid-only). Excluded: 537 (carry-weight); 380 (Kihop party-count
+    // sub-param). See soul_linker_buffs.test.ts.
+    kaina: [{ driver: "skill_slot", rocalcId: 372, level: "buffLevel" }],
+    tumbling: [{ driver: "skill_slot", rocalcId: 338, level: "buffLevel" }],
+    peaceful_break: [
+      { driver: "skill_slot", rocalcId: 340, level: "buffLevel" },
+    ],
+    happy_break: [{ driver: "skill_slot", rocalcId: 341, level: "buffLevel" }],
+    kihop: [{ driver: "skill_slot", rocalcId: 342, level: "buffLevel" }],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"

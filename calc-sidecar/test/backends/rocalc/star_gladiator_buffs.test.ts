@@ -4,7 +4,8 @@ import { createShim } from "../../../src/shim.ts";
 
 // Star Gladiator self-buffs ride the rocalc job-buff bank (m_JobBuff[42]); all ten
 // use the skill_slot driver. The SG_ skills tested here are class-exclusive; the 3
-// TK-inherited buffs (mild_wind / spurt / taekwon_ranker) are covered elsewhere.
+// TK-inherited buffs (mild_wind / spurt) are covered elsewhere. taekwon_ranker is
+// TaeKwon-Kid-only and no longer surfaces for Star Gladiator.
 // The build is barehanded -- the authentic SG auto-attack. Buffs are applied
 // BEFORE the enemy is set (production order); union and solar_protection read inert
 // otherwise. The three Wrath skills are enemy size+maxHP gated INSIDE rocalc:
