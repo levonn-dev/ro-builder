@@ -1434,6 +1434,14 @@ export function createShim(): ShimSession {
     throwing_mastery: [
       { driver: "skill_slot", rocalcId: 393, level: "buffLevel" },
     ],
+    // Alchemist / Creator (m_JobBuff[19] == m_JobBuff[33] == [537,59,68,241];
+    // identical, no trans gating). Pure-data, skill_slot only. crazy_uproar (68)
+    // is already bound (inherited Merchant). Excluded: 537 (Enlarge Weight Limit
+    // R, universal carry-weight) and 59 (Enlarge Weight Limit / MC_INCCARRY,
+    // Merchant carry-weight). axe_mastery is axe-gated in rocalc (+ATK with axes
+    // only; non-axe weapons see no change), and the bonus is combat-sim mastery
+    // ATK -- it moves damage.ave, not derived atk.base. See alchemist_buffs.test.ts.
+    axe_mastery: [{ driver: "skill_slot", rocalcId: 241, level: "buffLevel" }],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"

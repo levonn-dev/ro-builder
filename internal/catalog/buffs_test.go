@@ -860,3 +860,42 @@ func TestClassBuffs_Ninja(t *testing.T) {
 		t.Fatalf("ClassBuffs(ninja) returned %d buffs, want 3", len(buffs))
 	}
 }
+
+// Alchemist (base) and Creator (trans) have identical rocalc banks
+// (m_JobBuff[19] == m_JobBuff[33] == [537,59,68,241]), so both expose the same
+// two buffs: axe_mastery (new) + crazy_uproar (inherited via the Merchant tree).
+// 537/59 (carry-weight) are excluded. No trans split -- this asserts both keys.
+func TestClassBuffs_Alchemist(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := map[string]string{
+		"axe_mastery":  "stat_buff",
+		"crazy_uproar": "stat_buff",
+	}
+	for _, class := range []string{"alchemist", "creator"} {
+		buffs, ok := c.ClassBuffs(class)
+		if !ok {
+			t.Fatalf("ClassBuffs returned ok=false for %s", class)
+		}
+		got := map[string]string{} // name -> kind
+		for _, b := range buffs {
+			if b.SelfBuff == nil {
+				continue
+			}
+			got[b.SelfBuff.Name] = b.SelfBuff.Kind
+		}
+		for name, kind := range want {
+			if got[name] != kind {
+				t.Errorf("%s buff %q: kind %q, want %q", class, name, got[name], kind)
+			}
+		}
+		// Regression lock: exactly axe_mastery + crazy_uproar. Axe Mastery is the
+		// only new buff; 537/59 carry-weight are excluded. Must not change unless
+		// an Alchemist/Creator buff is added or removed deliberately.
+		if len(buffs) != 2 {
+			t.Errorf("ClassBuffs(%s) returned %d buffs, want 2", class, len(buffs))
+		}
+	}
+}

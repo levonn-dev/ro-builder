@@ -373,3 +373,18 @@ skills:
     self_buff: { name: ninja_mastery, kind: status, persistence: permanent }
   - aegis_name: NJ_TOBIDOUGU            # Throwing Mastery ("Shuriken Training"), rocalc 393, max 10; throw-skill damage only -- wired-but-inert
     self_buff: { name: throwing_mastery, kind: status, persistence: permanent }
+
+  # --- Alchemist / Creator self-buffs ---
+  # 15th class (rocalc job ids 19 alchemist / 33 creator; m_JobBuff[19] ==
+  # m_JobBuff[33] == [537,59,68,241], identical -> no trans gating, like
+  # Champion=Monk). Pure-data: skill_slot only. Only Axe Mastery is new here;
+  # crazy_uproar (MC_LOUD, rocalc 68) already gates in via the Merchant tree (see
+  # the Whitesmith block) and needs no row -- the catalog test asserts it. Excluded:
+  # 537 (Enlarge Weight Limit R, universal carry-weight) and 59 (Enlarge Weight
+  # Limit / MC_INCCARRY, Merchant carry-weight -- also excluded in Whitesmith's
+  # bank). Axe Mastery is axe-gated in rocalc (+ATK with axes only; non-axe weapons
+  # see no change) and the bonus is combat-sim mastery ATK -- it moves
+  # readCombatResults().damage.ave, not derived atk.base, like Sword Mastery.
+  # Verified deltas in docs/superpowers/specs/2026-06-22-alchemist-creator-self-buffs-design.md.
+  - aegis_name: AM_AXEMASTERY           # Axe Mastery, rocalc 241, cat 226, max 10; +ATK with axes (readCombatResults().damage.ave, axe-only)
+    self_buff: { name: axe_mastery, kind: stat_buff, persistence: permanent }
