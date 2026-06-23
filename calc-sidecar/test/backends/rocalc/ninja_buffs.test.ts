@@ -51,7 +51,10 @@ function aveWith(buffs: Buff[]): number {
 test("ninja_aura raises damage.ave at lv5", () => {
   const base = aveWith([]);
   const got = aveWith([{ name: "ninja_aura", level: 5 }]);
-  assert.ok(got > base, `ninja_aura lv5 should raise damage.ave (${base} -> ${got})`);
+  assert.ok(
+    got > base,
+    `ninja_aura lv5 should raise damage.ave (${base} -> ${got})`,
+  );
 });
 
 test("ninja_aura scales with level (lv1 < lv5)", () => {
@@ -63,13 +66,21 @@ test("ninja_aura scales with level (lv1 < lv5)", () => {
 test("throwing_mastery is wired but inert (even with a Huuma equipped)", () => {
   const base = aveWith([]);
   const got = aveWith([{ name: "throwing_mastery", level: 10 }]);
-  assert.equal(got, base, "throwing_mastery must not move damage.ave (boosts throw skills only)");
+  assert.equal(
+    got,
+    base,
+    "throwing_mastery must not move damage.ave (boosts throw skills only)",
+  );
 });
 
 test("ninja_mastery is wired but inert", () => {
   const base = aveWith([]);
   const got = aveWith([{ name: "ninja_mastery", level: 10 }]);
-  assert.equal(got, base, "ninja_mastery must not move damage.ave (SP recovery only)");
+  assert.equal(
+    got,
+    base,
+    "ninja_mastery must not move damage.ave (SP recovery only)",
+  );
 });
 
 test("reset() clears Ninja buffs (no atk.base leak)", () => {
