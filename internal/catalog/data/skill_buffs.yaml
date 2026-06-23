@@ -354,3 +354,22 @@ skills:
   - aegis_name: SG_SUN_BLESS           # Blessings, rocalc 367, max 5; rocalc collapses the 3 Bless skills to one slot; exp-rate only -- wired-but-inert
     # persistence transient (vs the passive demon/knowledge above): Blessing is a timed self-cast, not an always-on passive. Documentary only -- the scorer does not read persistence.
     self_buff: { name: sls_blessing, kind: status, persistence: transient }
+
+  # --- Ninja self-buffs ---
+  # 14th class (rocalc job id 44, m_JobBuff[44] = [537, 406, 393, 404]). Pure-data:
+  # every buff uses the skill_slot driver. Ninja is an Expanded class -- no rebirth
+  # (no trans-gating) and no shared tree (no inherited buffs), so ClassBuffs[ninja]
+  # is exactly these 3. Excluded: 537 (ALL_INCCARRY weight). Bank rocalc ids diverge
+  # from Aegis ids, so the sidecar bindings carry the rocalc id (see the Ninja block
+  # in index.ts). Only ninja_aura is scored (raises STR/INT -> ATK/MATK ->
+  # damage.ave); ninja_mastery (SP recovery) and throwing_mastery (throw-skill
+  # damage) move no field the auto-attack sim reads, so they are wired-but-inert per
+  # the bind-every-control directive. Cicada Skin Shed / Mirror Image are in rocalc's
+  # m_Skill table but NOT in the bank, so they have no control surface and are ignored.
+  # Verified deltas in docs/superpowers/specs/2026-06-22-ninja-self-buffs-design.md.
+  - aegis_name: NJ_NEN                  # Ninja Aura ("Soul"), rocalc 404, max 5; +STR/INT -> +damage (readCombatResults().damage.ave)
+    self_buff: { name: ninja_aura, kind: stat_buff, persistence: transient }
+  - aegis_name: NJ_NINPOU               # Ninja Mastery ("Spirit of the Blade" / Ninpou Training), rocalc 406, max 10; SP recovery only -- wired-but-inert
+    self_buff: { name: ninja_mastery, kind: status, persistence: permanent }
+  - aegis_name: NJ_TOBIDOUGU            # Throwing Mastery ("Shuriken Training"), rocalc 393, max 10; throw-skill damage only -- wired-but-inert
+    self_buff: { name: throwing_mastery, kind: status, persistence: permanent }

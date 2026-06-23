@@ -1419,6 +1419,21 @@ export function createShim(): ShimSession {
       { driver: "skill_slot", rocalcId: 363, level: "buffLevel" },
     ],
     sls_blessing: [{ driver: "skill_slot", rocalcId: 367, level: "buffLevel" }],
+    // Ninja (m_JobBuff[44] = [537,406,393,404]). Pure-data, skill_slot only.
+    // Expanded class: no trans-gating, no inherited buffs. rocalc ids diverge from
+    // Aegis ids, so each binding carries the rocalc id. Only ninja_aura is scored
+    // (+STR/INT -> +ATK/MATK -> damage.ave); ninja_mastery (SP recovery) and
+    // throwing_mastery (throw-skill damage) move no field the auto-attack sim reads,
+    // so they are wired-but-inert, bound per the bind-every-control directive.
+    // Excluded: 537 (Enlarge Weight Limit). ninja_aura at lv1 rounds away (+1 ATK);
+    // lv5 moves damage.ave (see ninja_buffs.test.ts).
+    ninja_aura: [{ driver: "skill_slot", rocalcId: 404, level: "buffLevel" }],
+    ninja_mastery: [
+      { driver: "skill_slot", rocalcId: 406, level: "buffLevel" },
+    ],
+    throwing_mastery: [
+      { driver: "skill_slot", rocalcId: 393, level: "buffLevel" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"

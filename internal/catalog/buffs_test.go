@@ -823,3 +823,40 @@ func TestClassBuffs_Rogue_ExcludesTransOnly(t *testing.T) {
 		}
 	}
 }
+
+// Ninja is an Expanded class: no rebirth (no trans-gating) and no shared skill
+// tree (no inherited buffs), so ClassBuffs is exactly the 3 NJ_ buffs. Only
+// ninja_aura is scored; ninja_mastery and throwing_mastery are wired-but-inert.
+func TestClassBuffs_Ninja(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("ninja")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for ninja")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"ninja_aura":       "stat_buff",
+		"ninja_mastery":    "status",
+		"throwing_mastery": "status",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	// Regression lock: 3 NJ_ buffs, no inherited (Expanded class). 537
+	// (ALL_INCCARRY) is excluded. This set must not change unless a
+	// Ninja buff is added or removed deliberately.
+	if len(buffs) != 3 {
+		t.Fatalf("ClassBuffs(ninja) returned %d buffs, want 3", len(buffs))
+	}
+}
