@@ -1456,6 +1456,20 @@ export function createShim(): ShimSession {
     ],
     happy_break: [{ driver: "skill_slot", rocalcId: 341, level: "buffLevel" }],
     kihop: [{ driver: "skill_slot", rocalcId: 342, level: "buffLevel" }],
+    // High Wizard (m_JobBuff[25] = [537,45,58,274,276]). Pure-data, skill_slot only.
+    // energy_coat (58) is already bound (inherited Mage). soul_drain + mystical_amplification
+    // are HW-only (trans). increase_sp_recovery (45) is a Mage-tree SP-regen passive,
+    // wired-but-inert (moves no scored field; distinct from soul_drain, which raises
+    // maxSp). rocalc ids diverge from Aegis ids, so the bindings carry the rocalc id.
+    // Excluded: 537 (carry-weight). Quagmire is in rocalc's A8 ailment bank, deferred.
+    // See high_wizard_buffs.test.ts.
+    soul_drain: [{ driver: "skill_slot", rocalcId: 274, level: "buffLevel" }],
+    mystical_amplification: [
+      { driver: "skill_slot", rocalcId: 276, level: "buffLevel" },
+    ],
+    increase_sp_recovery: [
+      { driver: "skill_slot", rocalcId: 45, level: "buffLevel" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"

@@ -135,14 +135,15 @@ func TestClassBuffs_Professor(t *testing.T) {
 		"mind_breaker": "debuff", "spider_web": "debuff",
 		"energy_coat": "status", "study": "stat_buff", "dragonology": "stat_buff",
 		"foresight": "stat_buff", "double_casting": "stat_buff",
+		"increase_sp_recovery": "status",
 	}
 	for name, kind := range want {
 		if got[name] != kind {
 			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
 		}
 	}
-	if len(want) != 14 {
-		t.Fatalf("test expects 14 professor buffs, listed %d", len(want))
+	if len(want) != 15 {
+		t.Fatalf("test expects 15 professor buffs, listed %d", len(want))
 	}
 }
 
@@ -161,7 +162,7 @@ func TestClassBuffs_Sage_ExcludesProfessorOnly(t *testing.T) {
 			have[b.SelfBuff.Name] = true
 		}
 	}
-	for _, name := range []string{"flame_launcher", "volcano", "energy_coat", "study", "dragonology"} {
+	for _, name := range []string{"flame_launcher", "volcano", "energy_coat", "study", "dragonology", "increase_sp_recovery"} {
 		if !have[name] {
 			t.Errorf("sage should have buff %q", name)
 		}
@@ -917,6 +918,73 @@ func TestClassBuffs_SoulLinker(t *testing.T) {
 	// Regression lock: 2 inherited (mild_wind/spurt) + kaina + 4 shared TaeKwon = 7.
 	if len(buffs) != 7 {
 		t.Fatalf("ClassBuffs(soul_linker) returned %d buffs, want 7", len(buffs))
+	}
+}
+
+// High Wizard (Mage -> Wizard -> High Wizard) inherits energy_coat (Mage) and
+// increase_sp_recovery (Mage, wired-but-inert), and adds the two HW-only buffs
+// soul_drain (scored, +maxSp) and mystical_amplification (+derived MATK). The HW_
+// buffs are trans-only -- absent from the Wizard tree (see the Wizard test).
+func TestClassBuffs_HighWizard(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("high_wizard")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for high_wizard")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"energy_coat":            "status",
+		"increase_sp_recovery":   "status",
+		"soul_drain":             "stat_buff",
+		"mystical_amplification": "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	// Regression lock: energy_coat + increase_sp_recovery (inherited Mage) +
+	// soul_drain + mystical_amplification (HW-only) = 4.
+	if len(buffs) != 4 {
+		t.Fatalf("ClassBuffs(high_wizard) returned %d buffs, want 4", len(buffs))
+	}
+}
+
+// Wizard inherits the Mage buffs (energy_coat, increase_sp_recovery) but must NOT
+// have the High Wizard-only soul_drain / mystical_amplification (trans gating).
+func TestClassBuffs_Wizard_ExcludesHighWizardOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("wizard")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for wizard")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	for _, name := range []string{"energy_coat", "increase_sp_recovery"} {
+		if !have[name] {
+			t.Errorf("wizard should have buff %q", name)
+		}
+	}
+	for _, name := range []string{"soul_drain", "mystical_amplification"} {
+		if have[name] {
+			t.Errorf("wizard must NOT have High Wizard-only buff %q", name)
+		}
 	}
 }
 
