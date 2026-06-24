@@ -16,7 +16,7 @@ import (
 // hp_buffs_e2e_test.go). Skipped under -short.
 //
 // The base allocates the anchor skills but declares NO active buffs; allocation alone
-// does not apply a buff (the job bank is keyed by rocalc id, not the Aegis id), so the
+// does not apply a buff (the job bank is keyed by the engine's bank id, not the Aegis id), so the
 // base scores unbuffed.
 func TestIntegration_StalkerBuffs_RaiseScoredStats(t *testing.T) {
 	if testing.Short() {

@@ -427,7 +427,7 @@ components:
         combat: { $ref: "#/components/schemas/CombatResults" }
         calc_version:
           type: string
-          description: engine snapshot stamp (e.g. "rocalc-2026-04-06")
+          description: engine snapshot stamp (backend name + data snapshot date)
 
     # --- /generate request + response ---
 

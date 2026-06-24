@@ -24,7 +24,7 @@ type listClassSkillsTool struct {
 // NewListClassSkills constructs the list_class_skills tool. Source is
 // Hercules's skill_tree.conf (loaded into the catalog at build time,
 // inherits flattened); the player's allocatable skill tree. Different
-// from rocalc's m_JobBuff (which is the calc's stat-effect-skill set
+// from the calc engine's job-buff bank (the calc's stat-effect-skill set
 // and is the wrong list for allocation).
 func NewListClassSkills(cat *catalog.Catalog) Tool {
 	if cat == nil {
@@ -39,7 +39,7 @@ func (t *listClassSkillsTool) Definition() llm.Tool {
 		Description: "Enumerate every skill the given class can allocate, with iRO id, aegis name, display name, max level, and cast/cooldown metadata. " +
 			"Source: Hercules's skill_tree.conf with inherits flattened; Novice's skills appear under every class that inherits from it. " +
 			"Fallback only: the user prompt already injects this class's full allocatable skill list (id, max level, element, attack type, cast/cooldown, prerequisites), so call this tool only when that injected block is absent; it is redundant when the block is present. " +
-			"Note: the calc engine (rocalc) silently drops skills it can't model (e.g. Taekwon kicks). Score numbers fall back to auto-attack-tier in those cases; that's expected behavior, not an error to fix by changing skill choice.",
+			"Note: the calc engine silently drops skills it can't model (e.g. Taekwon kicks). Score numbers fall back to auto-attack-tier in those cases; that's expected behavior, not an error to fix by changing skill choice.",
 		InputSchema: json.RawMessage(listClassSkillsSchema),
 	}
 }

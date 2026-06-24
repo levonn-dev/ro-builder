@@ -10,7 +10,7 @@ const (
 	// Semantic kinds. weapon_endow forces a weapon element (Mild Wind);
 	// stat_buff is a level-select stat state (Spurt, and most class buffs);
 	// status is a permanent character status (Taekwon Ranker). Kind drives
-	// validation + LLM presentation, NOT rocalc wiring (the sidecar binding
+	// validation + LLM presentation, NOT calc-engine wiring (the sidecar binding
 	// table does that).
 	BuffKindWeaponEndow = "weapon_endow"
 	BuffKindStatBuff    = "stat_buff"
@@ -37,8 +37,8 @@ var AllPersistence = []string{PersistencePermanent, PersistenceTransient}
 
 // AllElements is the weapon-element set a weapon_endow buff may name. Order
 // is irrelevant here (the per-buff endow order, which encodes level gating,
-// lives in the overlay's endow.elements list). "neutral" maps to rocalc's
-// "(unchanged)" control value; there is no force-neutral option.
+// lives in the overlay's endow.elements list). "neutral" maps to the calc
+// engine's "(unchanged)" control value; there is no force-neutral option.
 var AllElements = []string{
 	"neutral", "water", "earth", "fire", "wind",
 	"poison", "holy", "shadow", "ghost", "undead",

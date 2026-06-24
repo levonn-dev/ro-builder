@@ -13,7 +13,7 @@ import (
 // sidecar driver, calc) and raise Combat.Damage.Ave: Musical Lesson with an
 // Instrument (Clown + Violin 1901), Dancing Lesson with a Whip (Gypsy + Rope 1950).
 // The base allocates the anchor skill but declares no active buff, so it scores
-// unbuffed (the job bank is keyed by rocalc id, not the Aegis id). Skipped under -short.
+// unbuffed (the job bank is keyed by the engine's bank id, not the Aegis id). Skipped under -short.
 func TestIntegration_ClownGypsyLessons_RaiseScoredOffense(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration: needs running sidecar")

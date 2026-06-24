@@ -1,8 +1,8 @@
 // build-catalog is a run-only refresh tool, not a deployable binary. It
 // reads emulator data and writes a single catalog.json that the runtime
 // API embeds into its binary at compile time. Source is selectable:
-// Hercules (default) or rAthena. Same pattern as build-rocalc-mapping
-// → mapping.json.
+// Hercules (default) or rAthena. Same run-only-refresh pattern as the other
+// one-shot data tools.
 //
 // Invoke via `go run ./cmd/build-catalog` (or `task catalog`); this
 // tool intentionally has no `task build:catalog` target. Running it
@@ -148,7 +148,7 @@ func main() {
 
 	// Layer the hand-authored self-buff overlay onto skill records. Lives at
 	// internal/catalog/data/skill_buffs.yaml; see that file's comment block for
-	// the editing rules and the spec reference.
+	// the editing rules.
 	skillBuffsAbs := resolvePath(repoRoot, skillBuffsPath)
 	skillBuffs, err := loadSkillBuffs(skillBuffsAbs)
 	if err != nil {
@@ -747,7 +747,7 @@ func loadJobMaxLevels(herculesPath, repoRoot string) ([]data.JobMaxLevels, error
 // allocated (inherited) for a class but which the class cannot actually USE. A
 // Soul Linker / Star Gladiator was a TaeKwon Kid, so the flattened tree carries
 // every TK skill, but only a usable subset remains. Taekwon Ranker (TK_MISSION)
-// is TaeKwon-Kid-only (rocalc models it solely in m_JobBuff[41]); without this it
+// is TaeKwon-Kid-only (the calc engine applies it only for TaeKwon Kid); without this it
 // would wrongly surface as a self-buff for both 2nd classes. Keyed by shim-style
 // class name -> set of aegis names to drop.
 var usabilityExclusions = map[string]map[string]bool{

@@ -180,6 +180,14 @@ export interface ShimSession {
    * setSkills/equip and before any read. */
   setBuffs(buffs: Buff[]): void;
 
+  /** The set of self-buff names this backend recognizes (has a binding for),
+   * independent of the active class. The shim-contract parity test uses this to
+   * assert every declarable buff (the Go-side catalog overlay) is bindable,
+   * without reaching into backend internals. Returns null for backends that do
+   * not enforce buff names -- they accept any name, so the parity check is
+   * vacuous for them (e.g. the stub). */
+  supportedBuffs(): readonly string[] | null;
+
   /** Set the combat-sim target. mobId is engine-specific (rocalc currently
    * uses its m_Monster index; a mob iRO mapping pass will let this take iRO
    * mob ids the same way equip does for items). */

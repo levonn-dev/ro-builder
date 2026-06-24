@@ -7,11 +7,11 @@ import (
 )
 
 // TestBuffs_E2E proves that ScoreRequest.Buffs flows through the Go client into
-// the rocalc sidecar over HTTP and produces buffed numbers. A Taekwon Kid
+// the calc sidecar over HTTP and produces buffed numbers. A Taekwon Kid
 // scored WITH taekwon_ranker active must have >= 2.5x the maxHp of the same
 // build scored WITHOUT it (ranker grants 3x HP; 2.5x is a safe floor).
 //
-// This is an integration test: it spawns a real rocalc sidecar subprocess and
+// This is an integration test: it spawns a real calc sidecar subprocess and
 // hits it over HTTP. It is skipped under -short.
 func TestBuffs_E2E(t *testing.T) {
 	if testing.Short() {

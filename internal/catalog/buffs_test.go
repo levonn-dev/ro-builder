@@ -39,11 +39,10 @@ func TestClassBuffs_Taekwon(t *testing.T) {
 
 // TestMildWindOrder pins the element unlock order for Mild Wind (TK_SEVENWIND)
 // read from the catalog. This is the SOURCE OF TRUTH for the unlock sequence;
-// the sidecar's MILD_WIND_ORDER const in
-// calc-sidecar/src/backends/rocalc/index.ts is a defense-in-depth mirror of
-// exactly this list. If either diverges, the behavioral tests in
-// calc-sidecar/test/backends/rocalc/buffs.test.ts (sidecar side) or this test
-// (catalog side) will fail. Changing this order is a coordinated two-file edit.
+// the sidecar's MILD_WIND_ORDER const (in the active calc backend) mirrors
+// this list as defense-in-depth. If either diverges, the sidecar-side
+// behavioral tests or this test (catalog side) will fail. Changing this
+// order is a coordinated two-file edit.
 func TestMildWindOrder(t *testing.T) {
 	c, err := Load()
 	if err != nil {
@@ -69,7 +68,7 @@ func TestMildWindOrder(t *testing.T) {
 
 	// Canonical order: index (1-based) == required Mild Wind level.
 	// earth=1, wind=2, water=3, fire=4, ghost=5, shadow=6, holy=7.
-	// Mirrors MILD_WIND_ORDER in calc-sidecar/src/backends/rocalc/index.ts.
+	// Mirrors MILD_WIND_ORDER in the active calc backend.
 	want := []string{"earth", "wind", "water", "fire", "ghost", "shadow", "holy"}
 	got := mildWind.SelfBuff.Endow.Elements
 	if len(got) != len(want) {
@@ -488,7 +487,7 @@ func TestClassBuffs_Champion(t *testing.T) {
 	}
 }
 
-// Monk and Champion share an identical rocalc job-buff bank, so Monk surfaces the
+// Monk and Champion share an identical calc-engine job-buff bank, so Monk surfaces the
 // same 8 buffs (no trans-only gating). Pins that these buffs are not Champion-gated.
 func TestClassBuffs_Monk(t *testing.T) {
 	c, err := Load()
@@ -558,7 +557,7 @@ func TestClassBuffs_Paladin(t *testing.T) {
 	}
 }
 
-// Crusader and Paladin share an identical rocalc job-buff bank, so Crusader
+// Crusader and Paladin share an identical calc-engine job-buff bank, so Crusader
 // surfaces the same 11 buffs (no trans-only gating). Pins that the two new CR_
 // buffs are not Paladin-gated.
 func TestClassBuffs_Crusader(t *testing.T) {
@@ -657,8 +656,9 @@ func TestClassBuffs_Gunslinger(t *testing.T) {
 			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
 		}
 	}
-	// Regression lock: Gunslinger's bank is exactly these 8 (m_JobBuff[45] minus 537
-	// ALL_INCCARRY). It is an Expanded class with no trans split and no inherited
+	// Regression lock: Gunslinger's bank is exactly these 8 (the calc engine's
+	// job-buff bank, minus the ALL_INCCARRY carry-weight entry). It is an Expanded
+	// class with no trans split and no inherited
 	// buffs, so this set must not change unless a GS skill is added or removed
 	// deliberately.
 	if len(buffs) != 8 {
@@ -880,7 +880,7 @@ func TestClassBuffs_Ninja(t *testing.T) {
 // SL-specific kaina (the only scored SL buff, +maxSp), and shares the 4 inert
 // TaeKwon skills (tumbling/peaceful_break/happy_break/kihop) with TK and SG.
 // taekwon_ranker is TaeKwon-Kid-only (usability exclusion in cmd/build-catalog),
-// so it must NOT surface here. The Soul Link / Ka / Es skills are not in rocalc's bank.
+// so it must NOT surface here. The Soul Link / Ka / Es skills are not in the calc engine's bank.
 func TestClassBuffs_SoulLinker(t *testing.T) {
 	c, err := Load()
 	if err != nil {
@@ -988,8 +988,8 @@ func TestClassBuffs_Wizard_ExcludesHighWizardOnly(t *testing.T) {
 	}
 }
 
-// Alchemist (base) and Creator (trans) have identical rocalc banks
-// (m_JobBuff[19] == m_JobBuff[33] == [537,59,68,241]), so both expose the same
+// Alchemist (base) and Creator (trans) have identical calc-engine banks
+// (the base and trans banks are byte-identical), so both expose the same
 // two buffs: axe_mastery (new) + crazy_uproar (inherited via the Merchant tree).
 // 537/59 (carry-weight) are excluded. No trans split -- this asserts both keys.
 func TestClassBuffs_Alchemist(t *testing.T) {
@@ -1028,7 +1028,7 @@ func TestClassBuffs_Alchemist(t *testing.T) {
 }
 
 // Super Novice (Expanded) inherits 16 first-class buffs across all six trees.
-// All 16 gate (catalog tree) and drive (rocalc m_JobBuff[20] / class-generic
+// All 16 gate (catalog tree) and drive (the calc engine's job-buff bank / class-generic
 // support+debuf banks). no_death_bonus is NOT here -- it is an innate buff (see
 // TestClassInnateBuffs_SuperNovice).
 func TestClassBuffs_SuperNovice(t *testing.T) {

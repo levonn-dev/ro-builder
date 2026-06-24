@@ -6,12 +6,12 @@ import (
 )
 
 // Mob is one row of Hercules's mob_db.conf, decoded into a typed struct.
-// Field set covers identity + the combat stats rocalc's calc needs to
+// Field set covers identity + the combat stats the calc engine needs to
 // score a build against this enemy: HP, Attack range, Def / Mdef, Race,
 // Element (with level), Size. These also back the inline-stats path;
-// when a server profile carries a custom mob the rocalc snapshot doesn't
+// when a server profile carries a custom mob the calc snapshot doesn't
 // know about, the orchestrator passes the same fields directly to the
-// shim, bypassing the m_Monster lookup.
+// shim, bypassing the mob lookup.
 //
 // Hercules's mob_db has many more fields (Stats sub-object, Drops, MvP
 // drops, AI mode flags, attack delay). They're parsed by ParseFile but
@@ -26,7 +26,7 @@ type Mob struct {
 	Hp         int    `json:"hp,omitempty" yaml:"hp,omitempty"`
 
 	// Combat stats. AtkMin / AtkMax mirror Hercules's `Attack: [min, max]`
-	// pair; rocalc treats mob attack as a range; both values matter.
+	// pair; the calc engine treats mob attack as a range; both values matter.
 	AtkMin    int    `json:"atk_min,omitempty" yaml:"atk_min,omitempty"`
 	AtkMax    int    `json:"atk_max,omitempty" yaml:"atk_max,omitempty"`
 	Def       int    `json:"def,omitempty" yaml:"def,omitempty"`

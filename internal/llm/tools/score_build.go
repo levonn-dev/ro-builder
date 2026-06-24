@@ -55,7 +55,7 @@ const buildObjectSchema = `{
             "type": "object",
             "required": ["id", "level"],
             "properties": {
-              "id": {"type": "integer", "description": "iRO skill id (Gravity-canonical; same in iRO/Hercules/rAthena/rocalc)."},
+              "id": {"type": "integer", "description": "iRO skill id (Gravity-canonical; same in iRO/Hercules/rAthena)."},
               "level": {"type": "integer", "description": "Skill level, 1..max (max from list_class_skills)."}
             }
           }
@@ -209,8 +209,8 @@ var errBuildInvalid = errors.New("invalid build")
 // scored identically whichever tool the model reaches for.
 //
 // The active server profile, if present, swaps custom-mob targets into the
-// inline-stats path so the calc shim doesn't look them up in rocalc's
-// m_Monster table; nil profile means no overlay. ToScoreRequest can't see
+// inline-stats path so the calc shim doesn't look them up in its own
+// mob table; nil profile means no overlay. ToScoreRequest can't see
 // scoreBuildBuild.Skills (domain.Build has no Skills field), so skills are
 // set on the request explicitly after conversion.
 //

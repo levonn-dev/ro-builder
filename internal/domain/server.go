@@ -72,7 +72,7 @@ type ServerProfile struct {
 	//
 	// Inline-stats scoring path: when score_build / canonical scoring see
 	// an enemy ID that's in this list, the orchestrator passes the full
-	// stats blob to the calc shim (bypassing rocalc's m_Monster lookup,
+	// stats blob to the calc shim (bypassing the shim's mob lookup,
 	// which doesn't know about server-custom mobs).
 	CustomMobs []data.Mob `yaml:"custom_mobs,omitempty" json:"custom_mobs,omitempty"`
 
@@ -250,7 +250,7 @@ type Rates struct {
 
 // Caps holds level / stat / mechanic limits relevant to build construction.
 // Zero is treated as "not specified"; the renderer only emits non-zero
-// fields. ASPD is float because rocalc reports fractional values.
+// fields. ASPD is float because the calc engine reports fractional values.
 type Caps struct {
 	MaxBaseLevel    int     `yaml:"max_base_level,omitempty" json:"max_base_level,omitempty"`
 	MaxJobLevel     int     `yaml:"max_job_level,omitempty" json:"max_job_level,omitempty"`
@@ -264,7 +264,7 @@ type Caps struct {
 
 // ClassChange is a flat list of rule strings for one class. Class is the
 // shim's class-name key (e.g. "taekwon_kid"), so the orchestrator and the
-// CLASS_TO_ROCALC_ID table agree on identifiers.
+// shim's class-id table agree on identifiers.
 type ClassChange struct {
 	Class   string   `yaml:"class" json:"class"`
 	Summary string   `yaml:"summary,omitempty" json:"summary,omitempty"`
@@ -297,7 +297,7 @@ type ItemChange struct {
 // GearGrant captures a server-specific equip-restriction relaxation: a set
 // of classes that gain access to a list of items they otherwise couldn't
 // wear. UARO's "Extended classes can equip Trans-only gear" is the
-// motivating case. Class keys should match the shim's CLASS_TO_ROCALC_ID
+// motivating case. Class keys should match the shim's class-id
 // names so the renderer can filter by the request's class.
 type GearGrant struct {
 	Classes     []string `yaml:"classes" json:"classes"`
@@ -324,7 +324,7 @@ type Ruleset struct {
 // CustomMob returns the overlay entry for an iRO mob id, or nil if the
 // server doesn't define or re-stat this mob. Used by the orchestrator's
 // inline-stats path to detect "this enemy id needs an inline blob, not a
-// rocalc m_Monster lookup", and by the lookup_monster tool to prefer
+// calc-engine mob lookup", and by the lookup_monster tool to prefer
 // the overlay before falling through to the base catalog.
 func (p *ServerProfile) CustomMob(iroID int) *Mob {
 	for i := range p.CustomMobs {
@@ -363,7 +363,7 @@ type Mob = data.Mob
 // mob id under the active profile. If the profile defines mobID as a
 // custom mob (server overlay), returns inline stats with no enemy id
 // (the calc shim's setEnemyInline path). Otherwise returns the bare iRO
-// id for the rocalc m_Monster lookup. Returns (nil, nil) when mobID is
+// id for the calc-engine mob lookup. Returns (nil, nil) when mobID is
 // 0; no scenario target.
 //
 // Both return values mirror the mutually-exclusive shape of

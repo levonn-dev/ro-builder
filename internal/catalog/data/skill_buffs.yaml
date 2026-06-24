@@ -1,7 +1,7 @@
 # Hand-authored self-buff metadata. Merged onto skill records (by aegis_name)
 # at catalog build time by cmd/build-catalog. Co-located with the skill the
-# buff comes from. Semantic only: no rocalc ids (the sidecar binding maps
-# name -> engine controls). See docs/superpowers/specs/2026-06-01-rocalc-self-buffs-design.md.
+# buff comes from. Semantic only: no calc-engine ids (the sidecar binding maps
+# name -> engine controls).
 #
 # kind: weapon_endow | stat_buff | status | debuff | land   (data.AllBuffKinds)
 # persistence: permanent | transient        (data.AllPersistence)
@@ -16,22 +16,16 @@ skills:
       endow:
         # This list is the SOURCE OF TRUTH for Mild Wind's element unlock order.
         # Index (1-based) == required skill level: earth=1, wind=2, ..., holy=7.
-        # The calc sidecar's MILD_WIND_ORDER const in
-        # calc-sidecar/src/backends/rocalc/index.ts mirrors this order
+        # The calc sidecar's MILD_WIND_ORDER const in the active backend's
+        # index.ts mirrors this order
         # (defense-in-depth; the sidecar cannot read the catalog).
         # Keep the two in sync: any reorder here must be reflected there,
         # and TestMildWindOrder in internal/catalog/buffs_test.go pins this list.
         elements: [earth, wind, water, fire, ghost, shadow, holy]
   - aegis_name: TK_RUN                 # Sprint, id 411 (Spurt status: +STR/ATK, 150s)
-    self_buff:
-      name: spurt
-      kind: stat_buff
-      persistence: transient
+    self_buff: { name: spurt, kind: stat_buff, persistence: transient }
   - aegis_name: TK_MISSION             # Taekwon Mission, id 493 -- ranker anchor
-    self_buff:
-      name: taekwon_ranker
-      kind: status
-      persistence: permanent
+    self_buff: { name: taekwon_ranker, kind: status, persistence: permanent }
 
   # --- High Priest (and inherited Acolyte/Priest) self-buffs ---
   # Player support buffs -> sidecar support_slot driver (A2_Skill* bank).
@@ -68,28 +62,28 @@ skills:
   # --- Scholar (Professor / Sage) self-buffs ---
   # Elemental weapon endows -> existing weapon_endow driver (A_Weapon_element).
   # Single-element each (like Aspersio); resolveBuffs forces the matching element.
-  - aegis_name: SA_FLAMELAUNCHER       # Flame Launcher (Endow Blaze), rocalc 280, max 5
+  - aegis_name: SA_FLAMELAUNCHER       # Flame Launcher (Endow Blaze), max 5
     self_buff:
       name: flame_launcher
       kind: weapon_endow
       persistence: transient
       endow:
         elements: [fire]
-  - aegis_name: SA_FROSTWEAPON         # Frost Weapon (Endow Tsunami), rocalc 281, max 5
+  - aegis_name: SA_FROSTWEAPON         # Frost Weapon (Endow Tsunami), max 5
     self_buff:
       name: frost_weapon
       kind: weapon_endow
       persistence: transient
       endow:
         elements: [water]
-  - aegis_name: SA_LIGHTNINGLOADER     # Lightning Loader (Endow Tornado), rocalc 282, max 5
+  - aegis_name: SA_LIGHTNINGLOADER     # Lightning Loader (Endow Tornado), max 5
     self_buff:
       name: lightning_loader
       kind: weapon_endow
       persistence: transient
       endow:
         elements: [wind]
-  - aegis_name: SA_SEISMICWEAPON       # Seismic Weapon (Endow Quake), rocalc 283, max 5
+  - aegis_name: SA_SEISMICWEAPON       # Seismic Weapon (Endow Quake), max 5
     self_buff:
       name: seismic_weapon
       kind: weapon_endow
@@ -109,324 +103,319 @@ skills:
     self_buff: { name: mind_breaker, kind: debuff, persistence: transient }
   - aegis_name: PF_SPIDERWEB           # Spider Web (Fiber Lock), max 1; B_debuf17 checkbox; +fire dmg, flee down
     self_buff: { name: spider_web, kind: debuff, persistence: transient }
-  # A_skill passives / self-cast -> existing skill_slot driver (rocalc ids; allocation
-  # alone drops them due to iRO<->rocalc id divergence).
-  - aegis_name: MG_ENERGYCOAT          # Energy Coat, rocalc 58, max 1; cuts incoming physical
+  # A_skill passives / self-cast -> existing skill_slot driver (the engine's bank
+  # ids diverge from Aegis ids; allocation alone drops them).
+  - aegis_name: MG_ENERGYCOAT          # Energy Coat, max 1; cuts incoming physical
     self_buff: { name: energy_coat, kind: status, persistence: transient }
-  - aegis_name: SA_ADVANCEDBOOK        # Study (Advanced Book), rocalc 224, max 10; +HIT/+ASPD with a book
+  - aegis_name: SA_ADVANCEDBOOK        # Study (Advanced Book), max 10; +HIT/+ASPD with a book
     self_buff: { name: study, kind: stat_buff, persistence: permanent }
-  - aegis_name: SA_DRAGONOLOGY         # Dragonology, rocalc 234, max 5; +MATK (derived-only in the auto-attack sim)
+  - aegis_name: SA_DRAGONOLOGY         # Dragonology, max 5; +MATK (derived-only in the auto-attack sim)
     self_buff: { name: dragonology, kind: stat_buff, persistence: permanent }
-  - aegis_name: PF_MEMORIZE            # Foresight (Memorize), rocalc 322, max 1; cast-time (not yet scored)
+  - aegis_name: PF_MEMORIZE            # Foresight (Memorize), max 1; cast-time (not yet scored)
     self_buff: { name: foresight, kind: stat_buff, persistence: transient }
-  - aegis_name: PF_DOUBLECASTING       # Double Casting, rocalc 441, max 5; bolt double (not yet scored)
+  - aegis_name: PF_DOUBLECASTING       # Double Casting, max 5; bolt double (not yet scored)
     self_buff: { name: double_casting, kind: stat_buff, persistence: transient }
 
   # --- Assassin Cross (and inherited Thief / Assassin) self-buffs ---
   # All driven via existing seams: weapon_endow (Enchant Poison) and skill_slot
-  # (everything else). rocalc ids diverge from Aegis ids, so allocation alone
-  # drops these passives -- the skill_slot bindings carry the rocalc id.
-  - aegis_name: ASC_EDP                # Enchant Deadly Poison, rocalc 266, max 5; big ATK multiplier (no element change in pre-renewal)
+  # (everything else). The engine's bank ids diverge from Aegis ids, so allocation
+  # alone drops these passives -- the skill_slot bindings carry the engine's bank id.
+  - aegis_name: ASC_EDP                # Enchant Deadly Poison, max 5; big ATK multiplier (no element change in pre-renewal)
     self_buff: { name: enchant_deadly_poison, kind: stat_buff, persistence: transient }
-  - aegis_name: AS_ENCHANTPOISON       # Enchant Poison, rocalc 85, max 10 -> poison weapon endow
+  - aegis_name: AS_ENCHANTPOISON       # Enchant Poison, max 10 -> poison weapon endow
     self_buff:
       name: enchant_poison
       kind: weapon_endow
       persistence: transient
       endow:
         elements: [poison]
-  - aegis_name: ASC_KATAR              # Advanced Katar Mastery, rocalc 262, max 5
+  - aegis_name: ASC_KATAR              # Advanced Katar Mastery, max 5
     self_buff: { name: advanced_katar_mastery, kind: stat_buff, persistence: permanent }
-  - aegis_name: AS_KATAR               # Katar Mastery, rocalc 81, max 10
+  - aegis_name: AS_KATAR               # Katar Mastery, max 10
     self_buff: { name: katar_mastery, kind: stat_buff, persistence: permanent }
-  - aegis_name: AS_RIGHT               # Right-Hand Mastery, rocalc 79, max 5
+  - aegis_name: AS_RIGHT               # Right-Hand Mastery, max 5
     self_buff: { name: right_hand_mastery, kind: stat_buff, persistence: permanent }
-  - aegis_name: AS_LEFT                # Left-Hand Mastery, rocalc 80, max 5
+  - aegis_name: AS_LEFT                # Left-Hand Mastery, max 5
     self_buff: { name: left_hand_mastery, kind: stat_buff, persistence: permanent }
-  - aegis_name: TF_DOUBLE              # Double Attack, rocalc 13, max 10
+  - aegis_name: TF_DOUBLE              # Double Attack, max 10
     self_buff: { name: double_attack, kind: stat_buff, persistence: permanent }
-  - aegis_name: TF_MISS                # Improve Dodge, rocalc 14, max 10
+  - aegis_name: TF_MISS                # Improve Dodge, max 10
     self_buff: { name: improve_dodge, kind: stat_buff, persistence: permanent }
-  - aegis_name: AS_SONICACCEL          # Sonic Acceleration, rocalc 381, max 1; enhances Sonic Blow only -- NOT scored in the auto-attack sim
+  - aegis_name: AS_SONICACCEL          # Sonic Acceleration, max 1; enhances Sonic Blow only -- NOT scored in the auto-attack sim
     self_buff: { name: sonic_acceleration, kind: status, persistence: permanent }
 
   # --- Sniper (and inherited Archer / Hunter) self-buffs ---
-  # All driven via the existing skill_slot seam (m_JobBuff A_skill bank). rocalc
-  # ids diverge from Aegis ids, so allocation alone drops these -- the bindings
-  # carry the rocalc id. Owl's / Vulture's scale +1/level (up to +10).
-  - aegis_name: AC_OWL                 # Owl's Eye, rocalc 38, max 10; DEX +1/level (up to +10)
+  # All driven via the existing skill_slot seam (the calc engine's job-buff bank).
+  # The engine's bank ids diverge from Aegis ids, so allocation alone drops these --
+  # the bindings carry the engine's bank id. Owl's / Vulture's scale +1/level (up to +10).
+  - aegis_name: AC_OWL                 # Owl's Eye, max 10; DEX +1/level (up to +10)
     self_buff: { name: owls_eye, kind: stat_buff, persistence: permanent }
-  - aegis_name: AC_VULTURE             # Vulture's Eye, rocalc 39, max 10; HIT +1/level (up to +10) + bow range
+  - aegis_name: AC_VULTURE             # Vulture's Eye, max 10; HIT +1/level (up to +10) + bow range
     self_buff: { name: vultures_eye, kind: stat_buff, persistence: permanent }
-  - aegis_name: AC_CONCENTRATION       # Improve Concentration, rocalc 42, max 10; AGI & DEX % steroid
+  - aegis_name: AC_CONCENTRATION       # Improve Concentration, max 10; AGI & DEX % steroid
     self_buff: { name: improve_concentration, kind: stat_buff, persistence: transient }
-  - aegis_name: HT_BEASTBANE           # Beast Bane, rocalc 116, max 10; +ATK vs Brute/Insect race only
+  - aegis_name: HT_BEASTBANE           # Beast Bane, max 10; +ATK vs Brute/Insect race only
     self_buff: { name: beast_bane, kind: stat_buff, persistence: permanent }
-  - aegis_name: HT_STEELCROW           # Steel Crow, rocalc 119, max 10; +Blitz Beat damage -- auto-attack sim does not score Blitz Beat, so not reflected yet
+  - aegis_name: HT_STEELCROW           # Steel Crow, max 10; +Blitz Beat damage -- auto-attack sim does not score Blitz Beat, so not reflected yet
     self_buff: { name: steel_crow, kind: status, persistence: permanent }
-  - aegis_name: SN_SIGHT               # True Sight (catalog "Falcon Eyes"), rocalc 270, max 10; trans-only; all stats +5, +ATK/HIT/CRIT
+  - aegis_name: SN_SIGHT               # True Sight (catalog "Falcon Eyes"), max 10; trans-only; all stats +5, +ATK/HIT/CRIT
     self_buff: { name: true_sight, kind: stat_buff, persistence: transient }
-  - aegis_name: SN_WINDWALK            # Wind Walk (catalog "Wind Walker"), rocalc 273, max 10; trans-only; +flee, +move speed
+  - aegis_name: SN_WINDWALK            # Wind Walk (catalog "Wind Walker"), max 10; trans-only; +flee, +move speed
     self_buff: { name: wind_walk, kind: stat_buff, persistence: transient }
 
   # --- Whitesmith (and inherited Merchant / Blacksmith) self-buffs ---
-  # Nine ride the existing skill_slot seam (m_JobBuff A_skill bank); rocalc ids
-  # diverge from Aegis ids, so the bindings carry the rocalc id. Weapon
-  # Perfection is not in the job bank -- rocalc models it as a supportive buff,
-  # so it rides support_slot (A2_Skill7 checkbox). rocalc deliberately omits
-  # Weapon Perfection from m_JobBuff[26] (skips its id 153).
-  - aegis_name: BS_OVERTHRUST          # Over Thrust ("Power-Thrust"), rocalc 154, max 5; +%ATK
+  # Nine ride the existing skill_slot seam (the calc engine's job-buff bank); the
+  # engine's bank ids diverge from Aegis ids, so the bindings carry the engine's bank
+  # id. Weapon Perfection is not in the job bank -- the calc engine models it as a
+  # supportive buff, so it rides support_slot (A2_Skill7 checkbox). The calc engine
+  # deliberately omits Weapon Perfection from the job-buff bank (skips its id 153).
+  - aegis_name: BS_OVERTHRUST          # Over Thrust ("Power-Thrust"), max 5; +%ATK
     self_buff: { name: over_thrust, kind: stat_buff, persistence: transient }
-  - aegis_name: WS_OVERTHRUSTMAX       # Maximum Over Thrust (catalog "Maximum Power Thrust"), rocalc 327, max 5; Whitesmith-only; bigger +%ATK
+  - aegis_name: WS_OVERTHRUSTMAX       # Maximum Over Thrust (catalog "Maximum Power Thrust"), max 5; Whitesmith-only; bigger +%ATK
     self_buff: { name: maximum_over_thrust, kind: stat_buff, persistence: transient }
-  - aegis_name: BS_MAXIMIZE            # Maximize Power, rocalc 155, max 5; weapon damage always max roll
+  - aegis_name: BS_MAXIMIZE            # Maximize Power, max 5; weapon damage always max roll
     self_buff: { name: maximize_power, kind: stat_buff, persistence: transient }
-  - aegis_name: BS_ADRENALINE          # Adrenaline Rush, rocalc 152, max 5; +ASPD/+HIT for Axe & Mace
+  - aegis_name: BS_ADRENALINE          # Adrenaline Rush, max 5; +ASPD/+HIT for Axe & Mace
     self_buff: { name: adrenaline_rush, kind: stat_buff, persistence: transient }
-  - aegis_name: BS_ADRENALINE2         # Advanced Adrenaline Rush, rocalc 389, max 1; +ASPD for all weapons
+  - aegis_name: BS_ADRENALINE2         # Advanced Adrenaline Rush, max 1; +ASPD for all weapons
     self_buff: { name: advanced_adrenaline_rush, kind: stat_buff, persistence: transient }
-  - aegis_name: BS_WEAPONRESEARCH      # Weaponry Research, rocalc 148, max 10; +2 ATK & +2 HIT per level
+  - aegis_name: BS_WEAPONRESEARCH      # Weaponry Research, max 10; +2 ATK & +2 HIT per level
     self_buff: { name: weaponry_research, kind: stat_buff, persistence: permanent }
-  - aegis_name: MC_LOUD                # Crazy Uproar, rocalc 68, max 1; +5 STR (note: catalog id 155 != rocalc id 155 = Maximize)
+  - aegis_name: MC_LOUD                # Crazy Uproar, max 1; +5 STR
     self_buff: { name: crazy_uproar, kind: stat_buff, persistence: transient }
-  - aegis_name: BS_HILTBINDING         # Hilt Binding, rocalc 146, max 1; +1 ATK passive
+  - aegis_name: BS_HILTBINDING         # Hilt Binding, max 1; +1 ATK passive
     self_buff: { name: hilt_binding, kind: stat_buff, persistence: permanent }
-  - aegis_name: BS_SKINTEMPER          # Skin Tempering, rocalc 150, max 5; fire/neutral resist -- defensive, not scored by the auto-attack sim
+  - aegis_name: BS_SKINTEMPER          # Skin Tempering, max 5; fire/neutral resist -- defensive, not scored by the auto-attack sim
     self_buff: { name: skin_tempering, kind: status, persistence: permanent }
   - aegis_name: BS_WEAPONPERFECT       # Weapon Perfection, support bank A2_Skill7 checkbox, max 5; ignore weapon size penalty
     self_buff: { name: weapon_perfection, kind: stat_buff, persistence: transient }
 
   # --- Lord Knight (and inherited Swordman / Knight) self-buffs ---
-  # All 13 live in the rocalc job-buff bank (m_JobBuff[21]) and ride the
-  # skill_slot seam; rocalc ids diverge from Aegis ids, so the bindings carry the
-  # rocalc id. The four LK_ skills (Aura Blade, Concentration, Berserk, Parrying)
-  # are trans-only; the SM_/KN_ skills are inherited down the Swordman/Knight
-  # line. 537 (ALL_INCCARRY, universal carry-weight) is left unbound -- see the
-  # comment on the Lord Knight block in index.ts.
-  - aegis_name: SM_SWORD               # Sword Mastery, rocalc 3, max 10; +ATK with 1H swords
+  # All 13 live in the calc engine's job-buff bank and ride the
+  # skill_slot seam; the engine's bank ids diverge from Aegis ids, so the bindings
+  # carry the engine's bank id. The four LK_ skills (Aura Blade, Concentration,
+  # Berserk, Parrying) are trans-only; the SM_/KN_ skills are inherited down the
+  # Swordman/Knight line. ALL_INCCARRY (universal carry-weight) is left unbound --
+  # see the comment on the Lord Knight block in index.ts.
+  - aegis_name: SM_SWORD               # Sword Mastery, max 10; +ATK with 1H swords
     self_buff: { name: sword_mastery, kind: stat_buff, persistence: permanent }
-  - aegis_name: SM_TWOHAND             # Two-Handed Sword Mastery, rocalc 4, max 10; +ATK with 2H swords
+  - aegis_name: SM_TWOHAND             # Two-Handed Sword Mastery, max 10; +ATK with 2H swords
     self_buff: { name: two_handed_sword_mastery, kind: stat_buff, persistence: permanent }
-  - aegis_name: KN_SPEARMASTERY        # Spear Mastery, rocalc 69, max 10; +ATK with spears
+  - aegis_name: KN_SPEARMASTERY        # Spear Mastery, max 10; +ATK with spears
     self_buff: { name: spear_mastery, kind: stat_buff, persistence: permanent }
-  - aegis_name: KN_TWOHANDQUICKEN      # Twohand Quicken, rocalc 74, max 10; +ASPD with 2H swords
+  - aegis_name: KN_TWOHANDQUICKEN      # Twohand Quicken, max 10; +ASPD with 2H swords
     self_buff: { name: twohand_quicken, kind: stat_buff, persistence: transient }
-  - aegis_name: KN_ONEHAND             # Onehand Quicken, rocalc 386, max 1; +ASPD with 1H swords (Soul Link)
+  - aegis_name: KN_ONEHAND             # Onehand Quicken, max 1; +ASPD with 1H swords (Soul Link)
     self_buff: { name: onehand_quicken, kind: stat_buff, persistence: transient }
-  - aegis_name: LK_AURABLADE           # Aura Blade, rocalc 254, max 5; trans-only; +fixed added damage
+  - aegis_name: LK_AURABLADE           # Aura Blade, max 5; trans-only; +fixed added damage
     self_buff: { name: aura_blade, kind: stat_buff, persistence: transient }
-  - aegis_name: LK_CONCENTRATION       # Concentration (Spear Dynamo), rocalc 256, max 5; trans-only; +ATK/+HIT, -DEF/-flee
+  - aegis_name: LK_CONCENTRATION       # Concentration (Spear Dynamo), max 5; trans-only; +ATK/+HIT, -DEF/-flee
     self_buff: { name: concentration, kind: stat_buff, persistence: transient }
-  - aegis_name: LK_BERSERK             # Berserk (catalog "Frenzy"), rocalc 258, max 1; trans-only; +ATK/+ASPD, DEF->0
+  - aegis_name: LK_BERSERK             # Berserk (catalog "Frenzy"), max 1; trans-only; +ATK/+ASPD, DEF->0
     self_buff: { name: berserk, kind: stat_buff, persistence: transient }
-  - aegis_name: SM_AUTOBERSERK         # Auto Berserk, rocalc 12, max 1; rocalc applies a Provoke-like ATK boost + enemy DEF reduction through the combat sim
+  - aegis_name: SM_AUTOBERSERK         # Auto Berserk, max 1; the calc engine applies a Provoke-like ATK boost + enemy DEF reduction through the combat sim
     self_buff: { name: auto_berserk, kind: stat_buff, persistence: permanent }
-  - aegis_name: SM_ENDURE              # Endure, rocalc 9, max 10; knockback resist / +MDEF -- defensive, not scored by the auto-attack sim
+  - aegis_name: SM_ENDURE              # Endure, max 10; knockback resist / +MDEF -- defensive, not scored by the auto-attack sim
     self_buff: { name: endure, kind: status, persistence: transient }
-  - aegis_name: SM_RECOVERY            # Increase HP Recovery, rocalc 5, max 10; HP regen -- sustain, not scored by the auto-attack sim
+  - aegis_name: SM_RECOVERY            # Increase HP Recovery, max 10; HP regen -- sustain, not scored by the auto-attack sim
     self_buff: { name: increase_hp_recovery, kind: status, persistence: permanent }
-  - aegis_name: KN_CAVALIERMASTERY     # Cavalier Mastery, rocalc 78, max 5; mounted ASPD-penalty reduction -- inert unmounted
+  - aegis_name: KN_CAVALIERMASTERY     # Cavalier Mastery, max 5; mounted ASPD-penalty reduction -- inert unmounted
     self_buff: { name: cavalier_mastery, kind: status, persistence: permanent }
-  - aegis_name: LK_PARRYING            # Parrying, rocalc 255, max 10; trans-only; frontal physical block -- defensive
+  - aegis_name: LK_PARRYING            # Parrying, max 10; trans-only; frontal physical block -- defensive
     self_buff: { name: parrying, kind: status, persistence: transient }
 
   # --- Champion (and inherited Monk / Acolyte) self-buffs ---
-  # All 8 live in the rocalc job-buff bank (m_JobBuff[29], identical to Monk's
-  # [15] -- no trans gating), driven via the skill_slot seam; rocalc ids diverge
-  # from Aegis ids, so the bindings carry the rocalc id. AL_DEMONBANE / AL_DP are
-  # Acolyte skills, so they also light up for the rest of the Acolyte tree
-  # (Priest / High Priest / Monk). Excluded from the bank: 537 (ALL_INCCARRY
-  # weight), 301 (rocalc triple-attack-delay counter), 362 (SG_FRIEND, a Star
-  # Gladiator skill Monk cannot learn) -- see the Champion block in index.ts.
-  - aegis_name: AL_DEMONBANE           # Demon Bane, rocalc 24, max 10; +ATK vs Undead element / Demon race (scored via damage.ave vs those targets)
+  # All 8 live in the calc engine's job-buff bank (identical to Monk's --
+  # no trans gating), driven via the skill_slot seam; the engine's bank ids diverge
+  # from Aegis ids, so the bindings carry the engine's bank id. AL_DEMONBANE / AL_DP
+  # are Acolyte skills, so they also light up for the rest of the Acolyte tree
+  # (Priest / High Priest / Monk). Excluded from the bank: ALL_INCCARRY weight, the
+  # triple-attack-delay counter, and SG_FRIEND (a Star Gladiator skill Monk cannot
+  # learn) -- see the Champion block in index.ts.
+  - aegis_name: AL_DEMONBANE           # Demon Bane, max 10; +ATK vs Undead element / Demon race (scored via damage.ave vs those targets)
     self_buff: { name: demon_bane, kind: stat_buff, persistence: permanent }
-  - aegis_name: MO_IRONHAND            # Iron Fists, rocalc 183, max 10; +damage with fist/knuckle weapons
+  - aegis_name: MO_IRONHAND            # Iron Fists, max 10; +damage with fist/knuckle weapons
     self_buff: { name: iron_fists, kind: stat_buff, persistence: permanent }
-  - aegis_name: MO_TRIPLEATTACK        # Raging Trifecta Blow (Triple Attack), rocalc 187, max 10; 3-hit proc, scored via damage.secondAve
+  - aegis_name: MO_TRIPLEATTACK        # Raging Trifecta Blow (Triple Attack), max 10; 3-hit proc, scored via damage.secondAve
     self_buff: { name: triple_attack, kind: stat_buff, persistence: permanent }
-  - aegis_name: MO_DODGE               # Dodge, rocalc 191, max 10; +flee (scored via readDerivedStats().flee)
+  - aegis_name: MO_DODGE               # Dodge, max 10; +flee (scored via readDerivedStats().flee)
     self_buff: { name: dodge, kind: stat_buff, persistence: permanent }
-  - aegis_name: MO_EXPLOSIONSPIRITS    # Fury (Critical Explosion), rocalc 195, max 5; +crit (scored via readDerivedStats().cri), active toggle
+  - aegis_name: MO_EXPLOSIONSPIRITS    # Fury (Critical Explosion), max 5; +crit (scored via readDerivedStats().cri), active toggle
     self_buff: { name: fury, kind: stat_buff, persistence: transient }
-  - aegis_name: MO_SPIRITSRECOVERY     # Spiritual Cadence (Spirits Recovery), rocalc 184, max 5; HP/SP regen -- sustain, not scored by the auto-attack sim
+  - aegis_name: MO_SPIRITSRECOVERY     # Spiritual Cadence (Spirits Recovery), max 5; HP/SP regen -- sustain, not scored by the auto-attack sim
     self_buff: { name: spiritual_cadence, kind: status, persistence: permanent }
-  - aegis_name: AL_DP                  # Divine Protection, rocalc 23, max 10; +DEF/MDEF vs Undead/Demon -- defensive, not scored by the auto-attack sim
+  - aegis_name: AL_DP                  # Divine Protection, max 10; +DEF/MDEF vs Undead/Demon -- defensive, not scored by the auto-attack sim
     self_buff: { name: divine_protection, kind: status, persistence: permanent }
-  - aegis_name: MO_STEELBODY           # Mental Strength (Steel Body), rocalc 196, max 5; DEF/MDEF->90% but -ASPD/-move -- defensive, may lower offense
+  - aegis_name: MO_STEELBODY           # Mental Strength (Steel Body), max 5; DEF/MDEF->90% but -ASPD/-move -- defensive, may lower offense
     self_buff: { name: mental_strength, kind: status, persistence: transient }
 
   # --- Paladin (Crusader-rooted) self-buffs ---
   # Only Faith and Spear Quicken are new here; the other 9 entries in Paladin's bank
-  # (m_JobBuff[27], identical to Crusader's [13] -- no trans gating) are already bound
+  # (identical to Crusader's -- no trans gating) are already bound
   # via the Lord Knight (Sword / Two-Hand / Spear Mastery, Auto Berserk, Endure,
   # Increase HP Recovery, Cavalier Mastery) and Champion (Demon Bane, Divine
   # Protection) overlay rows. Both new skills are CR_ (Crusader-only root), so they
   # light up for Crusader and Paladin only. Spear Quicken's ASPD applies to two-handed
-  # spears only (correct rocalc behavior). See the Paladin block in index.ts.
-  - aegis_name: CR_TRUST               # Faith, rocalc 156, max 10; +MaxHP / +Holy resist (scored via readDerivedStats().maxHp)
+  # spears only (correct behavior). See the Paladin block in index.ts.
+  - aegis_name: CR_TRUST               # Faith, max 10; +MaxHP / +Holy resist (scored via readDerivedStats().maxHp)
     self_buff: { name: faith, kind: stat_buff, persistence: transient }
-  - aegis_name: CR_SPEARQUICKEN        # Spear Quicken, rocalc 166, max 10; +ASPD with two-handed spears (scored via readDerivedStats().aspd)
+  - aegis_name: CR_SPEARQUICKEN        # Spear Quicken, max 10; +ASPD with two-handed spears (scored via readDerivedStats().aspd)
     self_buff: { name: spear_quicken, kind: stat_buff, persistence: transient }
 
   # --- Stalker (Rogue line) self-buffs ---
   # Only Close Confine, Stealth (Chase Walk), and Counter Instinct (Reject Sword) are
-  # new here; the other 4 entries in Stalker's bank (m_JobBuff[28]) -- Double Attack /
+  # new here; the other 4 entries in Stalker's bank -- Double Attack /
   # Improve Dodge (Assassin Cross), Sword Mastery (Lord Knight), Vulture's Eye (Sniper)
   # -- are already bound. close_confine is a base Rogue skill (Rogue + Stalker); stealth
-  # and counter_instinct are Stalker trans-only. Excluded: 537 (weight), 301 (rocalc
-  # triple-attack-delay counter), 187 (Raging Trifecta Blow = MO_TRIPLEATTACK,
+  # and counter_instinct are Stalker trans-only. Excluded: weight, the
+  # triple-attack-delay counter, and Raging Trifecta Blow (MO_TRIPLEATTACK,
   # Plagiarism-only, not in the native tree). See the Stalker block in index.ts.
-  - aegis_name: RG_CLOSECONFINE        # Close Confine, rocalc 383, max 1; locks user+target, +flee while active (scored via readDerivedStats().flee)
+  - aegis_name: RG_CLOSECONFINE        # Close Confine, max 1; locks user+target, +flee while active (scored via readDerivedStats().flee)
     self_buff: { name: close_confine, kind: stat_buff, persistence: transient }
-  - aegis_name: ST_CHASEWALK           # Stealth (Chase Walk), rocalc 286, max 5; +STR while stealthed -> +ATK (scored via readCombatResults().damage.ave)
+  - aegis_name: ST_CHASEWALK           # Stealth (Chase Walk), max 5; +STR while stealthed -> +ATK (scored via readCombatResults().damage.ave)
     self_buff: { name: stealth, kind: stat_buff, persistence: transient }
-  - aegis_name: ST_REJECTSWORD         # Counter Instinct (Reject Sword), rocalc 287, max 5; reflects physical from sword/dagger/2H-sword -- defensive, not scored by the auto-attack sim
+  - aegis_name: ST_REJECTSWORD         # Counter Instinct (Reject Sword), max 5; reflects physical from sword/dagger/2H-sword -- defensive, not scored by the auto-attack sim
     self_buff: { name: counter_instinct, kind: status, persistence: transient }
 
   # --- Gunslinger self-buffs ---
-  # Expanded class: a single skill_slot bank (m_JobBuff[45]), no trans gating, and the
+  # Expanded class: a single skill_slot bank, no trans gating, and the
   # GS_ skills are gun-class-exclusive in pre-renewal (they also appear in renewal
-  # Rebellion / baby trees, out of scope). Nothing is inherited. Excluded: 537
-  # (ALL_INCCARRY weight). Guns are already mapped (revolver / rifle / shotgun /
+  # Rebellion / baby trees, out of scope). Nothing is inherited. Excluded:
+  # ALL_INCCARRY weight. Guns are already mapped (revolver / rifle / shotgun /
   # gatling / grenade), so all 8 verify against a real gun (Gatling Fever needs a
   # W_GATLING like Drifter, not a grenade launcher). flip_the_coin moves damage.ave
-  # (rocalc models the coin-damage bonus). See the Gunslinger block in index.ts.
-  - aegis_name: GS_SINGLEACTION        # Single Action, rocalc 425, max 10; +HIT/+ASPD with a gun (readDerivedStats().hit + .aspd)
+  # (the calc engine models the coin-damage bonus). See the Gunslinger block in index.ts.
+  - aegis_name: GS_SINGLEACTION        # Single Action, max 10; +HIT/+ASPD with a gun (readDerivedStats().hit + .aspd)
     self_buff: { name: single_action, kind: stat_buff, persistence: transient }
-  - aegis_name: GS_SNAKEEYE            # Snake Eye, rocalc 426, max 10; +HIT/+range with guns (readDerivedStats().hit)
+  - aegis_name: GS_SNAKEEYE            # Snake Eye, max 10; +HIT/+range with guns (readDerivedStats().hit)
     self_buff: { name: snake_eye, kind: stat_buff, persistence: transient }
-  - aegis_name: GS_INCREASING          # Increasing Accuracy, rocalc 422, max 1; +20 HIT/+4 DEX/+4 AGI (readDerivedStats().hit)
+  - aegis_name: GS_INCREASING          # Increasing Accuracy, max 1; +20 HIT/+4 DEX/+4 AGI (readDerivedStats().hit)
     self_buff: { name: increasing_accuracy, kind: stat_buff, persistence: transient }
-  - aegis_name: GS_MADNESSCANCEL       # Madness Canceller (Last Stand), rocalc 420, max 1; +100 ATK/+15% ASPD (readCombatResults().damage.ave)
+  - aegis_name: GS_MADNESSCANCEL       # Madness Canceller (Last Stand), max 1; +100 ATK/+15% ASPD (readCombatResults().damage.ave)
     self_buff: { name: madness_canceller, kind: stat_buff, persistence: transient }
-  - aegis_name: GS_ADJUSTMENT          # Adjustment (Gunslinger's Panic), rocalc 421, max 1; +30 FLEE, -HIT, -ranged dmg (readDerivedStats().flee)
+  - aegis_name: GS_ADJUSTMENT          # Adjustment (Gunslinger's Panic), max 1; +30 FLEE, -HIT, -ranged dmg (readDerivedStats().flee)
     self_buff: { name: adjustment, kind: stat_buff, persistence: transient }
-  - aegis_name: GS_CHAINACTION         # Chain Action, rocalc 427, max 10; chance of double damage on normal attacks (readCombatResults().damage.secondAve; confirmed scored in combat sim)
+  - aegis_name: GS_CHAINACTION         # Chain Action, max 10; chance of double damage on normal attacks (readCombatResults().damage.secondAve; confirmed scored in combat sim)
     self_buff: { name: chain_action, kind: stat_buff, persistence: transient }
-  - aegis_name: GS_GATLINGFEVER        # Gatling Fever, rocalc 433, max 10; +ASPD with a gatling (W_GATLING), -FLEE (readDerivedStats().aspd)
+  - aegis_name: GS_GATLINGFEVER        # Gatling Fever, max 10; +ASPD with a gatling (W_GATLING), -FLEE (readDerivedStats().aspd)
     self_buff: { name: gatling_fever, kind: stat_buff, persistence: transient }
-  - aegis_name: GS_GLITTERING          # Flip the Coin, rocalc 416, max 5; rocalc models the coin-damage bonus, scales with level (readCombatResults().damage.ave)
+  - aegis_name: GS_GLITTERING          # Flip the Coin, max 5; the calc engine models the coin-damage bonus, scales with level (readCombatResults().damage.ave)
     self_buff: { name: flip_the_coin, kind: stat_buff, persistence: transient }
 
   # --- Clown / Gypsy performer passives ---
   # Musical Lesson (Bard/Clown) and Dancing Lesson (Dancer/Gypsy) boost the
   # performer's own weapon damage (Instrument / Whip respectively), so they are
-  # real self-buffs on the existing skill_slot seam (job bank m_JobBuff slot 4:
-  # rocalc 198 Bard, 206 Dancer). The Bard/Dancer SONGS are a separate control
-  # surface (the A3 bank) and do NOT affect the performer, so they get no row
-  # here -- see the music driver + bindings in index.ts. The 3 inherited Archer
-  # buffs (owls_eye/vultures_eye/improve_concentration) already gate+drive.
-  - aegis_name: BA_MUSICALLESSON       # Musical Lesson, rocalc 198, max 10; +Instrument damage (readCombatResults().damage.ave, instrument-only)
+  # real self-buffs on the existing skill_slot seam (the calc engine's job-buff
+  # bank). The Bard/Dancer SONGS are a separate control surface (the music bank)
+  # and do NOT affect the performer, so they get no row here -- see the music
+  # driver + bindings in index.ts. The 3 inherited Archer buffs
+  # (owls_eye/vultures_eye/improve_concentration) already gate+drive.
+  - aegis_name: BA_MUSICALLESSON       # Musical Lesson, max 10; +Instrument damage (readCombatResults().damage.ave, instrument-only)
     self_buff: { name: musical_lesson, kind: stat_buff, persistence: permanent }
-  - aegis_name: DC_DANCINGLESSON       # Dancing Lesson, rocalc 206, max 10; +Whip damage (readCombatResults().damage.ave, whip-only)
+  - aegis_name: DC_DANCINGLESSON       # Dancing Lesson, max 10; +Whip damage (readCombatResults().damage.ave, whip-only)
     self_buff: { name: dancing_lesson, kind: stat_buff, persistence: permanent }
 
   # --- Star Gladiator self-buffs ---
-  # 13th class (rocalc job id 42, m_JobBuff[42] = [537,363,340,341,329,379,338,
-  # 342,380,352,353,354,355,356,357,367,361,364,365]). Pure-data: every buff uses
+  # 13th class. Pure-data: every buff uses
   # the skill_slot driver. SG_ skills are Star Gladiator-exclusive in pre-renewal,
   # so no blast radius; 3 TK buffs (mild_wind / spurt / taekwon_ranker) are already
-  # inherited and need no row. Excluded: 537 (ALL_INCCARRY weight), SG_MIRACLE
-  # (not learnable -- no tree anchor), SG_*_WARM (absent from rocalc's bank). The
-  # three Wrath skills are enemy size+maxHP gated inside rocalc (Solar=Small,
+  # inherited and need no row. Excluded: ALL_INCCARRY weight, SG_MIRACLE
+  # (not learnable -- no tree anchor), SG_*_WARM (absent from the engine's bank). The
+  # three Wrath skills are enemy size+maxHP gated inside the calc engine (Solar=Small,
   # Lunar=Medium maxHP>=6000, Stellar=Large maxHP>=20000); solar_protection is
-  # defensive (lowers incoming damage). rocalc collapses the 3 Bless skills into one
-  # bank slot (367), anchored here to SG_SUN_BLESS. See the Star Gladiator block in
-  # index.ts; verified deltas in the 2026-06-22 spec.
-  - aegis_name: SG_SUN_ANGER           # Solar Wrath, rocalc 352, max 3; +damage vs Small monsters (readCombatResults().damage.ave)
+  # defensive (lowers incoming damage). The calc engine collapses the 3 Bless skills
+  # into one bank slot, anchored here to SG_SUN_BLESS. See the Star Gladiator block in
+  # index.ts.
+  - aegis_name: SG_SUN_ANGER           # Solar Wrath, max 3; +damage vs Small monsters (readCombatResults().damage.ave)
     self_buff: { name: sls_solar_wrath, kind: stat_buff, persistence: transient }
-  - aegis_name: SG_MOON_ANGER          # Lunar Wrath, rocalc 353, max 3; +damage vs Medium maxHP>=6000 (readCombatResults().damage.ave)
+  - aegis_name: SG_MOON_ANGER          # Lunar Wrath, max 3; +damage vs Medium maxHP>=6000 (readCombatResults().damage.ave)
     self_buff: { name: sls_lunar_wrath, kind: stat_buff, persistence: transient }
-  - aegis_name: SG_STAR_ANGER          # Stellar Wrath, rocalc 354, max 3; +damage vs Large maxHP>=20000 (readCombatResults().damage.ave)
+  - aegis_name: SG_STAR_ANGER          # Stellar Wrath, max 3; +damage vs Large maxHP>=20000 (readCombatResults().damage.ave)
     self_buff: { name: sls_stellar_wrath, kind: stat_buff, persistence: transient }
-  - aegis_name: SG_SUN_COMFORT         # Solar Protection, rocalc 355, max 4; +VIT-def, lowers incoming (readCombatResults().incoming.ave)
+  - aegis_name: SG_SUN_COMFORT         # Solar Protection, max 4; +VIT-def, lowers incoming (readCombatResults().incoming.ave)
     self_buff: { name: sls_solar_protection, kind: stat_buff, persistence: transient }
-  - aegis_name: SG_MOON_COMFORT        # Lunar Protection, rocalc 356, max 4; +FLEE (readDerivedStats().flee)
+  - aegis_name: SG_MOON_COMFORT        # Lunar Protection, max 4; +FLEE (readDerivedStats().flee)
     self_buff: { name: sls_lunar_protection, kind: stat_buff, persistence: transient }
-  - aegis_name: SG_STAR_COMFORT        # Stellar Protection, rocalc 357, max 4; +ASPD (readDerivedStats().aspd)
+  - aegis_name: SG_STAR_COMFORT        # Stellar Protection, max 4; +ASPD (readDerivedStats().aspd)
     self_buff: { name: sls_stellar_protection, kind: stat_buff, persistence: transient }
-  - aegis_name: SG_FUSION              # Union, rocalc 364, max 1; +damage / "increases most things" (readCombatResults().damage.ave)
+  - aegis_name: SG_FUSION              # Union, max 1; +damage / "increases most things" (readCombatResults().damage.ave)
     self_buff: { name: sls_union, kind: stat_buff, persistence: transient }
-  - aegis_name: SG_DEVIL               # Demon, rocalc 361, max 10; intended +ASPD but broken in rocalc -- wired-but-inert
+  - aegis_name: SG_DEVIL               # Demon, max 10; intended +ASPD but broken in the calc engine -- wired-but-inert
     self_buff: { name: sls_demon, kind: status, persistence: permanent }
-  - aegis_name: SG_KNOWLEDGE           # Knowledge (rocalc "Courier"), rocalc 363, max 10; carry-weight only -- wired-but-inert
+  - aegis_name: SG_KNOWLEDGE           # Knowledge (a.k.a. "Courier"), max 10; carry-weight only -- wired-but-inert
     self_buff: { name: sls_knowledge, kind: status, persistence: permanent }
-  - aegis_name: SG_SUN_BLESS           # Blessings, rocalc 367, max 5; rocalc collapses the 3 Bless skills to one slot; exp-rate only -- wired-but-inert
+  - aegis_name: SG_SUN_BLESS           # Blessings, max 5; the calc engine collapses the 3 Bless skills to one slot; exp-rate only -- wired-but-inert
     # persistence transient (vs the passive demon/knowledge above): Blessing is a timed self-cast, not an always-on passive. Documentary only -- the scorer does not read persistence.
     self_buff: { name: sls_blessing, kind: status, persistence: transient }
 
   # --- Ninja self-buffs ---
-  # 14th class (rocalc job id 44, m_JobBuff[44] = [537, 406, 393, 404]). Pure-data:
+  # 14th class. Pure-data:
   # every buff uses the skill_slot driver. Ninja is an Expanded class -- no rebirth
   # (no trans-gating) and no shared tree (no inherited buffs), so ClassBuffs[ninja]
-  # is exactly these 3. Excluded: 537 (ALL_INCCARRY weight). Bank rocalc ids diverge
-  # from Aegis ids, so the sidecar bindings carry the rocalc id (see the Ninja block
-  # in index.ts). Only ninja_aura is scored (raises STR/INT -> ATK/MATK ->
+  # is exactly these 3. Excluded: ALL_INCCARRY weight. The engine's bank ids diverge
+  # from Aegis ids, so the sidecar bindings carry the engine's bank id (see the Ninja
+  # block in index.ts). Only ninja_aura is scored (raises STR/INT -> ATK/MATK ->
   # damage.ave); ninja_mastery (SP recovery) and throwing_mastery (throw-skill
   # damage) move no field the auto-attack sim reads, so they are wired-but-inert per
-  # the bind-every-control directive. Cicada Skin Shed / Mirror Image are in rocalc's
-  # m_Skill table but NOT in the bank, so they have no control surface and are ignored.
-  # Verified deltas in docs/superpowers/specs/2026-06-22-ninja-self-buffs-design.md.
-  - aegis_name: NJ_NEN                  # Ninja Aura ("Soul"), rocalc 404, max 5; +STR/INT -> +damage (readCombatResults().damage.ave)
+  # the bind-every-control directive. Cicada Skin Shed / Mirror Image are in the
+  # engine's skill table but NOT in the bank, so they have no control surface and are ignored.
+  - aegis_name: NJ_NEN                  # Ninja Aura ("Soul"), max 5; +STR/INT -> +damage (readCombatResults().damage.ave)
     self_buff: { name: ninja_aura, kind: stat_buff, persistence: transient }
-  - aegis_name: NJ_NINPOU               # Ninja Mastery ("Spirit of the Blade" / Ninpou Training), rocalc 406, max 10; SP recovery only -- wired-but-inert
+  - aegis_name: NJ_NINPOU               # Ninja Mastery ("Spirit of the Blade" / Ninpou Training), max 10; SP recovery only -- wired-but-inert
     self_buff: { name: ninja_mastery, kind: status, persistence: permanent }
-  - aegis_name: NJ_TOBIDOUGU            # Throwing Mastery ("Shuriken Training"), rocalc 393, max 10; throw-skill damage only -- wired-but-inert
+  - aegis_name: NJ_TOBIDOUGU            # Throwing Mastery ("Shuriken Training"), max 10; throw-skill damage only -- wired-but-inert
     self_buff: { name: throwing_mastery, kind: status, persistence: permanent }
 
   # --- Alchemist / Creator self-buffs ---
-  # 15th class (rocalc job ids 19 alchemist / 33 creator; m_JobBuff[19] ==
-  # m_JobBuff[33] == [537,59,68,241], identical -> no trans gating, like
+  # 15th class (alchemist / creator banks are identical -> no trans gating, like
   # Champion=Monk). Pure-data: skill_slot only. Only Axe Mastery is new here;
-  # crazy_uproar (MC_LOUD, rocalc 68) already gates in via the Merchant tree (see
+  # crazy_uproar (MC_LOUD) already gates in via the Merchant tree (see
   # the Whitesmith block) and needs no row -- the catalog test asserts it. Excluded:
-  # 537 (Enlarge Weight Limit R, universal carry-weight) and 59 (Enlarge Weight
-  # Limit / MC_INCCARRY, Merchant carry-weight -- also excluded in Whitesmith's
-  # bank). Axe Mastery is axe-gated in rocalc (+ATK with axes only; non-axe weapons
-  # see no change) and the bonus is combat-sim mastery ATK -- it moves
+  # Enlarge Weight Limit R (universal carry-weight) and Enlarge Weight Limit /
+  # MC_INCCARRY (Merchant carry-weight -- also excluded in Whitesmith's
+  # bank). Axe Mastery is axe-gated in the calc engine (+ATK with axes only; non-axe
+  # weapons see no change) and the bonus is combat-sim mastery ATK -- it moves
   # readCombatResults().damage.ave, not derived atk.base, like Sword Mastery.
-  # Verified deltas in docs/superpowers/specs/2026-06-22-alchemist-creator-self-buffs-design.md.
-  - aegis_name: AM_AXEMASTERY           # Axe Mastery, rocalc 241, cat 226, max 10; +ATK with axes (readCombatResults().damage.ave, axe-only)
+  - aegis_name: AM_AXEMASTERY           # Axe Mastery, cat 226, max 10; +ATK with axes (readCombatResults().damage.ave, axe-only)
     self_buff: { name: axe_mastery, kind: stat_buff, persistence: permanent }
 
   # --- Soul Linker self-buffs ---
-  # 16th class (rocalc job id 43, m_JobBuff[43] = [537,340,341,329,338,342,380,372,
-  # 379]). Pure-data: skill_slot only. Expanded class on the TaeKwon branch; it
+  # 16th class. Pure-data: skill_slot only. Expanded class on the TaeKwon branch; it
   # inherits mild_wind/spurt (already mapped). Kaina (SL_KAINA) is the one
   # SL-specific buff and the only one scored: it raises maxSp (readDerivedStats().
   # maxSp / Go Derived.MaxSP), +30/level, a sustain/defense-side stat_buff like
   # Paladin faith->maxHp. The 4 TaeKwon skills below (Tumbling/Peaceful Break/Happy
-  # Break/Kihop) are SHARED across the TaeKwon branch (m_JobBuff[41]/[42]/[43]), so
+  # Break/Kihop) are SHARED across the TaeKwon branch's job-buff banks, so
   # these rows also surface for TaeKwon Kid and Star Gladiator (count-locks 7 and 16).
   # All 4 are inert across the scored field set (broad-field probe) -- bound per
   # bind-every-control. taekwon_ranker (TK_MISSION) is NOT here: it is TaeKwon-Kid-only
   # and is removed from the SL/SG trees by usabilityExclusions in cmd/build-catalog.
-  # Excluded: 537 (carry-weight) and 380 (Kihop party-count sub-param). The Soul Link
-  # / Ka / Es skills are NOT in rocalc's bank, so they have no control surface and are
-  # ignored. Verified deltas in docs/superpowers/specs/2026-06-22-soul-linker-self-buffs-design.md.
-  - aegis_name: SL_KAINA                # Kaina, rocalc 372, cat 466, max 7; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
+  # Excluded: carry-weight and the Kihop party-count sub-param. The Soul Link
+  # / Ka / Es skills are NOT in the engine's bank, so they have no control surface and
+  # are ignored.
+  - aegis_name: SL_KAINA                # Kaina, cat 466, max 7; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
     self_buff: { name: kaina, kind: stat_buff, persistence: permanent }
-  - aegis_name: TK_DODGE                # Tumbling (Break Fall), rocalc 338, cat 420, max 1; dodge -- wired-but-inert
+  - aegis_name: TK_DODGE                # Tumbling (Break Fall), cat 420, max 1; dodge -- wired-but-inert
     self_buff: { name: tumbling, kind: status, persistence: permanent }
-  - aegis_name: TK_HPTIME               # Peaceful Break, rocalc 340, cat 422, max 10; HP rest -- wired-but-inert
+  - aegis_name: TK_HPTIME               # Peaceful Break, cat 422, max 10; HP rest -- wired-but-inert
     self_buff: { name: peaceful_break, kind: status, persistence: permanent }
-  - aegis_name: TK_SPTIME               # Happy Break, rocalc 341, cat 423, max 10; SP rest -- wired-but-inert
+  - aegis_name: TK_SPTIME               # Happy Break, cat 423, max 10; SP rest -- wired-but-inert
     self_buff: { name: happy_break, kind: status, persistence: permanent }
-  - aegis_name: TK_POWER                # Kihop (Fighting Chant), rocalc 342, cat 424, max 5; party ATK -- wired-but-inert
+  - aegis_name: TK_POWER                # Kihop (Fighting Chant), cat 424, max 5; party ATK -- wired-but-inert
     self_buff: { name: kihop, kind: status, persistence: transient }
 
   # --- High Wizard self-buffs (Mage -> Wizard -> High Wizard) ---
-  # rocalc job bank m_JobBuff[25] = [537,45,58,274,276]. Pure-data, skill_slot only.
-  # energy_coat (MG_ENERGYCOAT, rocalc 58) is already mapped (Scholar / Mage tree) and
+  # All ride the calc engine's job-buff bank. Pure-data, skill_slot only.
+  # energy_coat (MG_ENERGYCOAT) is already mapped (Scholar / Mage tree) and
   # needs no row. soul_drain + mystical_amplification are HW_ (High Wizard trans-only
   # root) -> high_wizard only. increase_sp_recovery is MG_ (Mage root) -> lights up the
-  # whole Mage tree (intentional, like demon_bane -> Acolyte tree). rocalc ids diverge
-  # from Aegis/catalog ids, so the sidecar bindings carry the rocalc id. Excluded: 537
-  # (ALL_INCCARRY, universal carry-weight). Quagmire (WZ_QUAGMIRE) is modeled in
-  # rocalc's A8 enemy-ailment bank (not the B_debuf seam) -> deferred (new seam).
-  - aegis_name: HW_SOULDRAIN            # Soul Drain, rocalc 274, cat 364, max 10; HW-only; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
+  # whole Mage tree (intentional, like demon_bane -> Acolyte tree). The engine's bank
+  # ids diverge from Aegis/catalog ids, so the sidecar bindings carry the engine's bank
+  # id. Excluded: ALL_INCCARRY (universal carry-weight). Quagmire (WZ_QUAGMIRE) is
+  # modeled in the engine's enemy-ailment bank (not the B_debuf seam) -> deferred (new seam).
+  - aegis_name: HW_SOULDRAIN            # Soul Drain, cat 364, max 10; HW-only; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
     self_buff: { name: soul_drain, kind: stat_buff, persistence: permanent }
-  - aegis_name: HW_MAGICPOWER           # Mystical Amplification (Amplify Magic Power), rocalc 276, cat 366, max 10; HW-only; +derived MATK (readDerivedStats().matk; not gate-scored in the auto-attack sim, like dragonology)
+  - aegis_name: HW_MAGICPOWER           # Mystical Amplification (Amplify Magic Power), cat 366, max 10; HW-only; +derived MATK (readDerivedStats().matk; not gate-scored in the auto-attack sim, like dragonology)
     self_buff: { name: mystical_amplification, kind: stat_buff, persistence: transient }
-  - aegis_name: MG_SRECOVERY            # Increase SP Recovery, rocalc 45, cat 9, max 10; Mage tree; SP-regen rate only -- wired-but-inert (does not move maxSp, unlike soul_drain)
+  - aegis_name: MG_SRECOVERY            # Increase SP Recovery, cat 9, max 10; Mage tree; SP-regen rate only -- wired-but-inert (does not move maxSp, unlike soul_drain)
     self_buff: { name: increase_sp_recovery, kind: status, persistence: permanent }

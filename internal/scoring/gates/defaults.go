@@ -5,7 +5,7 @@ import "github.com/levonn-dev/ro-builder/internal/domain"
 // classGateAliases maps emulator-flavored class-name spellings to the
 // canonical key used inside the gates package's lookup maps. The
 // orchestrator hands snapshots whose Class is one of the
-// CLASS_TO_ROCALC_ID names (lowercase-with-underscore), but the same
+// shim's class-id names (lowercase-with-underscore), but the same
 // concept ships under different aliases across Hercules/rAthena dumps
 // and prompt-tuning data (e.g. "magician" vs "mage"). Mapping here
 // keeps the per-gate maps free of duplicate entries.

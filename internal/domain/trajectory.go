@@ -210,7 +210,7 @@ func validateSkillAlloc(a SkillAlloc) error {
 // the calc shim expects. LevelingTarget; when set and non-zero; supplies
 // the combat-sim target; profile, when non-nil, swaps custom-mob targets
 // into the inline-stats path so the shim doesn't try to look them up in
-// rocalc's m_Monster table. Mirrors Build.ToScoreRequest's elision
+// the calc's mob table. Mirrors Build.ToScoreRequest's elision
 // pattern so zero-valued fields don't clobber the shim's reset baseline.
 func (s *Snapshot) ToScoreRequest(profile *ServerProfile) *scoring.ScoreRequest {
 	req := &scoring.ScoreRequest{}

@@ -16,7 +16,7 @@ import (
 //
 // Both builds equip a Knuckle (iRO 1807 Fist) and allocate the anchor skills; the
 // base declares NO active buffs, the buffed declares the three. Allocation alone
-// does not apply a buff (the job bank is keyed by rocalc id, not the Aegis id
+// does not apply a buff (the job bank is keyed by the engine's bank id, not the Aegis id
 // setSkills uses), so the base scores unbuffed. Iron Fists drives the damage.ave
 // increase; Triple Attack / Fury exercise the multi-buff path (their effects land
 // in secondAve / crit, which this test does not assert).

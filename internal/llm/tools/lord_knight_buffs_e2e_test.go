@@ -16,8 +16,8 @@ import (
 //
 // Both builds equip a Two-Handed Sword (iRO 1163 Claymore) and allocate the
 // anchor skills; the base declares NO active buffs, the buffed declares the
-// three. Allocation alone does not apply a buff (the job bank is keyed by rocalc
-// id, not the Aegis id setSkills uses), so the base scores unbuffed and the
+// three. Allocation alone does not apply a buff (the job bank is keyed by the
+// engine's bank id, not the Aegis id setSkills uses), so the base scores unbuffed and the
 // increase isolates the buffs' contribution against a neutral target.
 func TestIntegration_LordKnightBuffs_RaiseScoredOffense(t *testing.T) {
 	if testing.Short() {

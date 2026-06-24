@@ -17,7 +17,7 @@ import "fmt"
 //     professor): magic damage doesn't roll HIT vs FLEE.
 //
 // Keys mirror Snapshot.Class values (canonical lowercase-with-underscore
-// names from CLASS_TO_ROCALC_ID). Emulator-flavored aliases (magician,
+// names from the shim's class-id table). Emulator-flavored aliases (magician,
 // high_magician, scholar) collapse to the canonical key via
 // normalizeClassForGates before lookup, so the map carries one row per
 // concept.

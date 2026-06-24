@@ -167,10 +167,10 @@ type ScoreRequest struct {
 	Buffs     []Buff                `json:"buffs,omitempty"`
 	Equipment map[SlotKey]EquipSpec `json:"equipment,omitempty"`
 	// Enemy and EnemyInline are mutually exclusive; set one or neither.
-	// Enemy is an iRO mob id translated through rocalc's mapping; the
-	// shim looks the mob up in m_Monster. EnemyInline supplies the stats
+	// Enemy is an iRO mob id translated through the calc's id mapping; the
+	// shim looks the mob up in its mob table. EnemyInline supplies the stats
 	// directly, used for server-overlay custom mobs that aren't in the
-	// rocalc snapshot. The sidecar rejects requests with both set.
+	// calc snapshot. The sidecar rejects requests with both set.
 	Enemy       *int        `json:"enemy,omitempty"`
 	EnemyInline *EnemyStats `json:"enemy_inline,omitempty"`
 }
@@ -201,7 +201,7 @@ type EnemyStats struct {
 
 // SkillAlloc is one entry in a build's skill allocation: the iRO skill id
 // and the level the player has invested. Skill IDs are Gravity-canonical,
-// so iRO and rocalc agree without translation. Per-skill max-level lives
+// so iRO and the calc engine agree without translation. Per-skill max-level lives
 // in the skill catalog and isn't enforced at this layer; the shim
 // surfaces "skill not in this class's tree" as a 4xx-classifiable error.
 type SkillAlloc struct {
@@ -221,13 +221,13 @@ type Buff struct {
 }
 
 // ScoreResponse is the POST /score success body. Combat is non-nil iff the
-// request set Enemy. CalcVersion is the engine snapshot stamp ("rocalc-
-// 2026-04-06"); the build library persists it so stale saved trajectories
-// are detectable after the calc snapshot changes.
+// request set Enemy. CalcVersion is the engine snapshot stamp (backend name
+// + data snapshot date); the build library persists it so stale saved
+// trajectories are detectable after the calc snapshot changes.
 //
 // Uncertainty carries caveats the LLM and the build library should weigh
-// when reasoning over these numbers; for the rocalc backend it surfaces
-// rocalc's documented known issues (left-hand crit damage, Soul Breaker
+// when reasoning over these numbers; for the active calc backend it surfaces
+// that backend's documented known issues (left-hand crit damage, Soul Breaker
 // approximations, inline-mob level scaling) so approximate values aren't
 // treated as ground truth. TraceID is a backend-defined opaque id, used
 // to tie a saved trajectory back to the exact calc invocation in logs.

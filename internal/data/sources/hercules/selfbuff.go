@@ -7,7 +7,7 @@ package hercules
 // data) because data.Skill = hercules.Skill aliases this struct's owner;
 // defining SelfBuff here and aliasing it into data avoids an import cycle.
 //
-// Carries semantic facts only (no rocalc ids): the sidecar's rocalc binding
+// Carries semantic facts only (no engine ids): the sidecar's binding
 // table translates Name -> engine controls behind the shim boundary.
 type SelfBuff struct {
 	Name        string     `json:"name" yaml:"name"`                       // semantic key: "mild_wind", "spurt", "taekwon_ranker"
