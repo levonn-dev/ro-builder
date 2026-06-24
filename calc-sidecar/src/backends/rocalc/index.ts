@@ -1470,6 +1470,16 @@ export function createShim(): ShimSession {
     increase_sp_recovery: [
       { driver: "skill_slot", rocalcId: 45, level: "buffLevel" },
     ],
+    // Super Novice No-Death Bonus (rocalc id 309 in m_JobBuff[20]): +10 to ALL
+    // stats, flat. A class-innate buff (no learnable skill anchor) -- the Go
+    // resolver gates it via ClassInnateBuffs(super_novice) and drives it at a
+    // fixed level 1. See super_novice_buffs.test.ts. The other Super-Novice bank
+    // entries are excluded: 253 Fury (no anchor, out of scope), 310 Undying
+    // (-1 penalty), 385 SN-Spirit (inert + external SL_SUPERNOVICE), 196 Steel
+    // Body (MO_STEELBODY not in the SN tree), 537/59 (carry-weight).
+    no_death_bonus: [
+      { driver: "skill_slot", rocalcId: 309, level: "buffLevel" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"

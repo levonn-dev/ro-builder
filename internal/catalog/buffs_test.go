@@ -1026,3 +1026,82 @@ func TestClassBuffs_Alchemist(t *testing.T) {
 		}
 	}
 }
+
+// Super Novice (Expanded) inherits 16 first-class buffs across all six trees.
+// All 16 gate (catalog tree) and drive (rocalc m_JobBuff[20] / class-generic
+// support+debuf banks). no_death_bonus is NOT here -- it is an innate buff (see
+// TestClassInnateBuffs_SuperNovice).
+func TestClassBuffs_SuperNovice(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("super_novice")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for super_novice")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"angelus":               "stat_buff",
+		"blessing":              "stat_buff",
+		"decrease_agi":          "debuff",
+		"demon_bane":            "stat_buff",
+		"divine_protection":     "status",
+		"double_attack":         "stat_buff",
+		"endure":                "status",
+		"improve_concentration": "stat_buff",
+		"improve_dodge":         "stat_buff",
+		"increase_agi":          "stat_buff",
+		"increase_hp_recovery":  "status",
+		"increase_sp_recovery":  "status",
+		"owls_eye":              "stat_buff",
+		"signum_crucis":         "debuff",
+		"sword_mastery":         "stat_buff",
+		"vultures_eye":          "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(buffs) != 16 {
+		t.Fatalf("ClassBuffs(super_novice) returned %d buffs, want 16", len(buffs))
+	}
+}
+
+// Class-innate buffs (No-Death Bonus) are gated by class membership, not by a
+// tree skill. They must surface for super_novice and not leak to other classes.
+func TestClassInnateBuffs_SuperNovice(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	innate, ok := c.ClassInnateBuffs("super_novice")
+	if !ok {
+		t.Fatal("ClassInnateBuffs returned ok=false for super_novice")
+	}
+	names := map[string]string{}
+	for _, b := range innate {
+		names[b.Name] = b.Kind
+	}
+	if names["no_death_bonus"] != "stat_buff" {
+		t.Fatalf("super_novice innate buffs missing no_death_bonus stat_buff: %+v", names)
+	}
+	if len(innate) != 1 {
+		t.Fatalf("ClassInnateBuffs(super_novice) = %d, want 1", len(innate))
+	}
+	// Must not leak to an unrelated class.
+	other, ok := c.ClassInnateBuffs("knight")
+	if !ok {
+		t.Fatal("ClassInnateBuffs returned ok=false for knight")
+	}
+	if len(other) != 0 {
+		t.Fatalf("knight should have no innate buffs, got %+v", other)
+	}
+}

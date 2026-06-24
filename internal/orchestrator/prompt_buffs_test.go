@@ -76,3 +76,25 @@ func TestFormatUserPrompt_IncludesBuffs(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatUserPrompt_SuperNoviceInnate(t *testing.T) {
+	cat, err := catalog.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, _ := cat.ClassBuffs("super_novice")
+	innate, _ := cat.ClassInnateBuffs("super_novice")
+	merged := mergeInnateBuffsForPrompt(buffs, innate) // helper added in this task
+	out := formatUserPrompt(GenerateRequest{Class: "super_novice"}, nil, nil, merged, 99, 99, 0)
+	if !strings.Contains(out, "no_death_bonus") {
+		t.Fatalf("prompt missing no_death_bonus:\n%s", out)
+	}
+	if !strings.Contains(out, "(innate)") {
+		t.Fatalf("prompt missing innate anchor marker:\n%s", out)
+	}
+	// The innate-buff guidance sentence must be present so the model knows the
+	// buff is exempt from the "anchor allocated" rule.
+	if !strings.Contains(out, "exempt") {
+		t.Fatalf("prompt missing innate-buff guidance:\n%s", out)
+	}
+}

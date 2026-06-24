@@ -50,20 +50,24 @@ type catalogFile struct {
 	// casing is preserved (e.g. "Assassin_Cross"); Load converts to
 	// shim-style keys for runtime lookup.
 	JobMaxLevels []data.JobMaxLevels `json:"job_max_levels,omitempty"`
+	// ClassInnateBuffs carries class-innate self-buffs (not anchored to a skill),
+	// keyed by shim-style class name. Surfaced via ClassInnateBuffs(name).
+	ClassInnateBuffs map[string][]data.SelfBuff `json:"class_innate_buffs,omitempty"`
 }
 
 // Catalog is the indexed view. Construct with Load; query via the methods.
 type Catalog struct {
-	version      int
-	items        map[int]data.Item
-	itemList     []data.Item // ordered for stable search results
-	mobs         map[int]data.Mob
-	mobList      []data.Mob
-	skills       map[int]data.Skill
-	skillList    []data.Skill
-	skillsByName map[string]data.Skill
-	classes      map[string]data.ClassSkillTree
-	jobMaxLevels map[string][2]int // shim-key → [maxBase, maxJob]
+	version          int
+	items            map[int]data.Item
+	itemList         []data.Item // ordered for stable search results
+	mobs             map[int]data.Mob
+	mobList          []data.Mob
+	skills           map[int]data.Skill
+	skillList        []data.Skill
+	skillsByName     map[string]data.Skill
+	classes          map[string]data.ClassSkillTree
+	jobMaxLevels     map[string][2]int // shim-key -> [maxBase, maxJob]
+	classInnateBuffs map[string][]data.SelfBuff
 }
 
 // Load parses the embedded catalog.json and returns a ready-to-query
@@ -117,6 +121,10 @@ func Load() (*Catalog, error) {
 	c.classes = make(map[string]data.ClassSkillTree, len(f.Classes))
 	for k, v := range f.Classes {
 		c.classes[k] = v
+	}
+	c.classInnateBuffs = make(map[string][]data.SelfBuff, len(f.ClassInnateBuffs))
+	for k, v := range f.ClassInnateBuffs {
+		c.classInnateBuffs[k] = v
 	}
 	c.jobMaxLevels = make(map[string][2]int, len(f.JobMaxLevels))
 	for _, j := range f.JobMaxLevels {
@@ -339,6 +347,26 @@ func (c *Catalog) ClassBuffs(requestClass string) ([]ClassSkill, bool) {
 		}
 	}
 	return out, true
+}
+
+// ClassInnateBuffs returns the named class's innate self-buffs -- buffs that are
+// class mechanics (e.g. the Super Novice No-Death Bonus), NOT anchored to a
+// learnable skill. Unlike ClassBuffs, innate buffs are not inherited through the
+// tree; each class's innate buffs are exactly the ones listed for it. Resolves
+// the request name the same way ClassWithAliases does (normalizeClassKey +
+// classAliases) so callers can pass the request-style class name. Returns
+// (nil, false) when the class isn't in the catalog; (slice, true) for a known
+// class (the slice is empty when the class has no innate buffs).
+func (c *Catalog) ClassInnateBuffs(requestClass string) ([]data.SelfBuff, bool) {
+	key := normalizeClassKey(requestClass)
+	if _, ok := c.classes[key]; !ok {
+		alias, isAlias := classAliases[key]
+		if !isAlias {
+			return nil, false
+		}
+		key = alias
+	}
+	return c.classInnateBuffs[key], true
 }
 
 // SkillsByName returns the cached aegis-name index of every skill.

@@ -346,6 +346,7 @@ func (o *Orchestrator) Generate(ctx context.Context, req GenerateRequest) (*Gene
 	// can still call list_class_skills as a tool to recover.
 	classSkills := o.fetchClassSkillsForPrompt(req.Class)
 	classBuffs := o.fetchClassBuffsForPrompt(req.Class)
+	classBuffs = mergeInnateBuffsForPrompt(classBuffs, o.fetchClassInnateBuffsForPrompt(req.Class))
 	baseLevel, jobLevel, _ := o.fetchClassMaxLevelsForPrompt(profile, req.Class)
 	skillBudget := o.fetchSkillPointBudget(req.Class)
 
@@ -639,6 +640,35 @@ func (o *Orchestrator) fetchClassBuffsForPrompt(className string) []catalog.Clas
 	return buffs
 }
 
+// mergeInnateBuffsForPrompt appends each class-innate buff as a synthetic
+// ClassSkill (AegisName "(innate)", no id) so it renders through the existing
+// buff loop in formatUserPrompt without changing that function's signature.
+func mergeInnateBuffsForPrompt(skillBuffs []catalog.ClassSkill, innate []data.SelfBuff) []catalog.ClassSkill {
+	if len(innate) == 0 {
+		return skillBuffs
+	}
+	out := make([]catalog.ClassSkill, len(skillBuffs), len(skillBuffs)+len(innate))
+	copy(out, skillBuffs)
+	for i := range innate {
+		b := innate[i]
+		out = append(out, catalog.ClassSkill{AegisName: "(innate)", SelfBuff: &b})
+	}
+	return out
+}
+
+// fetchClassInnateBuffsForPrompt returns the class's innate self-buffs, or nil
+// when the catalog is absent or the class is unknown.
+func (o *Orchestrator) fetchClassInnateBuffsForPrompt(className string) []data.SelfBuff {
+	if o.catalog == nil || className == "" {
+		return nil
+	}
+	innate, ok := o.catalog.ClassInnateBuffs(className)
+	if !ok {
+		return nil
+	}
+	return innate
+}
+
 // fetchClassMaxLevelsForPrompt returns the effective max base and job levels
 // for the requested class, merging the catalog's pre-renewal default with any
 // server-profile override. Profile override wins when non-zero.
@@ -804,11 +834,15 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 	if len(classBuffs) > 0 {
 		sb.WriteString("\nAvailable self-buffs (declare active ones per snapshot via active_buffs; buff level comes from the anchor skill's allocation):\n")
 		hasEndow := false
+		hasInnate := false
 		for _, b := range classBuffs {
 			// Defensive: the param is a generic ClassSkill slice; skip any entry
 			// without buff metadata so the field accesses below can't nil-deref.
 			if b.SelfBuff == nil {
 				continue
+			}
+			if b.AegisName == "(innate)" {
+				hasInnate = true
 			}
 			line := fmt.Sprintf("- %s (anchor %s, %s, %s)", b.SelfBuff.Name, b.AegisName, b.SelfBuff.Kind, b.SelfBuff.Persistence)
 			if b.SelfBuff.Endow != nil && len(b.SelfBuff.Endow.Elements) > 0 {
@@ -839,6 +873,9 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 		}
 		if hasLand {
 			sb.WriteString("Some entries are kind=land: ground effects (Volcano, Deluge, Violent Gale) the character casts and stands on. Each amplifies ALL damage of its element (fire/water/wind), spells included. Only one land is active at a time; it pairs with a matching-element endow or bolt. Declare it in active_buffs like any buff.\n")
+		}
+		if hasInnate {
+			sb.WriteString("Buffs shown with anchor \"(innate)\" are innate class mechanics with no skill to allocate (e.g. the Super Novice No-Death Bonus = +10 all stats). Declare them by name in active_buffs; they are exempt from the \"only declare buffs whose anchor skill is allocated\" rule.\n")
 		}
 	}
 	sb.WriteString("\nConfirm each scored checkpoint's stat budget with score_build, then submit the trajectory with submit_trajectory and fix any combat-gate failures it reports. It is the authoritative scorer for the canonical checkpoints; describe the build from its numbers.")
