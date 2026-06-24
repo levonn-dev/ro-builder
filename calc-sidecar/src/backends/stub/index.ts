@@ -95,6 +95,11 @@ export function createShim(): ShimSession {
     setBuffs(_buffs: Buff[]): void {
       // stub: deterministic fiction, buffs don't alter output
     },
+    supportedBuffs(): readonly string[] | null {
+      // The stub accepts any buff name (no enforcement), so buff-binding parity
+      // is vacuous for it; null signals "not enforced" to callers.
+      return null;
+    },
     setEnemy(id) {
       state.enemy = id;
       state.enemyInline = null;

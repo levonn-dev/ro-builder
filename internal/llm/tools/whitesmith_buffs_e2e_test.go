@@ -16,7 +16,7 @@ import (
 //
 // Both builds equip a Two-Handed Axe (iRO 1360) and allocate the anchor skills;
 // the base build declares NO active buffs, the buffed build declares the three.
-// Allocation alone does not apply a buff (the job bank is keyed by rocalc id,
+// Allocation alone does not apply a buff (the job bank is keyed by the engine's bank id,
 // not the Aegis id setSkills uses), so the base build scores unbuffed and the
 // increase isolates the buffs' contribution against a neutral target.
 func TestIntegration_WhitesmithBuffs_RaiseScoredOffense(t *testing.T) {

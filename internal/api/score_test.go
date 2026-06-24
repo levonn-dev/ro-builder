@@ -31,7 +31,7 @@ func fakeSidecar(t *testing.T, status int, respBody string) (string, *[]byte) {
 	return srv.URL, &captured
 }
 
-const validDerivedJSON = `{"derived":{"hit":2,"flee":2,"cri":1,"atk":{"base":1,"plus":0},"matk":{"min":1,"max":1},"def":{"hard":0,"soft":1},"mdef":{"hard":0,"soft":1},"aspd":150.3,"maxHp":40,"maxSp":11,"statPointsRemaining":48},"calc_version":"rocalc-test"}`
+const validDerivedJSON = `{"derived":{"hit":2,"flee":2,"cri":1,"atk":{"base":1,"plus":0},"matk":{"min":1,"max":1},"def":{"hard":0,"soft":1},"mdef":{"hard":0,"soft":1},"aspd":150.3,"maxHp":40,"maxSp":11,"statPointsRemaining":48},"calc_version":"calc-test"}`
 
 // scoreServer mounts a Server with the given scoring URL onto a fresh
 // mux. Returns the mux as an http.Handler so tests can drive it via

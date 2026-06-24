@@ -1854,6 +1854,13 @@ export function createShim(): ShimSession {
     win.calc();
   }
 
+  // supportedBuffs (ShimSession contract): the buff names this backend can
+  // bind, independent of class. The shim-contract parity test asserts the Go
+  // overlay is a subset of this, so it never reaches into BUFF_BINDINGS itself.
+  function supportedBuffs(): readonly string[] {
+    return Object.keys(BUFF_BINDINGS);
+  }
+
   const session: ShimSession = {
     setStats,
     setLevel,
@@ -1861,6 +1868,7 @@ export function createShim(): ShimSession {
     equip,
     setSkills,
     setBuffs,
+    supportedBuffs,
     setEnemy,
     setEnemyInline,
     readDerivedStats,

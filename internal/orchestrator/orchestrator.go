@@ -337,7 +337,7 @@ func (o *Orchestrator) Generate(ctx context.Context, req GenerateRequest) (*Gene
 	reg := o.registry.WithTool(submitTool)
 
 	// Fetch the class's allocatable skill list from the catalog so we can
-	// inject it into the user prompt. The sidecar's m_JobBuff is the
+	// inject it into the user prompt. The sidecar's job-buff bank is the
 	// source of truth for what score_build will accept; without this the
 	// LLM brute-forces lookup_skill against random iRO ids until it
 	// finds the class's skills (observed: 50+ tool calls in the loop).
@@ -602,11 +602,11 @@ func validateRequest(req GenerateRequest) error {
 // with inherits flattened). This is the player's true skill tree; what
 // the player can put points into.
 //
-// The sidecar's rocalc m_JobBuff is a *different* concept (the calc's
+// The sidecar's job-buff bank is a *different* concept (the calc's
 // stat-effect-skill set, populated with cross-class buffs like Bragi or
 // Lex Aeterna affecting the player) and is the wrong list to show the
 // LLM for allocation. The sidecar's setSkills silently skips skills not
-// in m_JobBuff, so the LLM allocating from skill_tree.conf no longer
+// in its job-buff bank, so the LLM allocating from skill_tree.conf no longer
 // fails canonical scoring; the calc just produces auto-attack-tier
 // numbers when no calc-recognized skills allocated.
 //

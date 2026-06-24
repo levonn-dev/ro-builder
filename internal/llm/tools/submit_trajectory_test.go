@@ -36,7 +36,7 @@ func passingSnapshot() domain.Snapshot {
 
 func TestSubmit_AcceptsWhenGatesPass(t *testing.T) {
 	var cat *catalog.Catalog // nil; tests don't exercise the resolved-names echo path
-	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test"}}
+	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "calc-test"}}
 
 	accepted := false
 	var savedTraj domain.Trajectory
@@ -328,7 +328,7 @@ func TestSubmit_SuccessAckReportsPerCheckpointBudget(t *testing.T) {
 	var cat *catalog.Catalog
 	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{
 		Derived:     scoring.DerivedStats{MaxHP: 5000, StatPointsRemaining: 12},
-		CalcVersion: "rocalc-test",
+		CalcVersion: "calc-test",
 	}}
 	tool := NewSubmitTrajectory(SubmitTrajectoryDeps{
 		Catalog: cat,
@@ -447,7 +447,7 @@ func TestSubmit_BadBuffOnAlternativeDropsAlt(t *testing.T) {
 	}
 
 	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{
-		Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test",
+		Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "calc-test",
 	}}
 	accepted := false
 	var acceptedPrimary domain.Trajectory
@@ -540,7 +540,7 @@ func (f *failOnCallScoringClient) Score(_ context.Context, _ *scoring.ScoreReque
 // not be recorded as one bad alternative.
 func TestSubmit_InfraErrorOnAlternativePropagates(t *testing.T) {
 	sc := &failOnCallScoringClient{
-		resp:    &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test"},
+		resp:    &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "calc-test"},
 		failAt:  2, // call 1 = primary (clean), call 2 = alternative (5xx)
 		failErr: &scoring.Error{Status: 503, Message: "sidecar restarting"},
 	}
@@ -565,7 +565,7 @@ func TestSubmit_InfraErrorOnAlternativePropagates(t *testing.T) {
 // succeeds, exactly like a bad buff name does.
 func TestSubmit_ClientErrorOnAlternativeDrops(t *testing.T) {
 	sc := &failOnCallScoringClient{
-		resp:    &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test"},
+		resp:    &scoring.ScoreResponse{Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "calc-test"},
 		failAt:  2, // alternative's scoring call returns a 4xx
 		failErr: &scoring.Error{Status: 400, Message: "unmapped item id 99999"},
 	}
@@ -604,7 +604,7 @@ func TestSubmit_BadBuffOnPrimaryErrors(t *testing.T) {
 	}
 
 	sc := &fakeScoringClient{resp: &scoring.ScoreResponse{
-		Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "rocalc-test",
+		Derived: scoring.DerivedStats{MaxHP: 5000}, CalcVersion: "calc-test",
 	}}
 	accepted := false
 	tool := NewSubmitTrajectory(SubmitTrajectoryDeps{
@@ -702,7 +702,7 @@ func TestFormatActiveBuffs(t *testing.T) {
 func TestBuildCheckpointReports_BuffSummary(t *testing.T) {
 	sc := scoring.ScoreResponse{
 		Derived:     scoring.DerivedStats{StatPointsRemaining: 0},
-		CalcVersion: "rocalc-test",
+		CalcVersion: "calc-test",
 	}
 
 	t.Run("snapshot with buffs includes buff line", func(t *testing.T) {

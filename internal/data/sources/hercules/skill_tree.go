@@ -13,7 +13,7 @@ import (
 // class and runtime callers don't redo the recursion.
 //
 // Skills here are the player's allocatable tree; different from the
-// rocalc m_JobBuff list (which is the calc's runtime buff lookup, not
+// calc engine's job-buff bank (the calc's runtime buff lookup, not
 // the skill tree).
 type ClassSkillTree struct {
 	Name    string            `json:"name"`
@@ -26,7 +26,7 @@ type ClassSkillTree struct {
 // allocated before this skill can be learned. Requires maps aegis name
 // → required level; empty for skills with no prerequisites.
 //
-// rocalc silently skips skills whose prerequisites are not met rather
+// the calc engine silently skips skills whose prerequisites are not met rather
 // than returning an error, so the LLM must verify prereqs itself.
 // Carrying them here lets the orchestrator surface them in the user
 // prompt so the LLM doesn't have to rediscover the dependency.

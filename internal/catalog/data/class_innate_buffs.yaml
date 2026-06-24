@@ -7,10 +7,8 @@
 # skill_buffs.yaml. Not inherited through the tree (class-specific).
 classes:
   super_novice:
-    # No-Death Bonus (rocalc "No-Death Bonus", id 309): +10 to ALL stats, flat.
+    # No-Death Bonus: +10 to ALL stats, flat.
     # The Super Novice guardian-angel bonus, earned by reaching base-level
     # milestones without dying. Opt-in: the LLM declares it when modeling the
     # no-death endgame state.
-    - name: no_death_bonus
-      kind: stat_buff
-      persistence: permanent
+    - { name: no_death_bonus, kind: stat_buff, persistence: permanent }

@@ -91,8 +91,8 @@ func Load() (*Catalog, error) {
 		mobs:    make(map[int]data.Mob, len(f.Mobs)),
 		skills:  make(map[int]data.Skill, len(f.Skills)),
 	}
-	// First-seen wins on id collision (matches build-rocalc-mapping's
-	// policy and protects against stray duplicate-id rows in the source).
+	// First-seen wins on id collision (protects against stray duplicate-id
+	// rows in the source).
 	for _, it := range f.Items {
 		if _, exists := c.items[it.ID]; exists {
 			continue
@@ -267,7 +267,7 @@ type ClassSkillRequirement struct {
 }
 
 // ClassSkill is one entry from a class's skill tree joined against the
-// per-skill metadata in m_Skill. Catalog-side projection used by both
+// per-skill metadata in the catalog. Catalog-side projection used by both
 // the orchestrator's user-prompt block and the list_class_skills tool;
 // each caller projects further to its own consumer-specific shape.
 type ClassSkill struct {

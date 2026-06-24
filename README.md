@@ -432,11 +432,17 @@ happy-path LLM loop.
 
 Not yet done, roughly in priority order:
 
+- [x] Add self-buffs to calc
+- [ ] Add self-buffs to scoring
+- [ ] Include skill usage/damage in calc and scoring
+- [ ] Vector search over saved trajectories' reasoning text. Today's `get_similar_past_builds` uses class+scenario
+  lookup.
+- [ ] Add RAG with injecting get_similar_past_builds into initial system prompt
 - [ ] Postgres migration for the build library. SQLite pins the API to `replicas: 1` and `strategy: Recreate`; HPA / PDB
   are excluded from the Helm chart until this lands.
 - [ ] General prompt tuning - less tokens, more progress.
-- [ ] More server profiles beyond UARO. Drop a YAML, no code change.
 - [ ] More golden fixtures beyond Taekwon Kid. The shim handles all 45 supported classes already
+- [ ] Golden fixtures for Full Support builds
 - [ ] Renewal mode end-to-end. The API rejects `mode: "renewal"` at the boundary today; the data layer is already
   mode-aware. The calc adapter hasn't been validated for renewal.
 - [ ] Rotation simulator with SP economy. Today's scoring uses single-skill DPS + sustained auto-attack as a proxy.
@@ -445,8 +451,8 @@ Not yet done, roughly in priority order:
 - [ ] Real time-to-level scoring at leveling checkpoints. Currently the leveling target is attached as a proxy for "can
   you farm here"
 - [ ] Genetic / beam-search optimizer over gear combinations. Today the LLM proposes; deterministic scoring ranks.
-- [ ] Vector search over saved trajectories' reasoning text. Today's `get_similar_past_builds` uses class+scenario
-  lookup.
 - [ ] Custom dungeons (containers) in `ServerProfile`. Custom mobs are wired; containers are not.
+- [ ] Model custom skill changes from server profile into calc
+- [ ] Model custom equipment changes from server profile into calc
 
 Bug reports, missing card effects, server-profile additions, and additional calc backends are all welcome via PR.

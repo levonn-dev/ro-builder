@@ -103,7 +103,7 @@ func (b *Build) Validate() error {
 //
 // profile, when non-nil, swaps Scenario.Target into an inline-stats blob
 // if the id matches a CustomMobs entry; stock targets pass through as
-// the iRO id for rocalc lookup. Pass nil profile to disable overlay
+// the iRO id for calc lookup. Pass nil profile to disable overlay
 // resolution (treat every target as a stock id).
 func (b *Build) ToScoreRequest(s *Scenario, profile *ServerProfile) *scoring.ScoreRequest {
 	req := &scoring.ScoreRequest{}

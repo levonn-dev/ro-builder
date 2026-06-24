@@ -86,7 +86,7 @@ func TestScoreBuild_AppliesResolvedBuffs(t *testing.T) {
 	var gotBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotBody, _ = io.ReadAll(r.Body)
-		_, _ = w.Write([]byte(`{"derived":{"maxHp":900,"statPointsRemaining":3},"calc_version":"rocalc-test"}`))
+		_, _ = w.Write([]byte(`{"derived":{"maxHp":900,"statPointsRemaining":3},"calc_version":"calc-test"}`))
 	}))
 	defer srv.Close()
 
