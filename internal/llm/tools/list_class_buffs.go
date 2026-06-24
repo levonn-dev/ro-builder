@@ -81,6 +81,16 @@ func (t *listClassBuffsTool) Execute(_ context.Context, raw json.RawMessage) (js
 		}
 		out = append(out, e)
 	}
+	if innate, ok := t.cat.ClassInnateBuffs(in.Class); ok {
+		for _, b := range innate {
+			out = append(out, listClassBuffsEntry{
+				Name:        b.Name,
+				AnchorSkill: "(innate)",
+				Kind:        b.Kind,
+				Persistence: b.Persistence,
+			})
+		}
+	}
 	body, err := json.Marshal(map[string]any{"class": in.Class, "buffs": out})
 	if err != nil {
 		return nil, fmt.Errorf("encode list_class_buffs output: %w", err)

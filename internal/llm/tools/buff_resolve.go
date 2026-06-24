@@ -42,6 +42,12 @@ func resolveBuffs(class string, skills []domain.SkillAlloc, activeBuffs []domain
 	for _, b := range available {
 		byName[b.SelfBuff.Name] = b
 	}
+	innate := map[string]data.SelfBuff{}
+	if ib, ok := cat.ClassInnateBuffs(class); ok {
+		for _, b := range ib {
+			innate[b.Name] = b
+		}
+	}
 	allocated := make(map[int]int, len(skills)) // skill id -> level
 	for _, sk := range skills {
 		allocated[sk.ID] = sk.Level
@@ -51,6 +57,15 @@ func resolveBuffs(class string, skills []domain.SkillAlloc, activeBuffs []domain
 	for _, ab := range activeBuffs {
 		def, ok := byName[ab.Name]
 		if !ok {
+			// Class-innate buff: gated by class, fixed level 1, no anchor skill,
+			// no allocation to read, no element.
+			if _, isInnate := innate[ab.Name]; isInnate {
+				if ab.Element != "" {
+					return nil, fmt.Errorf("%w: buff %q is innate and takes no element", errBuffResolve, ab.Name)
+				}
+				out = append(out, scoring.Buff{Name: ab.Name, Level: 1})
+				continue
+			}
 			return nil, fmt.Errorf("%w: buff %q is not available to class %q", errBuffResolve, ab.Name, class)
 		}
 		level, ok := allocated[def.ID]

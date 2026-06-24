@@ -1456,6 +1456,30 @@ export function createShim(): ShimSession {
     ],
     happy_break: [{ driver: "skill_slot", rocalcId: 341, level: "buffLevel" }],
     kihop: [{ driver: "skill_slot", rocalcId: 342, level: "buffLevel" }],
+    // High Wizard (m_JobBuff[25] = [537,45,58,274,276]). Pure-data, skill_slot only.
+    // energy_coat (58) is already bound (inherited Mage). soul_drain + mystical_amplification
+    // are HW-only (trans). increase_sp_recovery (45) is a Mage-tree SP-regen passive,
+    // wired-but-inert (moves no scored field; distinct from soul_drain, which raises
+    // maxSp). rocalc ids diverge from Aegis ids, so the bindings carry the rocalc id.
+    // Excluded: 537 (carry-weight). Quagmire is in rocalc's A8 ailment bank, deferred.
+    // See high_wizard_buffs.test.ts.
+    soul_drain: [{ driver: "skill_slot", rocalcId: 274, level: "buffLevel" }],
+    mystical_amplification: [
+      { driver: "skill_slot", rocalcId: 276, level: "buffLevel" },
+    ],
+    increase_sp_recovery: [
+      { driver: "skill_slot", rocalcId: 45, level: "buffLevel" },
+    ],
+    // Super Novice No-Death Bonus (rocalc id 309 in m_JobBuff[20]): +10 to ALL
+    // stats, flat. A class-innate buff (no learnable skill anchor) -- the Go
+    // resolver gates it via ClassInnateBuffs(super_novice) and drives it at a
+    // fixed level 1. See super_novice_buffs.test.ts. The other Super-Novice bank
+    // entries are excluded: 253 Fury (no anchor, out of scope), 310 Undying
+    // (-1 penalty), 385 SN-Spirit (inert + external SL_SUPERNOVICE), 196 Steel
+    // Body (MO_STEELBODY not in the SN tree), 537/59 (carry-weight).
+    no_death_bonus: [
+      { driver: "skill_slot", rocalcId: 309, level: "buffLevel" },
+    ],
   };
 
   // A_Weapon_element option values (empirically probed; value 0 = "(unchanged)"

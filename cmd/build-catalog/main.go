@@ -55,6 +55,7 @@ const (
 	immunityOverlayPath = "internal/catalog/data/item_immunities.yaml"
 	mobThreatsPath      = "internal/catalog/data/mob_threats.yaml"
 	skillBuffsPath      = "internal/catalog/data/skill_buffs.yaml"
+	innateBuffsPath     = "internal/catalog/data/class_innate_buffs.yaml"
 )
 
 type catalogFile struct {
@@ -71,6 +72,10 @@ type catalogFile struct {
 	// Hercules's original job name (e.g. "Assassin_Cross"); runtime
 	// converts to shim-style keys at lookup time.
 	JobMaxLevels []data.JobMaxLevels `json:"job_max_levels,omitempty"`
+	// ClassInnateBuffs carries class-innate self-buffs (mechanics like the Super
+	// Novice No-Death Bonus) that are not anchored to a learnable skill. Keyed by
+	// the shim-style class name. See internal/catalog/data/class_innate_buffs.yaml.
+	ClassInnateBuffs map[string][]data.SelfBuff `json:"class_innate_buffs,omitempty"`
 }
 
 func main() {
@@ -157,6 +162,14 @@ func main() {
 	}
 	slog.Default().Info("merged skill buffs overlay", slog.Int("applied", appliedBuffs))
 
+	innateBuffsAbs := resolvePath(repoRoot, innateBuffsPath)
+	innateBuffs, err := loadInnateBuffs(innateBuffsAbs)
+	if err != nil {
+		slog.Default().Error("load class-innate buffs", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	slog.Default().Info("class-innate buffs loaded", slog.Int("classes", len(innateBuffs)))
+
 	// Compute mob threats programmatically by joining rAthena's
 	// mob_skill_db.txt against each skill's StatusChange field in our
 	// catalog (already populated from Hercules's skill_db.conf above).
@@ -234,15 +247,16 @@ func main() {
 	}
 
 	out := catalogFile{
-		Version:      2,
-		Mode:         "pre-renewal",
-		Source:       sourceLabel(source),
-		GeneratedAt:  time.Now().UTC(),
-		Items:        items,
-		Mobs:         mobs,
-		Skills:       skills,
-		Classes:      classes,
-		JobMaxLevels: jobMaxLevels,
+		Version:          2,
+		Mode:             "pre-renewal",
+		Source:           sourceLabel(source),
+		GeneratedAt:      time.Now().UTC(),
+		Items:            items,
+		Mobs:             mobs,
+		Skills:           skills,
+		Classes:          classes,
+		JobMaxLevels:     jobMaxLevels,
+		ClassInnateBuffs: innateBuffs,
 	}
 
 	if err := os.MkdirAll(filepath.Dir(outAbs), 0o755); err != nil {
@@ -447,6 +461,49 @@ func loadSkillBuffs(path string) (map[string]*data.SelfBuff, error) {
 		}
 		out[e.AegisName] = e.SelfBuff
 		seenName[e.SelfBuff.Name] = e.AegisName
+	}
+	return out, nil
+}
+
+// innateBuffsFile mirrors internal/catalog/data/class_innate_buffs.yaml: a
+// top-level `classes:` map of class name -> list of self-buffs that are class
+// mechanics, not skills. No aegis_name (no anchor skill).
+type innateBuffsFile struct {
+	Classes map[string][]data.SelfBuff `yaml:"classes"`
+}
+
+// loadInnateBuffs reads and validates the class-innate overlay.
+func loadInnateBuffs(path string) (map[string][]data.SelfBuff, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read: %w", err)
+	}
+	var f innateBuffsFile
+	if err := yaml.Unmarshal(src, &f); err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	out := make(map[string][]data.SelfBuff, len(f.Classes))
+	for class, buffs := range f.Classes {
+		seen := make(map[string]bool, len(buffs))
+		for i, b := range buffs {
+			if b.Name == "" {
+				return nil, fmt.Errorf("class %q innate buff %d: name is required", class, i)
+			}
+			if b.Kind != data.BuffKindStatBuff && b.Kind != data.BuffKindStatus {
+				return nil, fmt.Errorf("class %q innate buff %q: kind must be stat_buff or status, got %q", class, b.Name, b.Kind)
+			}
+			if b.Persistence != data.PersistencePermanent && b.Persistence != data.PersistenceTransient {
+				return nil, fmt.Errorf("class %q innate buff %q: persistence must be permanent or transient, got %q", class, b.Name, b.Persistence)
+			}
+			if b.Endow != nil {
+				return nil, fmt.Errorf("class %q innate buff %q: innate buffs cannot be weapon endows", class, b.Name)
+			}
+			if seen[b.Name] {
+				return nil, fmt.Errorf("class %q: duplicate innate buff name %q", class, b.Name)
+			}
+			seen[b.Name] = true
+		}
+		out[class] = buffs
 	}
 	return out, nil
 }

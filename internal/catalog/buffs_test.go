@@ -135,14 +135,15 @@ func TestClassBuffs_Professor(t *testing.T) {
 		"mind_breaker": "debuff", "spider_web": "debuff",
 		"energy_coat": "status", "study": "stat_buff", "dragonology": "stat_buff",
 		"foresight": "stat_buff", "double_casting": "stat_buff",
+		"increase_sp_recovery": "status",
 	}
 	for name, kind := range want {
 		if got[name] != kind {
 			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
 		}
 	}
-	if len(want) != 14 {
-		t.Fatalf("test expects 14 professor buffs, listed %d", len(want))
+	if len(want) != 15 {
+		t.Fatalf("test expects 15 professor buffs, listed %d", len(want))
 	}
 }
 
@@ -161,7 +162,7 @@ func TestClassBuffs_Sage_ExcludesProfessorOnly(t *testing.T) {
 			have[b.SelfBuff.Name] = true
 		}
 	}
-	for _, name := range []string{"flame_launcher", "volcano", "energy_coat", "study", "dragonology"} {
+	for _, name := range []string{"flame_launcher", "volcano", "energy_coat", "study", "dragonology", "increase_sp_recovery"} {
 		if !have[name] {
 			t.Errorf("sage should have buff %q", name)
 		}
@@ -920,6 +921,73 @@ func TestClassBuffs_SoulLinker(t *testing.T) {
 	}
 }
 
+// High Wizard (Mage -> Wizard -> High Wizard) inherits energy_coat (Mage) and
+// increase_sp_recovery (Mage, wired-but-inert), and adds the two HW-only buffs
+// soul_drain (scored, +maxSp) and mystical_amplification (+derived MATK). The HW_
+// buffs are trans-only -- absent from the Wizard tree (see the Wizard test).
+func TestClassBuffs_HighWizard(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("high_wizard")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for high_wizard")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"energy_coat":            "status",
+		"increase_sp_recovery":   "status",
+		"soul_drain":             "stat_buff",
+		"mystical_amplification": "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	// Regression lock: energy_coat + increase_sp_recovery (inherited Mage) +
+	// soul_drain + mystical_amplification (HW-only) = 4.
+	if len(buffs) != 4 {
+		t.Fatalf("ClassBuffs(high_wizard) returned %d buffs, want 4", len(buffs))
+	}
+}
+
+// Wizard inherits the Mage buffs (energy_coat, increase_sp_recovery) but must NOT
+// have the High Wizard-only soul_drain / mystical_amplification (trans gating).
+func TestClassBuffs_Wizard_ExcludesHighWizardOnly(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("wizard")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for wizard")
+	}
+	have := map[string]bool{}
+	for _, b := range buffs {
+		if b.SelfBuff != nil {
+			have[b.SelfBuff.Name] = true
+		}
+	}
+	for _, name := range []string{"energy_coat", "increase_sp_recovery"} {
+		if !have[name] {
+			t.Errorf("wizard should have buff %q", name)
+		}
+	}
+	for _, name := range []string{"soul_drain", "mystical_amplification"} {
+		if have[name] {
+			t.Errorf("wizard must NOT have High Wizard-only buff %q", name)
+		}
+	}
+}
+
 // Alchemist (base) and Creator (trans) have identical rocalc banks
 // (m_JobBuff[19] == m_JobBuff[33] == [537,59,68,241]), so both expose the same
 // two buffs: axe_mastery (new) + crazy_uproar (inherited via the Merchant tree).
@@ -956,5 +1024,84 @@ func TestClassBuffs_Alchemist(t *testing.T) {
 		if len(buffs) != 2 {
 			t.Errorf("ClassBuffs(%s) returned %d buffs, want 2", class, len(buffs))
 		}
+	}
+}
+
+// Super Novice (Expanded) inherits 16 first-class buffs across all six trees.
+// All 16 gate (catalog tree) and drive (rocalc m_JobBuff[20] / class-generic
+// support+debuf banks). no_death_bonus is NOT here -- it is an innate buff (see
+// TestClassInnateBuffs_SuperNovice).
+func TestClassBuffs_SuperNovice(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	buffs, ok := c.ClassBuffs("super_novice")
+	if !ok {
+		t.Fatal("ClassBuffs returned ok=false for super_novice")
+	}
+	got := map[string]string{} // name -> kind
+	for _, b := range buffs {
+		if b.SelfBuff == nil {
+			continue
+		}
+		got[b.SelfBuff.Name] = b.SelfBuff.Kind
+	}
+	want := map[string]string{
+		"angelus":               "stat_buff",
+		"blessing":              "stat_buff",
+		"decrease_agi":          "debuff",
+		"demon_bane":            "stat_buff",
+		"divine_protection":     "status",
+		"double_attack":         "stat_buff",
+		"endure":                "status",
+		"improve_concentration": "stat_buff",
+		"improve_dodge":         "stat_buff",
+		"increase_agi":          "stat_buff",
+		"increase_hp_recovery":  "status",
+		"increase_sp_recovery":  "status",
+		"owls_eye":              "stat_buff",
+		"signum_crucis":         "debuff",
+		"sword_mastery":         "stat_buff",
+		"vultures_eye":          "stat_buff",
+	}
+	for name, kind := range want {
+		if got[name] != kind {
+			t.Errorf("buff %q: kind %q, want %q", name, got[name], kind)
+		}
+	}
+	if len(buffs) != 16 {
+		t.Fatalf("ClassBuffs(super_novice) returned %d buffs, want 16", len(buffs))
+	}
+}
+
+// Class-innate buffs (No-Death Bonus) are gated by class membership, not by a
+// tree skill. They must surface for super_novice and not leak to other classes.
+func TestClassInnateBuffs_SuperNovice(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	innate, ok := c.ClassInnateBuffs("super_novice")
+	if !ok {
+		t.Fatal("ClassInnateBuffs returned ok=false for super_novice")
+	}
+	names := map[string]string{}
+	for _, b := range innate {
+		names[b.Name] = b.Kind
+	}
+	if names["no_death_bonus"] != "stat_buff" {
+		t.Fatalf("super_novice innate buffs missing no_death_bonus stat_buff: %+v", names)
+	}
+	if len(innate) != 1 {
+		t.Fatalf("ClassInnateBuffs(super_novice) = %d, want 1", len(innate))
+	}
+	// Must not leak to an unrelated class.
+	other, ok := c.ClassInnateBuffs("knight")
+	if !ok {
+		t.Fatal("ClassInnateBuffs returned ok=false for knight")
+	}
+	if len(other) != 0 {
+		t.Fatalf("knight should have no innate buffs, got %+v", other)
 	}
 }

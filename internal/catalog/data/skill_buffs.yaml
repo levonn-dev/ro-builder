@@ -414,3 +414,19 @@ skills:
     self_buff: { name: happy_break, kind: status, persistence: permanent }
   - aegis_name: TK_POWER                # Kihop (Fighting Chant), rocalc 342, cat 424, max 5; party ATK -- wired-but-inert
     self_buff: { name: kihop, kind: status, persistence: transient }
+
+  # --- High Wizard self-buffs (Mage -> Wizard -> High Wizard) ---
+  # rocalc job bank m_JobBuff[25] = [537,45,58,274,276]. Pure-data, skill_slot only.
+  # energy_coat (MG_ENERGYCOAT, rocalc 58) is already mapped (Scholar / Mage tree) and
+  # needs no row. soul_drain + mystical_amplification are HW_ (High Wizard trans-only
+  # root) -> high_wizard only. increase_sp_recovery is MG_ (Mage root) -> lights up the
+  # whole Mage tree (intentional, like demon_bane -> Acolyte tree). rocalc ids diverge
+  # from Aegis/catalog ids, so the sidecar bindings carry the rocalc id. Excluded: 537
+  # (ALL_INCCARRY, universal carry-weight). Quagmire (WZ_QUAGMIRE) is modeled in
+  # rocalc's A8 enemy-ailment bank (not the B_debuf seam) -> deferred (new seam).
+  - aegis_name: HW_SOULDRAIN            # Soul Drain, rocalc 274, cat 364, max 10; HW-only; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
+    self_buff: { name: soul_drain, kind: stat_buff, persistence: permanent }
+  - aegis_name: HW_MAGICPOWER           # Mystical Amplification (Amplify Magic Power), rocalc 276, cat 366, max 10; HW-only; +derived MATK (readDerivedStats().matk; not gate-scored in the auto-attack sim, like dragonology)
+    self_buff: { name: mystical_amplification, kind: stat_buff, persistence: transient }
+  - aegis_name: MG_SRECOVERY            # Increase SP Recovery, rocalc 45, cat 9, max 10; Mage tree; SP-regen rate only -- wired-but-inert (does not move maxSp, unlike soul_drain)
+    self_buff: { name: increase_sp_recovery, kind: status, persistence: permanent }

@@ -1,0 +1,16 @@
+# Hand-authored class-innate self-buffs: buffs that are class MECHANICS, not
+# learnable skills, so they have no anchor in the skill tree and no allocation to
+# read a level from. Merged into catalog.json by cmd/build-catalog as the
+# class_innate_buffs map, surfaced via Catalog.ClassInnateBuffs(class). The
+# resolver drives them at a fixed level 1 (the effect is flat). The sidecar
+# binding maps name -> engine controls behind the shim boundary, same as
+# skill_buffs.yaml. Not inherited through the tree (class-specific).
+classes:
+  super_novice:
+    # No-Death Bonus (rocalc "No-Death Bonus", id 309): +10 to ALL stats, flat.
+    # The Super Novice guardian-angel bonus, earned by reaching base-level
+    # milestones without dying. Opt-in: the LLM declares it when modeling the
+    # no-death endgame state.
+    - name: no_death_bonus
+      kind: stat_buff
+      persistence: permanent
