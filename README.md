@@ -339,17 +339,21 @@ The shim contract is in [`calc-sidecar/src/types.ts`](calc-sidecar/src/types.ts)
 `ScoreResponse`, slot keys, derived-stats shape. The Go side mirrors it.
 
 1. Create `calc-sidecar/src/backends/<engine>/index.ts` exporting `createShim(): ShimSession` and
-   `CALC_VERSION: string`.
+   `CALC_VERSION: string`. Both must load synchronously: the registry pulls the selected backend in with
+   `require()`, so the backend's module graph must not use top-level `await`, and `createShim` stays
+   synchronous. (A worker whose module graph is async can abort the process if it's terminated mid-load; see
+   the note in `registry.ts`.)
 2. Put engine-specific assets (synthetic HTML form, ID-mapping JSON, etc.) alongside it.
 3. Drop the engine's source files under `calc-sidecar/vendor/<engine>/`.
 4. Register your backend in [`calc-sidecar/src/backends/registry.ts`](calc-sidecar/src/backends/registry.ts) by adding one
-   line in the `BACKENDS` table:
+   line in the `BACKENDS` table (a module specifier; the registry loads only the selected backend, synchronously
+   via `require()`):
 
    ```ts
-   const BACKENDS: Record<string, () => Promise<BackendModule>> = {
-     rocalc: () => import("./rocalc/index.ts"),
-     stub:   () => import("./stub/index.ts"),
-     <engine>: () => import("./<engine>/index.ts"),  // ← your backend
+   const BACKENDS: Record<string, string> = {
+     rocalc: "./rocalc/index.ts",
+     stub: "./stub/index.ts",
+     <engine>: "./<engine>/index.ts",  // ← your backend
    };
    ```
 
