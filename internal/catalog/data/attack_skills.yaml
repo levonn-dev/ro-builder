@@ -1,0 +1,18 @@
+# Hand-authored attack-skill metadata. Merged onto skill records (by aegis_name)
+# at catalog build time by cmd/build-catalog. Co-located with the skill it
+# describes. Semantic only: NO calc-engine ids (the sidecar binding maps
+# name -> engine controls). Marks a skill as scoreable for per-skill damage.
+#
+# name: lowercase_snake semantic key, unique across entries.
+skills:
+  - aegis_name: TK_STORMKICK            # Tornado Kick, id 413, max 7
+    attack_skill: { name: tornado_kick }
+  - aegis_name: TK_DOWNKICK             # Heel Drop, id 415, max 7
+    attack_skill: { name: heel_drop }
+  - aegis_name: TK_TURNKICK             # Roundhouse Kick, id 417, max 7
+    attack_skill: { name: roundhouse }
+  - aegis_name: TK_COUNTER              # Counter Kick, id 419, max 7
+    attack_skill: { name: counter_kick }
+  - aegis_name: TK_JUMPKICK             # Flying Kick, id 421, max 7
+    # Flying Kick damage scales with movement distance; static scoring approximates it.
+    attack_skill: { name: flying_kick }

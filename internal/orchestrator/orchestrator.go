@@ -828,7 +828,20 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 				}
 				line += " requires: " + strings.Join(parts, ", ")
 			}
+			if s.AttackSkill != nil {
+				line += " [scoreable as scored_skills: " + s.AttackSkill.Name + "]"
+			}
 			sb.WriteString(line + "\n")
+		}
+		hasScoreable := false
+		for _, s := range classSkills {
+			if s.AttackSkill != nil {
+				hasScoreable = true
+				break
+			}
+		}
+		if hasScoreable {
+			sb.WriteString("\nAttack-skill damage: skills tagged [scoreable as scored_skills: NAME] above can be declared per snapshot in scored_skills to score their active-skill damage instead of bare auto-attack. Declare them by that NAME; exactly one must be primary=true (its damage drives the combat gates: EHP/TTK/flee/hit), the rest are reported as a per-skill breakdown. Skill level comes from the allocation in skills; only declare skills this snapshot allocates.\n")
 		}
 	}
 	if len(classBuffs) > 0 {

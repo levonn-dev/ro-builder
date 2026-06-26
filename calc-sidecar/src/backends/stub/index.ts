@@ -7,6 +7,7 @@
 // (see ../registry.ts).
 
 import type {
+  AttackSkill,
   Buff,
   CombatResults,
   DerivedStats,
@@ -98,6 +99,14 @@ export function createShim(): ShimSession {
     supportedBuffs(): readonly string[] | null {
       // The stub accepts any buff name (no enforcement), so buff-binding parity
       // is vacuous for it; null signals "not enforced" to callers.
+      return null;
+    },
+    setAttackSkills(_skills: AttackSkill[]): void {
+      // stub: deterministic fiction, attack skills don't alter output
+    },
+    supportedAttackSkills(): readonly string[] | null {
+      // The stub accepts any attack skill name (no enforcement); null signals
+      // "not enforced" to callers (same pattern as supportedBuffs).
       return null;
     },
     setEnemy(id) {

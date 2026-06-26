@@ -165,6 +165,12 @@ func TestSubmitTrajectory_Definition(t *testing.T) {
 	if !strings.Contains(string(def.InputSchema), "active_buffs") {
 		t.Errorf("schema missing 'active_buffs' field: %s", def.InputSchema)
 	}
+	// scored_skills must be advertised in the snapshot schema, else a
+	// schema-anchored model omits it on the canonical submit path and the
+	// gates score auto-attack instead of the declared attack skill.
+	if !strings.Contains(string(def.InputSchema), "scored_skills") {
+		t.Errorf("schema missing 'scored_skills' field: %s", def.InputSchema)
+	}
 }
 
 func TestSubmitTrajectory_Execute_AcceptsValidInput(t *testing.T) {
@@ -794,4 +800,70 @@ func TestFormatCheckpointLines_BuffSummary(t *testing.T) {
 			t.Errorf("prose should not contain buffs= when no buffs active; got: %s", out)
 		}
 	})
+}
+
+// TestFormatScoredSkills verifies the scored attack-skill breakdown renders as
+// a readable summary (name, ave damage, hit count for multi-hit, a primary
+// marker), so the model sees its scored_skills were honored and what each
+// scored.
+func TestFormatScoredSkills(t *testing.T) {
+	pf := func(v float64) *float64 { return &v }
+
+	t.Run("primary skill with damage", func(t *testing.T) {
+		snap := &domain.Snapshot{
+			ScoredSkills: []domain.ScoredSkill{{Name: "tornado_kick", Primary: true}},
+			Score: &scoring.ScoreResponse{Combat: &scoring.CombatResults{
+				Skills: []scoring.SkillDamage{
+					{Name: "tornado_kick", Damage: scoring.SkillDamageTriple{Ave: pf(528)}, Hits: pf(1)},
+				},
+			}},
+		}
+		got := formatScoredSkills(snap)
+		for _, want := range []string{"tornado_kick", "528", "(primary)"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("formatScoredSkills: %q missing %q", got, want)
+			}
+		}
+	})
+
+	t.Run("multiple skills, multi-hit secondary marked", func(t *testing.T) {
+		snap := &domain.Snapshot{
+			ScoredSkills: []domain.ScoredSkill{{Name: "tornado_kick", Primary: true}, {Name: "counter_kick"}},
+			Score: &scoring.ScoreResponse{Combat: &scoring.CombatResults{
+				Skills: []scoring.SkillDamage{
+					{Name: "tornado_kick", Damage: scoring.SkillDamageTriple{Ave: pf(528)}, Hits: pf(1)},
+					{Name: "counter_kick", Damage: scoring.SkillDamageTriple{Ave: pf(738)}, Hits: pf(3)},
+				},
+			}},
+		}
+		got := formatScoredSkills(snap)
+		for _, want := range []string{"tornado_kick 528 ave (primary)", "counter_kick 738 ave (3 hits)"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("formatScoredSkills: %q missing %q", got, want)
+			}
+		}
+	})
+
+	t.Run("no scored skills produces empty string", func(t *testing.T) {
+		snap := &domain.Snapshot{Score: &scoring.ScoreResponse{Combat: &scoring.CombatResults{}}}
+		if got := formatScoredSkills(snap); got != "" {
+			t.Errorf("expected empty for no scored skills; got %q", got)
+		}
+	})
+}
+
+// TestFormatCheckpointLines_ScoredSkills verifies the prose block includes a
+// scored= line when the snapshot scored attack skills.
+func TestFormatCheckpointLines_ScoredSkills(t *testing.T) {
+	reports := []checkpointReport{{
+		SnapshotIndex:       3,
+		Class:               "taekwon_kid",
+		Level:               "99/50",
+		StatPointsRemaining: 0,
+		ScoredSkills:        "tornado_kick 528 ave (primary)",
+	}}
+	out := formatCheckpointLines(reports)
+	if !strings.Contains(out, "scored=tornado_kick 528 ave (primary)") {
+		t.Errorf("prose missing scored= line: %s", out)
+	}
 }

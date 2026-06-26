@@ -288,6 +288,10 @@ type ClassSkill struct {
 	// present. nil for the overwhelming majority of skills. Drives ClassBuffs
 	// + the buff resolver + list_class_buffs.
 	SelfBuff *data.SelfBuff `json:",omitempty"`
+	// AttackSkill is the skill's attack-skill metadata, copied from data.Skill
+	// when present. nil for non-scoreable skills. Drives ClassAttackSkills + the
+	// attack-skill resolver.
+	AttackSkill *data.AttackSkill `json:",omitempty"`
 }
 
 // ClassSkills returns the named class's allocatable skills, each joined
@@ -313,6 +317,7 @@ func (c *Catalog) ClassSkills(requestClass string) ([]ClassSkill, bool) {
 			entry.CooldownMs = sk.CooldownMs
 			entry.Interruptible = sk.Interruptible
 			entry.SelfBuff = sk.SelfBuff
+			entry.AttackSkill = sk.AttackSkill
 			if entry.MaxLevel == 0 {
 				entry.MaxLevel = sk.MaxLevel
 			}
@@ -343,6 +348,24 @@ func (c *Catalog) ClassBuffs(requestClass string) ([]ClassSkill, bool) {
 	out := make([]ClassSkill, 0, 4)
 	for _, s := range skills {
 		if s.SelfBuff != nil {
+			out = append(out, s)
+		}
+	}
+	return out, true
+}
+
+// ClassAttackSkills returns the named class's allocatable skills that carry
+// attack-skill metadata (the scoreable damage skills). A filtered view of
+// ClassSkills; the attack-skill resolver consumes it. Returns (nil, false)
+// when the class isn't in the catalog.
+func (c *Catalog) ClassAttackSkills(requestClass string) ([]ClassSkill, bool) {
+	skills, ok := c.ClassSkills(requestClass)
+	if !ok {
+		return nil, false
+	}
+	out := make([]ClassSkill, 0, 4)
+	for _, s := range skills {
+		if s.AttackSkill != nil {
 			out = append(out, s)
 		}
 	}

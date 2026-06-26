@@ -84,6 +84,18 @@ const buildObjectSchema = `{
               "element": {"type": "string"}
             }
           }
+        },
+        "scored_skills": {
+          "type": "array",
+          "description": "Attack skills to score for this build. Each name is a scoreable attack skill from this class, tagged [scoreable as scored_skills: NAME] in the injected class-skills block (e.g. tornado_kick, roundhouse). Exactly one must have primary=true: its damage drives the combat gates (EHP/TTK/flee/hit); the rest are reported as a per-skill breakdown. Skill level comes from the allocation in skills; only declare skills this build allocates. Omit to score auto-attack.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {"type": "string"},
+              "primary": {"type": "boolean"}
+            }
+          }
         }
       }
     }`
@@ -160,12 +172,13 @@ type scoreBuildInput struct {
 // the raw input). Field shapes match domain.Build verbatim so the JSON
 // surface the model sees is unchanged from the previous embedded form.
 type scoreBuildBuild struct {
-	Class       string                              `json:"class,omitempty"`
-	Level       domain.Level                        `json:"level"`
-	Stats       domain.Stats                        `json:"stats"`
-	Equipment   map[domain.SlotKey]domain.EquipSpec `json:"equipment,omitempty"`
-	Skills      []domain.SkillAlloc                 `json:"skills,omitempty"`
-	ActiveBuffs []domain.ActiveBuff                 `json:"active_buffs,omitempty"`
+	Class        string                              `json:"class,omitempty"`
+	Level        domain.Level                        `json:"level"`
+	Stats        domain.Stats                        `json:"stats"`
+	Equipment    map[domain.SlotKey]domain.EquipSpec `json:"equipment,omitempty"`
+	Skills       []domain.SkillAlloc                 `json:"skills,omitempty"`
+	ActiveBuffs  []domain.ActiveBuff                 `json:"active_buffs,omitempty"`
+	ScoredSkills []domain.ScoredSkill                `json:"scored_skills,omitempty"`
 }
 
 // toBuild copies the LLM-supplied fields into a domain.Build. Mode is
@@ -215,16 +228,17 @@ var errBuildInvalid = errors.New("invalid build")
 // set on the request explicitly after conversion.
 //
 // Errors preserve their type in the chain: a validation failure (or a bad
-// active_buff) wraps errBuildInvalid, and a sidecar failure wraps the typed
+// active_buff or scored_skill) wraps errBuildInvalid, and a sidecar failure wraps the typed
 // *scoring.Error (or transport error). This lets score_builds tell a
 // candidate's bad input (validation, 4xx) apart from a global calc-engine
 // outage (5xx, transport) and decide whether to capture it per-candidate or
 // abort the batch.
 //
-// active_buffs are resolved here (level filled from the build's skill
-// allocation, element validated) so a previewed build is scored with the same
-// buffs canonical submit_trajectory scoring applies; cat must be non-nil when
-// the build declares buffs.
+// active_buffs and scored_skills are resolved here (each level filled from the
+// build's skill allocation, buff elements validated, exactly one scored skill
+// primary) so a previewed build is scored with the same buffs and attack skills
+// canonical submit_trajectory scoring applies; cat must be non-nil when the
+// build declares either.
 func scoreOne(ctx context.Context, client *scoring.Client, cat *catalog.Catalog, b scoreBuildBuild, scenario *domain.Scenario) (*scoring.ScoreResponse, error) {
 	build := b.toBuild()
 	if err := build.Validate(); err != nil {
@@ -242,6 +256,11 @@ func scoreOne(ctx context.Context, client *scoring.Client, cat *catalog.Catalog,
 		return nil, fmt.Errorf("%w: %w", errBuildInvalid, err)
 	}
 	req.Buffs = buffs
+	attackSkills, err := resolveAttackSkills(b.Class, b.Skills, b.ScoredSkills, cat)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errBuildInvalid, err)
+	}
+	req.AttackSkills = attackSkills
 	resp, err := client.Score(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("calc sidecar: %w", err)

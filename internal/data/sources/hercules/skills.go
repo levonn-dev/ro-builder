@@ -66,6 +66,12 @@ type Skill struct {
 	// skills, which are not drivable self-buffs. Not emulator-derived, so
 	// not set in skillFromMap.
 	SelfBuff *SelfBuff `json:"self_buff,omitempty"`
+
+	// AttackSkill is hand-authored attack-skill metadata (Tornado Kick etc.)
+	// layered on at catalog build time from
+	// internal/catalog/data/attack_skills.yaml. nil for non-scoreable skills.
+	// Not emulator-derived, so not set in skillFromMap.
+	AttackSkill *AttackSkill `json:"attack_skill,omitempty"`
 }
 
 // LoadSkillDB reads a Hercules skill_db.conf and returns one Skill per

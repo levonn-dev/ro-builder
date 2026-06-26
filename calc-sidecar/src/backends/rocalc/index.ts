@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { ScoreValidationError } from "../../errors.ts";
 import type {
+  AttackSkill,
   BasePlus,
   Buff,
   CombatResults,
@@ -16,6 +17,7 @@ import type {
   MinMax,
   ShimSession,
   SkillAlloc,
+  SkillDamage,
   SlotKey,
   Stats,
 } from "../../types.ts";
@@ -483,6 +485,35 @@ export function createShim(): ShimSession {
   };
   let pendingDebufActions: PendingDebuf[] = [];
 
+  // ATTACK_SKILL_BINDINGS maps a semantic attack-skill name to its rocalc
+  // A_ActiveSkill id. This is the only place rocalc's attack-skill ids live;
+  // the contract stays semantic. uncertainty mirrors the overlay caveat so the
+  // breakdown entry can carry it. Add a row per skill to onboard a class.
+  const ATTACK_SKILL_BINDINGS: Record<
+    string,
+    { rocalcId: number; uncertainty?: string }
+  > = {
+    tornado_kick: { rocalcId: 331 },
+    heel_drop: { rocalcId: 333 },
+    roundhouse: { rocalcId: 335 },
+    counter_kick: { rocalcId: 337 },
+    flying_kick: {
+      rocalcId: 339,
+      uncertainty:
+        "rocalc cannot model Flying Kick's movement-distance scaling; damage approximated",
+    },
+  };
+
+  type PendingAttackSkill = {
+    name: string;
+    rocalcId: number;
+    level: number;
+    primary: boolean;
+    uncertainty?: string;
+  };
+  let pendingAttackSkills: PendingAttackSkill[] = [];
+  let lastSkillBreakdown: SkillDamage[] | undefined = undefined;
+
   function setStats({ str, agi, vit, int: int_, dex, luk }: Stats): void {
     form.A_STR.value = String(str);
     form.A_AGI.value = String(agi);
@@ -747,6 +778,11 @@ export function createShim(): ShimSession {
       // the correct race/element and doesn't zero them.
       reapplyPendingDebufs();
       win.calc();
+      // Compute the attack-skill breakdown while the inline mob is still in
+      // the scratch slot; computeSkillBreakdown recomputes per skill, and the
+      // restore in finally would otherwise leave Poring's stats in m_Monster.
+      // Same ordering constraint as reapplyPendingDebufs above.
+      lastSkillBreakdown = computeSkillBreakdown();
     } finally {
       // Restore-before-read invariant: this finally restores
       // m_Monster[SCRATCH_SLOT] BEFORE score.ts calls readCombatResults().
@@ -795,6 +831,10 @@ export function createShim(): ShimSession {
     // Same rationale as setEnemyInline; see reapplyPendingDebufs comment.
     reapplyPendingDebufs();
     win.calc();
+    // Compute per-skill breakdown now that the enemy is set. Primary is driven
+    // last so the live strID cells reflect the primary's damage after this call,
+    // which readCombatResults reads into the top-level damage fields.
+    lastSkillBreakdown = computeSkillBreakdown();
   }
 
   // readCombatResults pulls the combat-sim output cells rocalc populates
@@ -839,6 +879,7 @@ export function createShim(): ShimSession {
         size: readCell(doc, "B_4"),
         type: readCell(doc, "B_type"),
       },
+      ...(lastSkillBreakdown ? { skills: lastSkillBreakdown } : {}),
     };
   }
 
@@ -862,6 +903,18 @@ export function createShim(): ShimSession {
     // Clear pending debuf actions so a subsequent setClass/setEnemy* does not
     // re-apply stale debuffs from a prior request.
     pendingDebufActions = [];
+    // Clear pending attack skills and the last breakdown so readCombatResults
+    // does not return a stale skills array from a prior request.
+    pendingAttackSkills = [];
+    lastSkillBreakdown = undefined;
+    // Restore A_ActiveSkill to "no active skill" (value 0) so the next
+    // setEnemy/setEnemyInline sees the auto-attack baseline. ClickActiveSkill()
+    // resets rocalc's internal active-skill globals.
+    if (form.A_ActiveSkill) {
+      form.A_ActiveSkill.value = "0";
+      win.ClickActiveSkill();
+    }
+    win.n_A_ActiveSkill = 0;
     // Zero the section-gate globals. restoreForm() only restores form field
     // values; n_SkillSW and n_debufSW are rocalc JS globals that setBuffs
     // set to 1. If they stay at 1, the next setClass() triggers ClickJob ->
@@ -1744,6 +1797,109 @@ export function createShim(): ShimSession {
     form.A_Weapon_element.value = value;
   }
 
+  // setAttackSkills records the requested attack skills (resolves name to
+  // rocalc id via ATTACK_SKILL_BINDINGS; ensures the A_ActiveSkill option
+  // exists). The breakdown is computed at combat time by computeSkillBreakdown(),
+  // called from setEnemy (real-enemy path) and setEnemyInline (custom-mob path).
+  // No recompute here; only setEnemy/setEnemyInline trigger the breakdown.
+  function setAttackSkills(skills: AttackSkill[]): void {
+    pendingAttackSkills = [];
+    // Drop any breakdown from a prior setEnemy so a setAttackSkills call
+    // without an intervening reset() can't leave a stale skills array
+    // readable via readCombatResults.
+    lastSkillBreakdown = undefined;
+    if (skills.length === 0) return;
+    const seen = new Set<string>();
+    for (const sk of skills) {
+      if (seen.has(sk.name)) {
+        throw new ScoreValidationError(
+          `duplicate attack skill ${JSON.stringify(sk.name)}; each may appear at most once`,
+        );
+      }
+      seen.add(sk.name);
+      const bind = ATTACK_SKILL_BINDINGS[sk.name];
+      if (!bind) {
+        throw new ScoreValidationError(
+          `unknown attack skill ${JSON.stringify(sk.name)}; expected one of: ${Object.keys(ATTACK_SKILL_BINDINGS).join(", ")}`,
+        );
+      }
+      pendingAttackSkills.push({
+        name: sk.name,
+        rocalcId: bind.rocalcId,
+        level: sk.level,
+        primary: sk.primary ?? false,
+        uncertainty: bind.uncertainty,
+      });
+    }
+    // Exactly one skill drives the top-level CombatResults cells (the primary).
+    // Zero primaries would leave the top-level fields on whichever skill ran
+    // last; two would mis-drive them. Defense-in-depth even though the Go
+    // resolver also enforces this (mirrors setBuffs' duplicate-buff guard).
+    const primaryCount = pendingAttackSkills.filter((s) => s.primary).length;
+    if (primaryCount !== 1) {
+      throw new ScoreValidationError(
+        `exactly one attack skill must be primary; got ${primaryCount}`,
+      );
+    }
+  }
+
+  // ensureActiveSkillOption makes the A_ActiveSkill <select> contain an option
+  // for rocalcId so jsdom accepts setting .value to it (jsdom ignores .value
+  // for a value with no matching option). Idempotent.
+  function ensureActiveSkillOption(rocalcId: number, label: string): void {
+    const sel = form.A_ActiveSkill;
+    if (!sel) return;
+    for (let i = 0; i < sel.options.length; i++) {
+      if (parseInt(sel.options[i].value, 10) === rocalcId) return;
+    }
+    sel.options[sel.options.length] = new win.Option(label, String(rocalcId));
+  }
+
+  // computeSkillBreakdown drives each pending attack skill against the
+  // currently-set enemy and reads its per-cast damage. Ordered so the primary
+  // is driven LAST, leaving the live strID cells on the primary's pass for the
+  // subsequent readCombatResults() (which reads them into the top-level fields).
+  // Returns undefined when no attack skills were requested.
+  // This is a standalone reusable helper: called from setEnemy (real-enemy
+  // path) and setEnemyInline (custom-mob path).
+  function computeSkillBreakdown(): SkillDamage[] | undefined {
+    if (pendingAttackSkills.length === 0) return undefined;
+    const ordered = [
+      ...pendingAttackSkills.filter((s) => !s.primary),
+      ...pendingAttackSkills.filter((s) => s.primary),
+    ];
+    const out: SkillDamage[] = [];
+    for (const sk of ordered) {
+      ensureActiveSkillOption(sk.rocalcId, sk.name);
+      form.A_ActiveSkill.value = String(sk.rocalcId);
+      win.ClickActiveSkill();
+      setSelectClamped(form.A_ActiveSkillLV, sk.level);
+      win.StAllCalc();
+      win.StCalc();
+      win.calc();
+      const hits =
+        typeof win.wActiveHitNum === "number" ? win.wActiveHitNum : null;
+      out.push({
+        name: sk.name,
+        damage: {
+          min: readMaybeInt(doc, "strID_0"),
+          ave: readMaybeInt(doc, "strID_1"),
+          max: readMaybeInt(doc, "strID_2"),
+        },
+        hits,
+        ...(sk.uncertainty ? { uncertainty: sk.uncertainty } : {}),
+      });
+    }
+    return out;
+  }
+
+  // supportedAttackSkills (ShimSession contract): the attack-skill names this
+  // backend can bind, independent of class. Parity test can assert the Go
+  // overlay is a subset without reaching into ATTACK_SKILL_BINDINGS itself.
+  function supportedAttackSkills(): readonly string[] {
+    return Object.keys(ATTACK_SKILL_BINDINGS);
+  }
+
   function setBuffs(buffs: Buff[]): void {
     if (buffs.length === 0) return;
     // Clear the pending-debuf list so a fresh setBuffs call always reflects
@@ -1869,6 +2025,8 @@ export function createShim(): ShimSession {
     setSkills,
     setBuffs,
     supportedBuffs,
+    setAttackSkills,
+    supportedAttackSkills,
     setEnemy,
     setEnemyInline,
     readDerivedStats,

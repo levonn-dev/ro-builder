@@ -194,6 +194,11 @@ type Skill = hercules.Skill
 type SelfBuff = hercules.SelfBuff
 type EndowSpec = hercules.EndowSpec
 
+// AttackSkill is hand-authored attack-skill metadata layered onto Skill records
+// at catalog build time. Aliased from hercules (where Skill itself lives) to
+// avoid an import cycle.
+type AttackSkill = hercules.AttackSkill
+
 // LoadSkills reads the skill database from a Hercules clone (default
 // source). For multi-source workflows use LoadSkillsFrom.
 func LoadSkills(herculesRoot string, mode Mode) ([]Skill, error) {

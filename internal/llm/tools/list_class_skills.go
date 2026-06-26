@@ -39,7 +39,7 @@ func (t *listClassSkillsTool) Definition() llm.Tool {
 		Description: "Enumerate every skill the given class can allocate, with iRO id, aegis name, display name, max level, and cast/cooldown metadata. " +
 			"Source: Hercules's skill_tree.conf with inherits flattened; Novice's skills appear under every class that inherits from it. " +
 			"Fallback only: the user prompt already injects this class's full allocatable skill list (id, max level, element, attack type, cast/cooldown, prerequisites), so call this tool only when that injected block is absent; it is redundant when the block is present. " +
-			"Note: the calc engine silently drops skills it can't model (e.g. Taekwon kicks). Score numbers fall back to auto-attack-tier in those cases; that's expected behavior, not an error to fix by changing skill choice.",
+			"Note: allocating an active skill (e.g. a Taekwon kick) does not by itself move the build's derived or auto-attack numbers; the calc folds in only skills that act as passive stat buffs. To SCORE an active attack skill's damage, declare it in the build's scored_skills (exactly one marked primary); that primary's damage then drives the combat gates. The injected skill list marks each scoreable skill as [scoreable as scored_skills: NAME]. If a kick build's auto-attack numbers look flat, add the kick to scored_skills rather than changing the skill choice.",
 		InputSchema: json.RawMessage(listClassSkillsSchema),
 	}
 }
@@ -58,6 +58,11 @@ type listClassSkillsEntry struct {
 	CastTimeMs    int    `json:"cast_time_ms,omitempty"`
 	CooldownMs    int    `json:"cooldown_ms,omitempty"`
 	Interruptible bool   `json:"interruptible,omitempty"`
+	// ScoreableAs is the semantic scored_skills name for an active attack skill
+	// (e.g. "roundhouse"); empty for skills that aren't scoreable. Mirrors the
+	// "[scoreable as scored_skills: NAME]" tag in the injected user-prompt block,
+	// so the fallback tool path exposes the same discoverability.
+	ScoreableAs string `json:"scoreable_as,omitempty"`
 }
 
 func (t *listClassSkillsTool) Execute(_ context.Context, raw json.RawMessage) (json.RawMessage, error) {
@@ -76,7 +81,7 @@ func (t *listClassSkillsTool) Execute(_ context.Context, raw json.RawMessage) (j
 
 	out := make([]listClassSkillsEntry, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, listClassSkillsEntry{
+		e := listClassSkillsEntry{
 			ID:            s.ID,
 			AegisName:     s.AegisName,
 			Name:          s.Name,
@@ -86,7 +91,11 @@ func (t *listClassSkillsTool) Execute(_ context.Context, raw json.RawMessage) (j
 			CastTimeMs:    s.CastTimeMs,
 			CooldownMs:    s.CooldownMs,
 			Interruptible: s.Interruptible,
-		})
+		}
+		if s.AttackSkill != nil {
+			e.ScoreableAs = s.AttackSkill.Name
+		}
+		out = append(out, e)
 	}
 
 	// Echo the caller-supplied class name so the LLM sees the same key it

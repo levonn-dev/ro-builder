@@ -63,6 +63,7 @@ type Snapshot struct {
 	Stats          Stats                  `json:"stats"`
 	Skills         []SkillAlloc           `json:"skills,omitempty"`
 	ActiveBuffs    []ActiveBuff           `json:"active_buffs,omitempty"`
+	ScoredSkills   []ScoredSkill          `json:"scored_skills,omitempty"`
 	Equipment      map[SlotKey]EquipSpec  `json:"equipment,omitempty"`
 	LevelingTarget *Scenario              `json:"leveling_target,omitempty"`
 	Score          *scoring.ScoreResponse `json:"score,omitempty"`
@@ -89,6 +90,16 @@ type SkillAlloc = scoring.SkillAlloc
 type ActiveBuff struct {
 	Name    string `json:"name"`
 	Element string `json:"element,omitempty"`
+}
+
+// ScoredSkill is the LLM's declared intent: an attack skill to score for this
+// snapshot, and whether it is the primary (the one whose pass drives the combat
+// gates). It carries NO level: the level is resolved from the skill's own
+// allocation during canonical scoring. The resolver turns this into a
+// scoring.AttackSkill.
+type ScoredSkill struct {
+	Name    string `json:"name"`
+	Primary bool   `json:"primary,omitempty"`
 }
 
 func validateActiveBuff(b ActiveBuff) error {

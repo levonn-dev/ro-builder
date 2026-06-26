@@ -106,6 +106,18 @@ const submitTrajectorySchema = `{
             }
           }
         },
+        "scored_skills": {
+          "type": "array",
+          "description": "Attack skills to score at this checkpoint. name is a scoreable skill from the class-skills block (tagged [scoreable as scored_skills: NAME], e.g. tornado_kick, roundhouse). Exactly one must have primary=true; its damage drives the combat gates (EHP/TTK/flee/hit), the rest are reported as a per-skill breakdown. Skill level comes from this snapshot's allocation; only declare skills this snapshot allocates. Omit to score bare auto-attack.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {"type": "string"},
+              "primary": {"type": "boolean"}
+            }
+          }
+        },
         "equipment": {
           "type": "object",
           "description": "Recommended gear by slot key (weapon, headTop, headMid, headBot, shield, armor, garment, footgear, accessory1, accessory2). Same shape as score_build.",
@@ -250,13 +262,14 @@ func (s *submitTrajectoryTool) Execute(ctx context.Context, raw json.RawMessage)
 			// Caller-fixable errors drop just this alternative rather than
 			// aborting the whole submission: buff-resolution failures (bad buff
 			// name, unallocated anchor skill, endow element above level) carry
-			// errBuffResolve, and a sidecar 4xx (unmapped item id, bad slot)
+			// errBuffResolve; attack-skill resolution failures carry
+			// errAttackSkillResolve; and a sidecar 4xx (unmapped item id, bad slot)
 			// satisfies IsClientError. Infrastructure failures (sidecar 5xx or
 			// transport) are neither, and they propagate: liveness is not
 			// monotonic across calls, so the primary scoring cleanly does not
 			// prove the alternative will, and a real outage must surface rather
 			// than be masked as one bad alternative.
-			if errors.Is(err, errBuffResolve) || scoring.IsClientError(err) {
+			if errors.Is(err, errBuffResolve) || errors.Is(err, errAttackSkillResolve) || scoring.IsClientError(err) {
 				droppedAlts = append(droppedAlts, droppedAlternative{Index: i, Reason: "scoring: " + err.Error()})
 				continue
 			}
@@ -321,6 +334,11 @@ func (s *submitTrajectoryTool) scoreAndGate(ctx context.Context, t *domain.Traje
 			return "", fmt.Errorf("%w: snapshot %d (%s): %w", errBuffResolve, idx, snap.Class, err)
 		}
 		req.Buffs = buffs
+		attackSkills, err := resolveAttackSkills(snap.Class, snap.Skills, snap.ScoredSkills, s.deps.Catalog)
+		if err != nil {
+			return "", fmt.Errorf("%w: snapshot %d (%s): %w", errAttackSkillResolve, idx, snap.Class, err)
+		}
+		req.AttackSkills = attackSkills
 		resp, err := s.deps.Scoring.Score(ctx, req)
 		if err != nil {
 			return "", fmt.Errorf("canonical scoring failed for snapshot %d (%s): %w", idx, snap.Class, err)
@@ -391,6 +409,9 @@ func levelStr(l domain.Level) string {
 // budget → warn); Gates carries only the non-pass results so the echo
 // stays actionable. Buffs is the human-readable active-buff summary for
 // snapshots that declare self-buffs; omitted when no buffs are active.
+// ScoredSkills is the human-readable scored attack-skill summary (name + ave
+// damage + primary marker), so the model can confirm its scored_skills were
+// honored and what each scored; omitted when none were scored.
 type checkpointReport struct {
 	SnapshotIndex       int                 `json:"snapshot_index"`
 	Class               string              `json:"class"`
@@ -398,6 +419,7 @@ type checkpointReport struct {
 	StatPointsRemaining int                 `json:"stat_points_remaining"`
 	Gates               []domain.GateResult `json:"gates,omitempty"`
 	Buffs               string              `json:"buffs,omitempty"`
+	ScoredSkills        string              `json:"scored_skills,omitempty"`
 }
 
 // formatActiveBuffs renders a snapshot's declared self-buffs as a
@@ -420,6 +442,43 @@ func formatActiveBuffs(buffs []domain.ActiveBuff) string {
 	return strings.Join(parts, ", ")
 }
 
+// formatScoredSkills renders a snapshot's scored attack-skill breakdown as a
+// human-readable, comma-separated list ("tornado_kick 528 ave (primary)").
+// Damage and hit count come from the calc breakdown (Score.Combat.Skills);
+// the "(primary)" marker comes from the declared ScoredSkills. Hit count is
+// shown only for multi-hit skills (1 hit is the implicit default). Returns an
+// empty string when nothing was scored, so callers can use it in omitempty
+// logic. Mirrors formatActiveBuffs.
+func formatScoredSkills(snap *domain.Snapshot) string {
+	if snap.Score == nil || snap.Score.Combat == nil || len(snap.Score.Combat.Skills) == 0 {
+		return ""
+	}
+	primary := ""
+	for _, sk := range snap.ScoredSkills {
+		if sk.Primary {
+			primary = sk.Name
+			break
+		}
+	}
+	parts := make([]string, 0, len(snap.Score.Combat.Skills))
+	for _, sd := range snap.Score.Combat.Skills {
+		p := sd.Name
+		if sd.Damage.Ave != nil {
+			p += fmt.Sprintf(" %g ave", *sd.Damage.Ave)
+		} else {
+			p += " (no damage)"
+		}
+		if sd.Hits != nil && *sd.Hits > 1 {
+			p += fmt.Sprintf(" (%g hits)", *sd.Hits)
+		}
+		if sd.Name == primary {
+			p += " (primary)"
+		}
+		parts = append(parts, p)
+	}
+	return strings.Join(parts, ", ")
+}
+
 // buildCheckpointReports summarizes the canonically-scored snapshots
 // (SelectScoredIndices) for the model. Snapshots without a stamped Score
 // (scoring disabled, or not selected) are skipped, so an empty result
@@ -437,6 +496,7 @@ func buildCheckpointReports(t *domain.Trajectory) []checkpointReport {
 			Level:               levelStr(snap.Level),
 			StatPointsRemaining: snap.Score.Derived.StatPointsRemaining,
 			Buffs:               formatActiveBuffs(snap.ActiveBuffs),
+			ScoredSkills:        formatScoredSkills(snap),
 		}
 		for _, g := range snap.Gates {
 			if !g.IsPass() {
@@ -461,6 +521,9 @@ func formatCheckpointLines(reports []checkpointReport) string {
 		fmt.Fprintf(&sb, "- snapshot %d (%s) %s: statPointsRemaining=%d", r.SnapshotIndex, r.Class, r.Level, r.StatPointsRemaining)
 		if r.Buffs != "" {
 			fmt.Fprintf(&sb, " buffs=%s", r.Buffs)
+		}
+		if r.ScoredSkills != "" {
+			fmt.Fprintf(&sb, " scored=%s", r.ScoredSkills)
 		}
 		for _, g := range r.Gates {
 			fmt.Fprintf(&sb, " [%s %s: %s]", strings.ToUpper(g.Severity), g.Name, g.Reason)

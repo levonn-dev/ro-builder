@@ -166,6 +166,8 @@ export function score(req: ScoreRequest): ScoreResponse {
     if (req.skills && req.skills.length > 0) s.setSkills(req.skills);
     if (req.equipment) applyEquipment(s, req.equipment);
     if (req.buffs && req.buffs.length > 0) s.setBuffs(req.buffs);
+    if (req.attack_skills && req.attack_skills.length > 0)
+      s.setAttackSkills(req.attack_skills);
 
     const out: ScoreResponse = {
       derived: s.readDerivedStats(),
@@ -205,6 +207,12 @@ export function score(req: ScoreRequest): ScoreResponse {
     // approximate scores rather than treat them as ground truth.
     if (out.combat) {
       flags.push(...rocalcCombatCaveats());
+    }
+    if (out.combat?.skills) {
+      for (const sk of out.combat.skills) {
+        if (sk.uncertainty)
+          flags.push(`attack_skill_${sk.name}: ${sk.uncertainty}`);
+      }
     }
     if (flags.length > 0) {
       out.uncertainty = flags;

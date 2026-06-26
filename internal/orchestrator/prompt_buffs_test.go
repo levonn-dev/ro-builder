@@ -98,3 +98,24 @@ func TestFormatUserPrompt_SuperNoviceInnate(t *testing.T) {
 		t.Fatalf("prompt missing innate-buff guidance:\n%s", out)
 	}
 }
+
+func TestFormatUserPrompt_TaekwonScoreableAnnotation(t *testing.T) {
+	cat, err := catalog.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	skills, ok := cat.ClassSkills("taekwon_kid")
+	if !ok {
+		t.Fatal("taekwon_kid not in catalog")
+	}
+	out := formatUserPrompt(GenerateRequest{Class: "taekwon_kid"}, nil, skills, nil, 99, 50, 0)
+	// Each kick should be annotated with its scored_skills name.
+	if !strings.Contains(out, "[scoreable as scored_skills: roundhouse]") {
+		t.Fatalf("prompt missing roundhouse annotation:\n%s", out)
+	}
+	// The explanatory paragraph must be present when at least one scoreable skill exists.
+	const wantGuidance = "Attack-skill damage:"
+	if !strings.Contains(out, wantGuidance) {
+		t.Fatalf("prompt missing attack-skill guidance (want %q):\n%s", wantGuidance, out)
+	}
+}
