@@ -2,17 +2,20 @@
 // load cleanly via setClass. Catches regressions where a future rocalc-data
 // refresh or form-template edit silently breaks a class.
 //
-// The 45 supported classes are sharded across classes_1..classes_5.test.ts so
-// node --test runs them as parallel processes. setClass (~1.5s ClickJob) is
-// serial WITHIN a file and the calc work is synchronous, so the only way to
-// parallelize the sweep is across files; one big file made this the slowest in
-// the suite (~64s). Each shard reuses one shim (the ~2.4s jsdom + engine load
-// is paid once per shard); back-to-back setClass on a reused shim mirrors how
-// the production ShimPool reuses workers, and no buffs are applied here, so
-// there is no bank state to leak between classes.
+// The 45 supported classes are split by job tier across classes_first_job /
+// _second_job / _transcendent / _high_first / _expanded .test.ts so node --test
+// runs them as parallel processes. setClass (~1.5-3s ClickJob, heavier for
+// trans classes) is serial WITHIN a file and the calc work is synchronous, so
+// the only way to parallelize the sweep is across files; one big file made this
+// the slowest in the suite (~64s). Each shard reuses one shim (the ~2.4s jsdom
+// + engine load is paid once per shard); back-to-back setClass on a reused shim
+// mirrors how the production ShimPool reuses workers, and no buffs are applied
+// here, so there is no bank state to leak between classes.
 //
-// To change the shard count, update the `count` passed to shard() in every
-// classes_N.test.ts and add/remove shard files to match.
+// Tiers are uneven (second job 14, trans 13 are the largest), but they're the
+// natural class grouping and each shard stays well under the suite's
+// contention-bound wall. SUPPORTED_CLASSES below is composed from the tier
+// arrays, so the per-tier files and the full list can't drift apart.
 
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
@@ -20,13 +23,13 @@ import { createShim } from "../../../src/shim.ts";
 
 // One canonical name per class id we promise to support. Aliases (mage,
 // swordsman, taekwon_master, supernovice, sin_x, scholar, biochemist, minstrel)
-// aren't tested separately; same id, same code path. Update this list in
+// aren't tested separately; same id, same code path. Update these arrays in
 // lockstep with CLASS_TO_ROCALC_ID in src/backends/rocalc/index.ts.
 //
 // Coverage: all 46 pre-renewal m_Job slots load EXCEPT id 34 (High Novice;
 // rocalc has empty placeholder data). Confirmed via test/class-coverage.ts.
-export const SUPPORTED_CLASSES = [
-  // First job
+
+export const FIRST_JOB = [
   "novice",
   "swordman",
   "thief",
@@ -34,8 +37,9 @@ export const SUPPORTED_CLASSES = [
   "archer",
   "magician",
   "merchant",
+];
 
-  // Second job
+export const SECOND_JOB = [
   "knight",
   "assassin",
   "priest",
@@ -50,8 +54,9 @@ export const SUPPORTED_CLASSES = [
   "sage",
   "alchemist",
   "super_novice",
+];
 
-  // Trans
+export const TRANSCENDENT = [
   "lord_knight",
   "assassin_cross",
   "high_priest",
@@ -65,35 +70,39 @@ export const SUPPORTED_CLASSES = [
   "gypsy",
   "professor",
   "creator",
+];
 
-  // High first-class (id 34 High Novice excluded; rocalc placeholder)
+// Transcendent first-class slots (id 34 High Novice excluded; rocalc placeholder).
+export const HIGH_FIRST = [
   "high_swordman",
   "high_thief",
   "high_acolyte",
   "high_archer",
   "high_magician",
   "high_merchant",
+];
 
-  // Taekwon path
+// Expanded classes: the Taekwon path plus Ninja / Gunslinger.
+export const EXPANDED = [
   "taekwon_kid",
   "star_gladiator",
   "soul_linker",
-
-  // Expanded
   "ninja",
   "gunslinger",
 ];
 
-// Round-robin slice `index` of `count` over SUPPORTED_CLASSES. Round-robin
-// (not contiguous) deliberately spreads the cost-heavy trans classes (bigger
-// skill trees => slower ClickJob, ~2.5-3s each) evenly across shards instead of
-// clustering them in the tier-contiguous block, which balances shard runtimes.
-export function shard(index: number, count: number): string[] {
-  return SUPPORTED_CLASSES.filter((_, i) => i % count === index);
-}
+// Single source of truth for the full supported set, composed from the tiers so
+// the per-tier shard files can't drift out of sync with the whole.
+export const SUPPORTED_CLASSES = [
+  ...FIRST_JOB,
+  ...SECOND_JOB,
+  ...TRANSCENDENT,
+  ...HIGH_FIRST,
+  ...EXPANDED,
+];
 
 // Registers one "loads cleanly" test per class against a single reused shim.
-// Called at module top-level by each classes_N.test.ts shard file.
+// Called at module top-level by each classes_<tier>.test.ts shard file.
 export function runClassLoadChecks(classes: string[]): void {
   let shim: ReturnType<typeof createShim>;
   before(() => {
