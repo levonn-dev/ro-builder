@@ -1,13 +1,22 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
+// createShim (jsdom + calc engine) + setClass is the expensive part, so it runs
+// once in before() and is reused. reset() preserves the class but clears the
+// buff/debuff/land/music banks and rolls level/stats/equipment back to the class
+// baseline, so hpShim() = reset()+reconfigure gives each test a clean, leak-free
+// shim without re-paying the createShim+setClass cost.
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+  shim.setClass("high_priest");
+});
 function hpShim() {
-  const s = createShim();
-  s.setClass("high_priest");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 90, agi: 40, vit: 60, int: 40, dex: 80, luk: 20 });
-  return s;
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 90, agi: 40, vit: 60, int: 40, dex: 80, luk: 20 });
+  return shim;
 }
 const DEF_TARGET = {
   hp: 200000,

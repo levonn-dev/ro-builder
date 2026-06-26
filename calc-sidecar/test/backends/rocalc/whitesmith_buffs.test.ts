@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -7,13 +7,23 @@ import { createShim } from "../../../src/shim.ts";
 // Weapon Perfection observable. ATK/damage steroids move damage.ave; ASPD
 // steroids move readDerivedStats().aspd; HIT moves readDerivedStats().hit
 // (uncapped -- combat.hit caps at 100).
-function wsShim() {
-  const s = createShim();
-  s.setClass("whitesmith");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 90, agi: 60, vit: 40, int: 1, dex: 60, luk: 1 });
-  s.equip("weapon", { id: 1360 });
-  return s;
+// createShim (jsdom + calc engine) and setClass are the expensive steps, so the
+// class is set once in before() and the shim reused. reset() preserves the class
+// but clears the buff banks and rolls back level / stats / equipment, so
+// fresh() re-applies the build to give every test a clean, leak-free baseline.
+let shim: ReturnType<typeof createShim>;
+
+before(() => {
+  shim = createShim();
+  shim.setClass("whitesmith");
+});
+
+function fresh() {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 90, agi: 60, vit: 40, int: 1, dex: 60, luk: 1 });
+  shim.equip("weapon", { id: 1360 });
+  return shim;
 }
 
 const TARGET = {
@@ -30,7 +40,7 @@ const TARGET = {
 };
 
 function damageWith(buffName: string, level: number): number {
-  const s = wsShim();
+  const s = fresh();
   s.setBuffs([{ name: buffName, level }]);
   s.setEnemyInline(TARGET);
   const ave = s.readCombatResults().damage.ave;
@@ -39,7 +49,7 @@ function damageWith(buffName: string, level: number): number {
 }
 
 function baseDamage(): number {
-  const s = wsShim();
+  const s = fresh();
   s.setEnemyInline(TARGET);
   const ave = s.readCombatResults().damage.ave;
   assert.ok(ave != null, "base damage.ave must be numeric");
@@ -106,8 +116,8 @@ test("hilt_binding raises auto-attack damage (+ATK)", () => {
 });
 
 test("adrenaline_rush raises ASPD (Axe/Mace-gated, axe equipped)", () => {
-  const base = wsShim().readDerivedStats().aspd;
-  const s = wsShim();
+  const base = fresh().readDerivedStats().aspd;
+  const s = fresh();
   s.setBuffs([{ name: "adrenaline_rush", level: 5 }]);
   assert.ok(
     s.readDerivedStats().aspd > base,
@@ -116,8 +126,8 @@ test("adrenaline_rush raises ASPD (Axe/Mace-gated, axe equipped)", () => {
 });
 
 test("advanced_adrenaline_rush raises ASPD", () => {
-  const base = wsShim().readDerivedStats().aspd;
-  const s = wsShim();
+  const base = fresh().readDerivedStats().aspd;
+  const s = fresh();
   s.setBuffs([{ name: "advanced_adrenaline_rush", level: 1 }]);
   assert.ok(
     s.readDerivedStats().aspd > base,
@@ -127,8 +137,8 @@ test("advanced_adrenaline_rush raises ASPD", () => {
 
 test("weaponry_research raises damage and HIT", () => {
   const plainDmg = baseDamage();
-  const baseHit = wsShim().readDerivedStats().hit;
-  const s = wsShim();
+  const baseHit = fresh().readDerivedStats().hit;
+  const s = fresh();
   s.setBuffs([{ name: "weaponry_research", level: 10 }]);
   s.setEnemyInline(TARGET);
   const got = s.readCombatResults().damage.ave;
@@ -167,7 +177,7 @@ test("skin_tempering applies cleanly and leaves auto-attack damage unchanged", (
 });
 
 test("reset() clears the Whitesmith buff banks (no leak across requests)", () => {
-  const s = wsShim();
+  const s = fresh();
   s.setEnemyInline(TARGET);
   const plain = s.readCombatResults().damage.ave;
   s.setBuffs([{ name: "over_thrust", level: 5 }]);

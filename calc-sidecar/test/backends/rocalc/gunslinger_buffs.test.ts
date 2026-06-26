@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -19,13 +19,24 @@ import { createShim } from "../../../src/shim.ts";
 const REVOLVER = 13104; // Garrison
 const GATLING = 13157; // Drifter (W_GATLING; NOT Destroyer 13160, which is a grenade launcher)
 
-function gsShim(weaponId: number) {
-  const s = createShim();
-  s.setClass("gunslinger");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 50, agi: 90, vit: 30, int: 1, dex: 90, luk: 20 });
-  s.equip("weapon", { id: weaponId });
-  return s;
+// createShim (jsdom + calc engine) and setClass are the expensive steps, so the
+// class is set once in before() and the shim reused. reset() preserves the class
+// but clears the buff banks and rolls back level / stats / equipment, so
+// fresh() re-applies the build (with the requested weapon) to give every test a
+// clean, leak-free baseline.
+let shim: ReturnType<typeof createShim>;
+
+before(() => {
+  shim = createShim();
+  shim.setClass("gunslinger");
+});
+
+function fresh(weaponId: number) {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 50, agi: 90, vit: 30, int: 1, dex: 90, luk: 20 });
+  shim.equip("weapon", { id: weaponId });
+  return shim;
 }
 
 const NEUTRAL = {
@@ -44,25 +55,25 @@ const NEUTRAL = {
 type Buff = { name: string; level: number };
 
 function hitWith(buffs: Buff[], weaponId: number): number {
-  const s = gsShim(weaponId);
+  const s = fresh(weaponId);
   if (buffs.length) s.setBuffs(buffs);
   return s.readDerivedStats().hit;
 }
 
 function aspdWith(buffs: Buff[], weaponId: number): number {
-  const s = gsShim(weaponId);
+  const s = fresh(weaponId);
   if (buffs.length) s.setBuffs(buffs);
   return s.readDerivedStats().aspd;
 }
 
 function fleeWith(buffs: Buff[], weaponId: number): number {
-  const s = gsShim(weaponId);
+  const s = fresh(weaponId);
   if (buffs.length) s.setBuffs(buffs);
   return s.readDerivedStats().flee;
 }
 
 function aveWith(buffs: Buff[], weaponId: number): number {
-  const s = gsShim(weaponId);
+  const s = fresh(weaponId);
   if (buffs.length) s.setBuffs(buffs);
   s.setEnemyInline(NEUTRAL);
   const ave = s.readCombatResults().damage.ave;
@@ -71,7 +82,7 @@ function aveWith(buffs: Buff[], weaponId: number): number {
 }
 
 function secondAveWith(buffs: Buff[], weaponId: number): number | null {
-  const s = gsShim(weaponId);
+  const s = fresh(weaponId);
   if (buffs.length) s.setBuffs(buffs);
   s.setEnemyInline(NEUTRAL);
   return s.readCombatResults().damage.secondAve;
@@ -175,7 +186,7 @@ test("flip_the_coin raises damage.ave (coin-damage model)", () => {
 
 // --- reset() isolation ---
 test("reset() clears Gunslinger buff banks (no hit leak)", () => {
-  const s = gsShim(REVOLVER);
+  const s = fresh(REVOLVER);
   const plain = s.readDerivedStats().hit;
   s.setBuffs([{ name: "single_action", level: 10 }]);
   s.readDerivedStats();

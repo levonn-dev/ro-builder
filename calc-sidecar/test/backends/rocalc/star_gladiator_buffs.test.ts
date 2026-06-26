@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -19,12 +19,18 @@ import { createShim } from "../../../src/shim.ts";
 //   sls_union              -> readCombatResults().damage.ave
 //   sls_demon/knowledge/blessing -> inert (status; no scored field)
 
+let shim: ReturnType<typeof createShim>;
+
+before(() => {
+  shim = createShim();
+  shim.setClass("star_gladiator");
+});
+
 function sgShim() {
-  const s = createShim();
-  s.setClass("star_gladiator");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 90, agi: 30, vit: 60, int: 20, dex: 90, luk: 60 });
-  return s; // barehanded
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 90, agi: 30, vit: 60, int: 20, dex: 90, luk: 60 });
+  return shim; // barehanded
 }
 
 function enemy(size: string, hp: number) {

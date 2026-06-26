@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -9,13 +9,22 @@ import { createShim } from "../../../src/shim.ts";
 // 1407 Pike) for Spear Mastery. ATK/damage steroids move
 // readCombatResults().damage.ave; ASPD steroids move readDerivedStats().aspd;
 // HIT moves readDerivedStats().hit (uncapped -- combat.hit caps at 100).
-function lkShim(weaponId: number) {
-  const s = createShim();
-  s.setClass("lord_knight");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 99, agi: 60, vit: 50, int: 1, dex: 60, luk: 1 });
-  s.equip("weapon", { id: weaponId });
-  return s;
+//
+// The shim (jsdom + class load) is the expensive part, so it is created once in
+// before() and reused. reset() preserves the class but clears the buff / debuff
+// / land / music banks, so fresh(weaponId) (reset + reconfigure) gives every
+// test a clean, leak-free baseline without re-paying the ~4s createShim+setClass.
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+  shim.setClass("lord_knight");
+});
+function fresh(weaponId: number) {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 99, agi: 60, vit: 50, int: 1, dex: 60, luk: 1 });
+  shim.equip("weapon", { id: weaponId });
+  return shim;
 }
 
 const TWO_HAND_SWORD = 1163; // Claymore
@@ -36,7 +45,7 @@ const TARGET = {
 };
 
 function damageWith(weaponId: number, buffName: string, level: number): number {
-  const s = lkShim(weaponId);
+  const s = fresh(weaponId);
   s.setBuffs([{ name: buffName, level }]);
   s.setEnemyInline(TARGET);
   const ave = s.readCombatResults().damage.ave;
@@ -45,7 +54,7 @@ function damageWith(weaponId: number, buffName: string, level: number): number {
 }
 
 function baseDamage(weaponId: number): number {
-  const s = lkShim(weaponId);
+  const s = fresh(weaponId);
   s.setEnemyInline(TARGET);
   const ave = s.readCombatResults().damage.ave;
   assert.ok(ave != null, "base damage.ave must be numeric");
@@ -85,7 +94,7 @@ test("berserk raises 2H-sword damage (+ATK)", () => {
 
 // --- ASPD steroids (readDerivedStats().aspd) ---
 test("twohand_quicken raises ASPD (2H sword)", () => {
-  const s = lkShim(TWO_HAND_SWORD);
+  const s = fresh(TWO_HAND_SWORD);
   const base = s.readDerivedStats().aspd;
   s.setBuffs([{ name: "twohand_quicken", level: 10 }]);
   const got = s.readDerivedStats().aspd;
@@ -96,7 +105,7 @@ test("twohand_quicken raises ASPD (2H sword)", () => {
 });
 
 test("berserk raises ASPD", () => {
-  const s = lkShim(TWO_HAND_SWORD);
+  const s = fresh(TWO_HAND_SWORD);
   const base = s.readDerivedStats().aspd;
   s.setBuffs([{ name: "berserk", level: 1 }]);
   const got = s.readDerivedStats().aspd;
@@ -104,7 +113,7 @@ test("berserk raises ASPD", () => {
 });
 
 test("onehand_quicken raises ASPD (1H sword)", () => {
-  const s = lkShim(ONE_HAND_SWORD);
+  const s = fresh(ONE_HAND_SWORD);
   const base = s.readDerivedStats().aspd;
   s.setBuffs([{ name: "onehand_quicken", level: 1 }]);
   const got = s.readDerivedStats().aspd;
@@ -116,7 +125,7 @@ test("onehand_quicken raises ASPD (1H sword)", () => {
 
 // --- HIT steroid ---
 test("concentration raises HIT", () => {
-  const s = lkShim(TWO_HAND_SWORD);
+  const s = fresh(TWO_HAND_SWORD);
   const base = s.readDerivedStats().hit;
   s.setBuffs([{ name: "concentration", level: 5 }]);
   const got = s.readDerivedStats().hit;
@@ -180,7 +189,7 @@ for (const buff of [
 
 // --- reset() isolation ---
 test("reset() clears the Lord Knight buff banks (no leak across requests)", () => {
-  const s = lkShim(TWO_HAND_SWORD);
+  const s = fresh(TWO_HAND_SWORD);
   s.setEnemyInline(TARGET);
   const plain = s.readCombatResults().damage.ave;
   s.setBuffs([{ name: "concentration", level: 5 }]);

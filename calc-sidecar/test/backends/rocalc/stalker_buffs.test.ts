@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -11,13 +11,21 @@ import { createShim } from "../../../src/shim.ts";
 // shared bank drives on Stalker.
 const DAGGER = 1207;
 
-function stShim() {
-  const s = createShim();
-  s.setClass("stalker");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 70, agi: 90, vit: 30, int: 1, dex: 70, luk: 20 });
-  s.equip("weapon", { id: DAGGER });
-  return s;
+// The shim (jsdom + class load) is the expensive part, so it is created once in
+// before() and reused. reset() preserves the class but clears the buff banks and
+// rolls level / stats / equipment back to baseline, so fresh() re-applies the
+// Stalker build for a clean, leak-free baseline without re-paying createShim+setClass.
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+  shim.setClass("stalker");
+});
+function fresh() {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 70, agi: 90, vit: 30, int: 1, dex: 70, luk: 20 });
+  shim.equip("weapon", { id: DAGGER });
+  return shim;
 }
 
 const NEUTRAL = {
@@ -34,13 +42,13 @@ const NEUTRAL = {
 } as const;
 
 function fleeWith(buffs: { name: string; level: number }[]): number {
-  const s = stShim();
+  const s = fresh();
   if (buffs.length) s.setBuffs(buffs);
   return s.readDerivedStats().flee;
 }
 
 function aveWith(buffs: { name: string; level: number }[]): number {
-  const s = stShim();
+  const s = fresh();
   if (buffs.length) s.setBuffs(buffs);
   s.setEnemyInline(NEUTRAL);
   const ave = s.readCombatResults().damage.ave;
@@ -85,7 +93,7 @@ test("inherited sword_mastery raises damage on Stalker (shared bank drives)", ()
 
 // --- reset() isolation ---
 test("reset() clears Stalker buff banks (no flee leak)", () => {
-  const s = stShim();
+  const s = fresh();
   const plain = s.readDerivedStats().flee;
   s.setBuffs([{ name: "close_confine", level: 1 }]);
   s.readDerivedStats();
