@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -12,13 +12,23 @@ import { createShim } from "../../../src/shim.ts";
 
 const DAGGER = 1207;
 
-function snShim() {
-  const s = createShim();
-  s.setClass("super_novice");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 50, agi: 50, vit: 50, int: 50, dex: 50, luk: 50 });
-  s.equip("weapon", { id: DAGGER });
-  return s;
+// createShim (jsdom + calc engine) and setClass are the expensive steps, so the
+// class is set once in before() and the shim reused. reset() preserves the class
+// but clears the buff banks and rolls back level / stats / equipment, so
+// fresh() re-applies the build to give every test a clean, leak-free baseline.
+let shim: ReturnType<typeof createShim>;
+
+before(() => {
+  shim = createShim();
+  shim.setClass("super_novice");
+});
+
+function fresh() {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 50, agi: 50, vit: 50, int: 50, dex: 50, luk: 50 });
+  shim.equip("weapon", { id: DAGGER });
+  return shim;
 }
 
 const ENEMY = {
@@ -37,7 +47,7 @@ const ENEMY = {
 type Buff = { name: string; level: number };
 
 function read(buffs: Buff[]) {
-  const s = snShim();
+  const s = fresh();
   if (buffs.length) s.setBuffs(buffs);
   s.setEnemyInline(ENEMY);
   const d = s.readDerivedStats();
@@ -84,7 +94,7 @@ test("inherited blessing drives on super_novice (support_slot)", () => {
 
 test("reset() clears no_death_bonus (no maxHp leak)", () => {
   const baseMaxHp = read([]).maxHp;
-  const s = snShim();
+  const s = fresh();
   s.setBuffs([{ name: "no_death_bonus", level: 1 }]);
   s.readDerivedStats();
   s.reset();

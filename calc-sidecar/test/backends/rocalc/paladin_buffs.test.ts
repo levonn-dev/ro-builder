@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -12,13 +12,22 @@ import { createShim } from "../../../src/shim.ts";
 const LANCE = 1410; // 2H spear (W_2HSPEAR)
 const PIKE = 1407; // 1H spear (W_1HSPEAR)
 
-function palShim(weaponId: number) {
-  const s = createShim();
-  s.setClass("paladin");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 90, agi: 70, vit: 40, int: 1, dex: 60, luk: 20 });
-  s.equip("weapon", { id: weaponId });
-  return s;
+// The shim (jsdom + class load) is the expensive part, so it is created once in
+// before() and reused. reset() preserves the class but clears the buff banks and
+// rolls level / stats / equipment back to baseline, so fresh(weaponId) re-applies
+// the Paladin build for a clean, leak-free baseline without re-paying
+// createShim+setClass.
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+  shim.setClass("paladin");
+});
+function fresh(weaponId: number) {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 90, agi: 70, vit: 40, int: 1, dex: 60, luk: 20 });
+  shim.equip("weapon", { id: weaponId });
+  return shim;
 }
 
 const NEUTRAL = {
@@ -35,7 +44,7 @@ const NEUTRAL = {
 } as const;
 
 function maxHpWith(buffs: { name: string; level: number }[]): number {
-  const s = palShim(LANCE);
+  const s = fresh(LANCE);
   if (buffs.length) s.setBuffs(buffs);
   return s.readDerivedStats().maxHp;
 }
@@ -44,7 +53,7 @@ function aspdWith(
   weaponId: number,
   buffs: { name: string; level: number }[],
 ): number {
-  const s = palShim(weaponId);
+  const s = fresh(weaponId);
   if (buffs.length) s.setBuffs(buffs);
   return s.readDerivedStats().aspd;
 }
@@ -87,10 +96,10 @@ test("spear_quicken does NOT change aspd on a 1H spear (Pike)", () => {
 
 // --- Regression lock: an inherited buff (Spear Mastery) drives on Paladin ---
 test("inherited spear_mastery raises damage on Paladin (shared bank drives)", () => {
-  const b = palShim(LANCE);
+  const b = fresh(LANCE);
   b.setEnemyInline(NEUTRAL);
   const base = b.readCombatResults().damage.ave;
-  const s = palShim(LANCE);
+  const s = fresh(LANCE);
   s.setBuffs([{ name: "spear_mastery", level: 10 }]);
   s.setEnemyInline(NEUTRAL);
   const got = s.readCombatResults().damage.ave;
@@ -103,7 +112,7 @@ test("inherited spear_mastery raises damage on Paladin (shared bank drives)", ()
 
 // --- reset() isolation ---
 test("reset() clears Paladin buff banks (no maxHp leak)", () => {
-  const s = palShim(LANCE);
+  const s = fresh(LANCE);
   const plain = s.readDerivedStats().maxHp;
   s.setBuffs([{ name: "faith", level: 10 }]);
   s.readDerivedStats();

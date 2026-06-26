@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -11,13 +11,19 @@ import { createShim } from "../../../src/shim.ts";
 
 const ROD = 1601; // Rod (W_ROD)
 
+let shim: ReturnType<typeof createShim>;
+
+before(() => {
+  shim = createShim();
+  shim.setClass("soul_linker");
+});
+
 function slShim() {
-  const s = createShim();
-  s.setClass("soul_linker");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 40, agi: 50, vit: 50, int: 80, dex: 70, luk: 30 });
-  s.equip("weapon", { id: ROD });
-  return s;
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 40, agi: 50, vit: 50, int: 80, dex: 70, luk: 30 });
+  shim.equip("weapon", { id: ROD });
+  return shim;
 }
 
 const ENEMY = {

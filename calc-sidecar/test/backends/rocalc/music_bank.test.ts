@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -11,25 +11,31 @@ import { createShim } from "../../../src/shim.ts";
 // weapon-sensitive effects manifest.
 const VIOLIN = 1901;
 
-function shim() {
-  const s = createShim();
-  s.setClass("clown");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 80, agi: 70, vit: 30, int: 30, dex: 70, luk: 20 });
-  s.equip("weapon", { id: VIOLIN });
-  return s;
+let shim: ReturnType<typeof createShim>;
+
+before(() => {
+  shim = createShim();
+  shim.setClass("clown");
+});
+
+function fresh() {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 80, agi: 70, vit: 30, int: 30, dex: 70, luk: 20 });
+  shim.equip("weapon", { id: VIOLIN });
+  return shim;
 }
 
 test("a_whistle raises flee (A3 music driver populates + drives the bank)", () => {
-  const base = shim().readDerivedStats().flee;
-  const s = shim();
+  const base = fresh().readDerivedStats().flee;
+  const s = fresh();
   s.setBuffs([{ name: "a_whistle", level: 10 }]);
   const got = s.readDerivedStats().flee;
   assert.ok(got > base, `a_whistle should raise flee (${base} -> ${got})`);
 });
 
 test("reset() clears the A3 bank (no flee leak)", () => {
-  const s = shim();
+  const s = fresh();
   const plain = s.readDerivedStats().flee;
   s.setBuffs([{ name: "a_whistle", level: 10 }]);
   s.readDerivedStats();
@@ -55,8 +61,8 @@ const SCORED: [string, number, "flee" | "aspd" | "maxHp" | "hit" | "cri"][] = [
 ];
 for (const [name, lv, field] of SCORED) {
   test(`${name} raises ${field}`, () => {
-    const base = shim().readDerivedStats()[field];
-    const s = shim();
+    const base = fresh().readDerivedStats()[field];
+    const s = fresh();
     s.setBuffs([{ name, level: lv }]);
     const got = s.readDerivedStats()[field];
     assert.ok(got > base, `${name} should raise ${field} (${base} -> ${got})`);
@@ -64,8 +70,8 @@ for (const [name, lv, field] of SCORED) {
 }
 
 test("drum_on_the_battlefield raises damage.ave", () => {
-  const base = shim().readCombatResults().damage.ave ?? 0;
-  const s = shim();
+  const base = fresh().readCombatResults().damage.ave ?? 0;
+  const s = fresh();
   s.setBuffs([{ name: "drum_on_the_battlefield", level: 5 }]);
   const got = s.readCombatResults().damage.ave ?? 0;
   assert.ok(got > base, `drum should raise ave (${base} -> ${got})`);
@@ -84,7 +90,7 @@ const INERT = [
 ];
 for (const name of INERT) {
   test(`${name} is wired and drives without error`, () => {
-    const s = shim();
+    const s = fresh();
     assert.doesNotThrow(() => s.setBuffs([{ name, level: 5 }]));
     const ave = s.readCombatResults().damage.ave;
     assert.ok(ave != null, `${name}: combat still computes`);

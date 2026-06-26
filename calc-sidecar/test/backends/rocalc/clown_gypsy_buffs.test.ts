@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -12,22 +12,30 @@ const VIOLIN = 1901; // Instrument
 const ROPE = 1950; // Whip
 const BOW = 1701;
 
-function shim(cls: string, weaponId: number) {
-  const s = createShim();
-  s.setClass(cls);
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 80, agi: 70, vit: 30, int: 30, dex: 70, luk: 20 });
-  s.equip("weapon", { id: weaponId });
-  return s;
+// The shim (jsdom load) is created once and reused. Class varies per test
+// (clown vs gypsy), so setClass is called per configure(); reset() first clears
+// the prior test's bank/equipment state. Reusing the shim still avoids the
+// ~2.4s createShim that the old per-call helper paid on every measurement.
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+});
+
+function configure(cls: string, weaponId: number) {
+  shim.reset();
+  shim.setClass(cls);
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 80, agi: 70, vit: 30, int: 30, dex: 70, luk: 20 });
+  shim.equip("weapon", { id: weaponId });
 }
 function aveWith(
   cls: string,
   weaponId: number,
   buffs: { name: string; level: number }[],
 ): number {
-  const s = shim(cls, weaponId);
-  if (buffs.length) s.setBuffs(buffs);
-  const ave = s.readCombatResults().damage.ave;
+  configure(cls, weaponId);
+  if (buffs.length) shim.setBuffs(buffs);
+  const ave = shim.readCombatResults().damage.ave;
   assert.ok(ave != null, "damage.ave must be numeric");
   return ave as number;
 }

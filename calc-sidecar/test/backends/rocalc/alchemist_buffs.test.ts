@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -15,7 +15,29 @@ const AXE_2H = 1360; // Two-Handed Axe (W_2HAXE)
 const DAGGER = 1207; // Main Gauche (W_DAGGER) -- non-axe negative
 const MACE = 1501; // Club (W_MACE) -- non-axe negative
 
-function alShim(weaponId: number, className = "alchemist") {
+// The shim (jsdom + class load) is the expensive part, so it is created once in
+// before() and reused for the Alchemist tests. reset() preserves the class but
+// clears the buff banks and rolls level / stats / equipment back to baseline, so
+// fresh(weaponId) re-applies the build for a clean, leak-free baseline without
+// re-paying createShim+setClass. The Creator case keeps its own session because
+// reset() does not roll back rocalc's class globals (that needs the expensive
+// class change).
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+  shim.setClass("alchemist");
+});
+function fresh(weaponId: number) {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 90, agi: 40, vit: 40, int: 40, dex: 90, luk: 20 });
+  shim.equip("weapon", { id: weaponId });
+  return shim;
+}
+
+// Creator (and any non-Alchemist) needs its own session: reset() preserves the
+// class, so the shared Alchemist shim cannot stand in for it.
+function otherClassShim(weaponId: number, className: string) {
   const s = createShim();
   s.setClass(className);
   s.setLevel({ base: 99, job: 70 });
@@ -44,7 +66,10 @@ function aveWith(
   buffs: Buff[],
   className = "alchemist",
 ): number {
-  const s = alShim(weaponId, className);
+  const s =
+    className === "alchemist"
+      ? fresh(weaponId)
+      : otherClassShim(weaponId, className);
   if (buffs.length) s.setBuffs(buffs);
   s.setEnemyInline(ENEMY);
   const ave = s.readCombatResults().damage.ave;
@@ -98,7 +123,7 @@ test("axe_mastery raises damage.ave for Creator too (identical bank)", () => {
 
 test("reset() clears axe_mastery (no damage.ave leak)", () => {
   const plain = aveWith(AXE_2H, []);
-  const s = alShim(AXE_2H);
+  const s = fresh(AXE_2H);
   s.setBuffs([{ name: "axe_mastery", level: 10 }]);
   s.setEnemyInline(ENEMY);
   s.readCombatResults();

@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -12,13 +12,21 @@ import { createShim } from "../../../src/shim.ts";
 // against an Ele_Undead target (and shown inert vs a Neutral DemiHuman).
 const KNUCKLE = 1807; // Fist (knuckle)
 
-function chShim() {
-  const s = createShim();
-  s.setClass("champion");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 90, agi: 70, vit: 40, int: 1, dex: 60, luk: 20 });
-  s.equip("weapon", { id: KNUCKLE });
-  return s;
+// The shim (jsdom + class load) is the expensive part, so it is created once in
+// before() and reused. reset() preserves the class but clears the buff / debuff
+// / land / music banks, so fresh() (reset + reconfigure) gives every test a
+// clean, leak-free baseline without re-paying the ~4s createShim+setClass.
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+  shim.setClass("champion");
+});
+function fresh() {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 90, agi: 70, vit: 40, int: 1, dex: 60, luk: 20 });
+  shim.equip("weapon", { id: KNUCKLE });
+  return shim;
 }
 
 const NEUTRAL = {
@@ -40,7 +48,7 @@ function damageVs(
   buffName: string,
   level: number,
 ): number {
-  const s = chShim();
+  const s = fresh();
   s.setBuffs([{ name: buffName, level }]);
   s.setEnemyInline(target);
   const ave = s.readCombatResults().damage.ave;
@@ -49,7 +57,7 @@ function damageVs(
 }
 
 function baseDamageVs(target: typeof NEUTRAL | typeof UNDEAD_ELE): number {
-  const s = chShim();
+  const s = fresh();
   s.setEnemyInline(target);
   const ave = s.readCombatResults().damage.ave;
   assert.ok(ave != null, "base damage.ave must be numeric");
@@ -57,7 +65,7 @@ function baseDamageVs(target: typeof NEUTRAL | typeof UNDEAD_ELE): number {
 }
 
 function secondAveWith(buffs: { name: string; level: number }[]): number {
-  const s = chShim();
+  const s = fresh();
   if (buffs.length) s.setBuffs(buffs);
   s.setEnemyInline(NEUTRAL);
   const v = s.readCombatResults().damage.secondAve;
@@ -93,7 +101,7 @@ test("triple_attack raises second-attack (proc) damage (secondAve)", () => {
 
 // --- Fury (Critical Explosion): raises crit rate (readDerivedStats().cri) ---
 test("fury raises crit rate (cri)", () => {
-  const s = chShim();
+  const s = fresh();
   const base = s.readDerivedStats().cri;
   s.setBuffs([{ name: "fury", level: 5 }]);
   const got = s.readDerivedStats().cri;
@@ -122,7 +130,7 @@ test("demon_bane does NOT change damage vs a Neutral DemiHuman target", () => {
 
 // --- Dodge: flee steroid (readDerivedStats().flee) ---
 test("dodge raises flee", () => {
-  const s = chShim();
+  const s = fresh();
   const base = s.readDerivedStats().flee;
   s.setBuffs([{ name: "dodge", level: 10 }]);
   const got = s.readDerivedStats().flee;
@@ -148,7 +156,7 @@ test("mental_strength applies cleanly and the build still scores", () => {
 
 // --- reset() isolation ---
 test("reset() clears the Champion buff banks (no leak across requests)", () => {
-  const s = chShim();
+  const s = fresh();
   s.setEnemyInline(NEUTRAL);
   const plain = s.readCombatResults().damage.ave;
   s.setBuffs([{ name: "iron_fists", level: 10 }]);

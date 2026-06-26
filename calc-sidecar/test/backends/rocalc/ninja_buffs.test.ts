@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -15,13 +15,21 @@ import { createShim } from "../../../src/shim.ts";
 
 const HUUMA = 13300; // Huuma Wing Shuriken (W_HUUMA)
 
-function njShim() {
-  const s = createShim();
-  s.setClass("ninja");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 90, agi: 60, vit: 40, int: 60, dex: 90, luk: 40 });
-  s.equip("weapon", { id: HUUMA });
-  return s;
+// The shim (jsdom + class load) is the expensive part, so it is created once in
+// before() and reused. reset() preserves the class but clears the buff banks and
+// rolls level / stats / equipment back to baseline, so fresh() re-applies the
+// Ninja build for a clean, leak-free baseline without re-paying createShim+setClass.
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+  shim.setClass("ninja");
+});
+function fresh() {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 90, agi: 60, vit: 40, int: 60, dex: 90, luk: 40 });
+  shim.equip("weapon", { id: HUUMA });
+  return shim;
 }
 
 const ENEMY = {
@@ -40,7 +48,7 @@ const ENEMY = {
 type Buff = { name: string; level: number };
 
 function aveWith(buffs: Buff[]): number {
-  const s = njShim();
+  const s = fresh();
   if (buffs.length) s.setBuffs(buffs);
   s.setEnemyInline(ENEMY);
   const ave = s.readCombatResults().damage.ave;
@@ -84,7 +92,7 @@ test("ninja_mastery is wired but inert", () => {
 });
 
 test("reset() clears Ninja buffs (no atk.base leak)", () => {
-  const s = njShim();
+  const s = fresh();
   const plain = s.readDerivedStats().atk.base;
   s.setBuffs([{ name: "ninja_aura", level: 5 }]);
   s.readDerivedStats();

@@ -1,13 +1,19 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
+let shim: ReturnType<typeof createShim>;
+
+before(() => {
+  shim = createShim();
+  shim.setClass("professor");
+});
+
 function profShim() {
-  const s = createShim();
-  s.setClass("professor");
-  s.setLevel({ base: 99, job: 50 });
-  s.setStats({ str: 70, agi: 40, vit: 40, int: 80, dex: 80, luk: 20 });
-  return s;
+  shim.reset();
+  shim.setLevel({ base: 99, job: 50 });
+  shim.setStats({ str: 70, agi: 40, vit: 40, int: 80, dex: 80, luk: 20 });
+  return shim;
 }
 // Neutral medium target that also deals damage (for incoming/EHP checks).
 const TARGET = {

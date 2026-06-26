@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -11,13 +11,23 @@ import { createShim } from "../../../src/shim.ts";
 
 const ROD = 1601; // Rod (W_ROD)
 
-function hwShim() {
-  const s = createShim();
-  s.setClass("high_wizard");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 1, agi: 1, vit: 50, int: 99, dex: 90, luk: 1 });
-  s.equip("weapon", { id: ROD });
-  return s;
+// createShim (jsdom + calc engine) and setClass are the expensive steps, so the
+// class is set once in before() and the shim reused. reset() preserves the class
+// but clears the buff banks and rolls back level / stats / equipment, so
+// fresh() re-applies the build to give every test a clean, leak-free baseline.
+let shim: ReturnType<typeof createShim>;
+
+before(() => {
+  shim = createShim();
+  shim.setClass("high_wizard");
+});
+
+function fresh() {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 1, agi: 1, vit: 50, int: 99, dex: 90, luk: 1 });
+  shim.equip("weapon", { id: ROD });
+  return shim;
 }
 
 const ENEMY = {
@@ -36,7 +46,7 @@ const ENEMY = {
 type Buff = { name: string; level: number };
 
 function read(buffs: Buff[]): { maxSp: number; matkMax: number; ave: number } {
-  const s = hwShim();
+  const s = fresh();
   if (buffs.length) s.setBuffs(buffs);
   s.setEnemyInline(ENEMY);
   const d = s.readDerivedStats();
@@ -103,7 +113,7 @@ test("increase_sp_recovery is wired but inert", () => {
 
 test("reset() clears soul_drain (no maxSp leak)", () => {
   const baseMaxSp = read([]).maxSp;
-  const s = hwShim();
+  const s = fresh();
   s.setBuffs([{ name: "soul_drain", level: 10 }]);
   s.readDerivedStats();
   s.reset();

@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createShim } from "../../../src/shim.ts";
 
@@ -6,13 +6,22 @@ import { createShim } from "../../../src/shim.ts";
 // DEX/ATK steroids move scored damage; HIT/flee steroids move readDerivedStats.
 // rocalc scores bows without an arrow (damage is lower than in-game, but the
 // buffed-vs-unbuffed comparison is valid).
-function sniperShim() {
-  const s = createShim();
-  s.setClass("sniper");
-  s.setLevel({ base: 99, job: 70 });
-  s.setStats({ str: 1, agi: 90, vit: 40, int: 1, dex: 99, luk: 40 });
-  s.equip("weapon", { id: 1718 });
-  return s;
+//
+// The shim (jsdom + class load) is the expensive part, so it is created once in
+// before() and reused. reset() preserves the class but clears the buff / debuff
+// / land / music banks, so fresh() (reset + reconfigure) gives every test a
+// clean, leak-free baseline without re-paying the ~4s createShim+setClass.
+let shim: ReturnType<typeof createShim>;
+before(() => {
+  shim = createShim();
+  shim.setClass("sniper");
+});
+function fresh() {
+  shim.reset();
+  shim.setLevel({ base: 99, job: 70 });
+  shim.setStats({ str: 1, agi: 90, vit: 40, int: 1, dex: 99, luk: 40 });
+  shim.equip("weapon", { id: 1718 });
+  return shim;
 }
 
 const TARGET = {
@@ -29,10 +38,10 @@ const TARGET = {
 };
 
 test("owls_eye raises auto-attack damage (DEX -> bow ATK)", () => {
-  const base = sniperShim();
+  const base = fresh();
   base.setEnemyInline(TARGET);
   const plain = base.readCombatResults().damage.ave;
-  const s = sniperShim();
+  const s = fresh();
   s.setBuffs([{ name: "owls_eye", level: 10 }]);
   s.setEnemyInline(TARGET);
   const got = s.readCombatResults().damage.ave;
@@ -49,29 +58,28 @@ test("owls_eye and vultures_eye scale with level (5 < 10)", () => {
   // HIT (readDerivedStats, uncapped) -- it rises monotonically with level either
   // way. combat.hit caps at 100 so is not used here.
   for (const name of ["owls_eye", "vultures_eye"]) {
-    const lo = sniperShim();
-    lo.setBuffs([{ name, level: 5 }]);
-    const hi = sniperShim();
-    hi.setBuffs([{ name, level: 10 }]);
-    assert.ok(
-      hi.readDerivedStats().hit > lo.readDerivedStats().hit,
-      `${name} level 10 HIT should exceed level 5`,
-    );
+    fresh();
+    shim.setBuffs([{ name, level: 5 }]);
+    const loHit = shim.readDerivedStats().hit;
+    fresh();
+    shim.setBuffs([{ name, level: 10 }]);
+    const hiHit = shim.readDerivedStats().hit;
+    assert.ok(hiHit > loHit, `${name} level 10 HIT should exceed level 5`);
   }
 });
 
 test("vultures_eye raises HIT", () => {
-  const base = sniperShim().readDerivedStats().hit;
-  const s = sniperShim();
+  const base = fresh().readDerivedStats().hit;
+  const s = fresh();
   s.setBuffs([{ name: "vultures_eye", level: 10 }]);
   assert.ok(s.readDerivedStats().hit > base, "vultures_eye should raise HIT");
 });
 
 test("improve_concentration raises auto-attack damage (AGI/DEX steroid)", () => {
-  const base = sniperShim();
+  const base = fresh();
   base.setEnemyInline(TARGET);
   const plain = base.readCombatResults().damage.ave;
-  const s = sniperShim();
+  const s = fresh();
   s.setBuffs([{ name: "improve_concentration", level: 10 }]);
   s.setEnemyInline(TARGET);
   const got = s.readCombatResults().damage.ave;
@@ -83,10 +91,10 @@ test("improve_concentration raises auto-attack damage (AGI/DEX steroid)", () => 
 });
 
 test("true_sight raises auto-attack damage (all stats + ATK)", () => {
-  const base = sniperShim();
+  const base = fresh();
   base.setEnemyInline(TARGET);
   const plain = base.readCombatResults().damage.ave;
-  const s = sniperShim();
+  const s = fresh();
   s.setBuffs([{ name: "true_sight", level: 10 }]);
   s.setEnemyInline(TARGET);
   const got = s.readCombatResults().damage.ave;
@@ -98,18 +106,18 @@ test("true_sight raises auto-attack damage (all stats + ATK)", () => {
 });
 
 test("wind_walk raises flee", () => {
-  const base = sniperShim().readDerivedStats().flee;
-  const s = sniperShim();
+  const base = fresh().readDerivedStats().flee;
+  const s = fresh();
   s.setBuffs([{ name: "wind_walk", level: 10 }]);
   assert.ok(s.readDerivedStats().flee > base, "wind_walk should raise flee");
 });
 
 test("beast_bane raises damage vs a Brute target", () => {
   // Beast Bane only adds ATK vs Brute/Insect; TARGET is RC_Brute.
-  const base = sniperShim();
+  const base = fresh();
   base.setEnemyInline(TARGET);
   const plain = base.readCombatResults().damage.ave;
-  const s = sniperShim();
+  const s = fresh();
   s.setBuffs([{ name: "beast_bane", level: 10 }]);
   s.setEnemyInline(TARGET);
   const got = s.readCombatResults().damage.ave;
@@ -124,10 +132,10 @@ test("steel_crow applies cleanly and leaves auto-attack damage unchanged", () =>
   // Steel Crow only boosts Blitz Beat damage; the auto-attack sim does not score
   // Blitz Beat, so driving it is a no-op here. Contract: the rocalc id resolves
   // and the build still scores, unchanged.
-  const base = sniperShim();
+  const base = fresh();
   base.setEnemyInline(TARGET);
   const plain = base.readCombatResults().damage.ave;
-  const s = sniperShim();
+  const s = fresh();
   s.setBuffs([{ name: "steel_crow", level: 10 }]);
   s.setEnemyInline(TARGET);
   const got = s.readCombatResults().damage.ave;
@@ -136,7 +144,7 @@ test("steel_crow applies cleanly and leaves auto-attack damage unchanged", () =>
 });
 
 test("reset() clears the Sniper buff bank (no leak across requests)", () => {
-  const s = sniperShim();
+  const s = fresh();
   s.setEnemyInline(TARGET);
   const plain = s.readCombatResults().damage.ave;
   s.setBuffs([{ name: "true_sight", level: 10 }]);
