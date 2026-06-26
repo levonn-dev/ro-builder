@@ -438,7 +438,7 @@ Not yet done, roughly in priority order:
 
 - [x] Add self-buffs to calc
 - [ ] Add self-buffs to scoring
-- [ ] Include skill usage/damage in calc and scoring
+- [x] Include skill usage/damage in calc and scoring
 - [ ] Vector search over saved trajectories' reasoning text. Today's `get_similar_past_builds` uses class+scenario
   lookup.
 - [ ] Add RAG with injecting get_similar_past_builds into initial system prompt

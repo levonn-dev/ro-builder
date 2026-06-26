@@ -149,6 +149,7 @@ type CombatResults struct {
 	BattleTimeSec *float64       `json:"battleTimeSec"`
 	Incoming      CombatIncoming `json:"incoming"`
 	Enemy         CombatEnemy    `json:"enemy"`
+	Skills        []SkillDamage  `json:"skills,omitempty"`
 }
 
 // ScoreRequest is the POST /score body. All fields are optional; absent
@@ -160,12 +161,13 @@ type CombatResults struct {
 // "knight", etc.); the shim translates internally and validates. See
 // calc-sidecar/src/types.ts for the canonical names list.
 type ScoreRequest struct {
-	Class     *string               `json:"class,omitempty"`
-	Level     *Level                `json:"level,omitempty"`
-	Stats     *Stats                `json:"stats,omitempty"`
-	Skills    []SkillAlloc          `json:"skills,omitempty"`
-	Buffs     []Buff                `json:"buffs,omitempty"`
-	Equipment map[SlotKey]EquipSpec `json:"equipment,omitempty"`
+	Class        *string               `json:"class,omitempty"`
+	Level        *Level                `json:"level,omitempty"`
+	Stats        *Stats                `json:"stats,omitempty"`
+	Skills       []SkillAlloc          `json:"skills,omitempty"`
+	Buffs        []Buff                `json:"buffs,omitempty"`
+	AttackSkills []AttackSkill         `json:"attack_skills,omitempty"`
+	Equipment    map[SlotKey]EquipSpec `json:"equipment,omitempty"`
 	// Enemy and EnemyInline are mutually exclusive; set one or neither.
 	// Enemy is an iRO mob id translated through the calc's id mapping; the
 	// shim looks the mob up in its mob table. EnemyInline supplies the stats
@@ -218,6 +220,34 @@ type Buff struct {
 	Name    string `json:"name"`
 	Level   int    `json:"level,omitempty"`
 	Element string `json:"element,omitempty"`
+}
+
+// AttackSkill is one resolved attack skill to score, sent to the calc shim.
+// Mirrors the TS AttackSkill in calc-sidecar/src/types.ts (keep in lock-step).
+// Name is the semantic skill key; Level is filled from the build's allocation
+// (not LLM-authored); Primary marks the skill whose pass drives the top-level
+// combat cells the gates read (exactly one per request).
+type AttackSkill struct {
+	Name    string `json:"name"`
+	Level   int    `json:"level"`
+	Primary bool   `json:"primary,omitempty"`
+}
+
+// SkillDamage is one entry in the offense per-skill breakdown. Damage is the
+// per-cast total (multi-hit already summed); Hits is the hit count. Mirrors
+// the TS SkillDamage.
+type SkillDamage struct {
+	Name        string            `json:"name"`
+	Damage      SkillDamageTriple `json:"damage"`
+	Hits        *float64          `json:"hits"`
+	Uncertainty string            `json:"uncertainty,omitempty"`
+}
+
+// SkillDamageTriple is the min/ave/max for one skill's per-cast damage.
+type SkillDamageTriple struct {
+	Min *float64 `json:"min"`
+	Ave *float64 `json:"ave"`
+	Max *float64 `json:"max"`
 }
 
 // ScoreResponse is the POST /score success body. Combat is non-nil iff the

@@ -56,6 +56,7 @@ const (
 	mobThreatsPath      = "internal/catalog/data/mob_threats.yaml"
 	skillBuffsPath      = "internal/catalog/data/skill_buffs.yaml"
 	innateBuffsPath     = "internal/catalog/data/class_innate_buffs.yaml"
+	attackSkillsPath    = "internal/catalog/data/attack_skills.yaml"
 )
 
 type catalogFile struct {
@@ -161,6 +162,19 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Default().Info("merged skill buffs overlay", slog.Int("applied", appliedBuffs))
+
+	attackSkillsAbs := resolvePath(repoRoot, attackSkillsPath)
+	attackSkills, err := loadAttackSkills(attackSkillsAbs)
+	if err != nil {
+		slog.Default().Error("load attack skills overlay", slog.String("path", attackSkillsAbs), slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	appliedAtk, err := applyAttackSkills(skills, attackSkills)
+	if err != nil {
+		slog.Default().Error("apply attack skills overlay", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	slog.Default().Info("merged attack skills overlay", slog.Int("applied", appliedAtk))
 
 	innateBuffsAbs := resolvePath(repoRoot, innateBuffsPath)
 	innateBuffs, err := loadInnateBuffs(innateBuffsAbs)
@@ -463,6 +477,66 @@ func loadSkillBuffs(path string) (map[string]*data.SelfBuff, error) {
 		seenName[e.SelfBuff.Name] = e.AegisName
 	}
 	return out, nil
+}
+
+type attackSkillEntry struct {
+	AegisName   string            `yaml:"aegis_name"`
+	AttackSkill *data.AttackSkill `yaml:"attack_skill"`
+}
+
+type attackSkillsFile struct {
+	Skills []attackSkillEntry `yaml:"skills"`
+}
+
+// loadAttackSkills reads and validates the overlay, keyed by aegis_name. Names
+// must be unique (the resolver + sidecar binding key on name).
+func loadAttackSkills(path string) (map[string]*data.AttackSkill, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read: %w", err)
+	}
+	var f attackSkillsFile
+	if err := yaml.Unmarshal(src, &f); err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	out := make(map[string]*data.AttackSkill, len(f.Skills))
+	seenName := make(map[string]string, len(f.Skills))
+	for i, e := range f.Skills {
+		if e.AegisName == "" {
+			return nil, fmt.Errorf("entry %d: aegis_name is required", i)
+		}
+		if e.AttackSkill == nil || e.AttackSkill.Name == "" {
+			return nil, fmt.Errorf("entry %d (%s): attack_skill.name is required", i, e.AegisName)
+		}
+		if _, dup := out[e.AegisName]; dup {
+			return nil, fmt.Errorf("entry %d: duplicate aegis_name %q", i, e.AegisName)
+		}
+		if prev, dup := seenName[e.AttackSkill.Name]; dup {
+			return nil, fmt.Errorf("entry %d (%s): duplicate attack_skill.name %q (already used by %s)", i, e.AegisName, e.AttackSkill.Name, prev)
+		}
+		out[e.AegisName] = e.AttackSkill
+		seenName[e.AttackSkill.Name] = e.AegisName
+	}
+	return out, nil
+}
+
+// applyAttackSkills mutates skills in place, setting AttackSkill on each record
+// present in the overlay. Errors if any overlay aegis_name is missing.
+func applyAttackSkills(skills []data.Skill, overlay map[string]*data.AttackSkill) (int, error) {
+	byAegis := make(map[string]int, len(skills))
+	for i := range skills {
+		byAegis[skills[i].AegisName] = i
+	}
+	applied := 0
+	for aegis, a := range overlay {
+		idx, ok := byAegis[aegis]
+		if !ok {
+			return applied, fmt.Errorf("attack skill aegis %q not found in catalog (typo or skill not in this mode?)", aegis)
+		}
+		skills[idx].AttackSkill = a
+		applied++
+	}
+	return applied, nil
 }
 
 // innateBuffsFile mirrors internal/catalog/data/class_innate_buffs.yaml: a

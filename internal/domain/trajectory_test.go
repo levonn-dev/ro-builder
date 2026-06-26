@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -211,5 +212,17 @@ func TestSkillAlloc_Validate(t *testing.T) {
 				t.Fatalf("expected %q, got: %v", tc.want, err)
 			}
 		})
+	}
+}
+
+func TestSnapshotScoredSkillsRoundTrip(t *testing.T) {
+	s := Snapshot{ScoredSkills: []ScoredSkill{{Name: "tornado_kick", Primary: true}, {Name: "roundhouse"}}}
+	b, _ := json.Marshal(s)
+	var out Snapshot
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.ScoredSkills) != 2 || !out.ScoredSkills[0].Primary || out.ScoredSkills[1].Name != "roundhouse" {
+		t.Fatalf("round-trip mismatch: %+v", out.ScoredSkills)
 	}
 }

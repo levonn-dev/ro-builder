@@ -63,6 +63,28 @@ export interface Buff {
   element?: string;
 }
 
+/** One attack skill to score, resolved by the orchestrator (level filled from
+ * the skill's allocation; one entry per request flagged primary). The active
+ * backend maps `name` to its engine controls via a binding table. `primary`
+ * marks the skill whose pass populates the top-level CombatResults cells the
+ * gates read; exactly one declared skill is primary. */
+export interface AttackSkill {
+  name: string;
+  level: number;
+  primary?: boolean;
+}
+
+/** Per-skill damage for the offense breakdown. `damage` is the skill's
+ * per-cast total (multi-hit skills already summed); `hits` is the hit count
+ * (rocalc wActiveHitNum). Numeric fields are nullable for the same sentinel
+ * reasons as CombatDamage. */
+export interface SkillDamage {
+  name: string;
+  damage: { min: number | null; ave: number | null; max: number | null };
+  hits: number | null;
+  uncertainty?: string;
+}
+
 /** Composite stat output for paired numbers; atk = base + plus, matk =
  * min..max, def = hard + soft (pre-renewal split). */
 export interface BasePlus {
@@ -144,6 +166,7 @@ export interface CombatResults {
   battleTimeSec: number | null;
   incoming: CombatIncoming;
   enemy: CombatEnemy;
+  skills?: SkillDamage[];
 }
 
 /** The shim contract every backend implements. Constructed via createShim()
@@ -188,6 +211,19 @@ export interface ShimSession {
    * vacuous for them (e.g. the stub). */
   supportedBuffs(): readonly string[] | null;
 
+  /** Record the attack skills to score for this request. Each `name` is a
+   * semantic key the backend maps to an engine attack-skill id. Levels are
+   * resolved upstream. The per-skill damage breakdown is computed when the
+   * combat target is set (setEnemy / setEnemyInline) and surfaced via
+   * readCombatResults().skills; the `primary` skill drives the top-level
+   * combat cells. Unknown names throw a 4xx-classifiable error. */
+  setAttackSkills(skills: AttackSkill[]): void;
+
+  /** The attack-skill names this backend can bind, independent of class.
+   * Parity test asserts the Go overlay is a subset. null for backends that
+   * don't enforce names (stub). */
+  supportedAttackSkills(): readonly string[] | null;
+
   /** Set the combat-sim target. mobId is engine-specific (rocalc currently
    * uses its m_Monster index; a mob iRO mapping pass will let this take iRO
    * mob ids the same way equip does for items). */
@@ -221,6 +257,7 @@ export interface ScoreRequest {
   stats?: Stats;
   skills?: SkillAlloc[];
   buffs?: Buff[];
+  attack_skills?: AttackSkill[];
   equipment?: Partial<Record<SlotKey, EquipSpec>>;
   /** iRO mob id translated through rocalc's mapping table. Mutually
    * exclusive with enemy_inline; set one or neither. */
