@@ -58,6 +58,11 @@ type listClassSkillsEntry struct {
 	CastTimeMs    int    `json:"cast_time_ms,omitempty"`
 	CooldownMs    int    `json:"cooldown_ms,omitempty"`
 	Interruptible bool   `json:"interruptible,omitempty"`
+	// Unusable marks a skill the class carries (points spent in a prior job) but
+	// cannot cast in this class -- e.g. the Taekwon kicks a Soul Linker keeps. It
+	// still counts toward the skill-point budget but is not scoreable here, so
+	// ScoreableAs is left empty for it.
+	Unusable bool `json:"unusable,omitempty"`
 	// ScoreableAs is the semantic scored_skills name for an active attack skill
 	// (e.g. "roundhouse"); empty for skills that aren't scoreable. Mirrors the
 	// "[scoreable as scored_skills: NAME]" tag in the injected user-prompt block,
@@ -91,8 +96,9 @@ func (t *listClassSkillsTool) Execute(_ context.Context, raw json.RawMessage) (j
 			CastTimeMs:    s.CastTimeMs,
 			CooldownMs:    s.CooldownMs,
 			Interruptible: s.Interruptible,
+			Unusable:      s.Unusable,
 		}
-		if s.AttackSkill != nil {
+		if s.AttackSkill != nil && !s.Unusable {
 			e.ScoreableAs = s.AttackSkill.Name
 		}
 		out = append(out, e)

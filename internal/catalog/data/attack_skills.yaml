@@ -5,166 +5,340 @@
 #
 # name: lowercase_snake semantic key, unique across entries. Uses the common
 # pre-renewal skill name, which can differ from the catalog's display name
-# (e.g. soul_breaker / "Soul Destroyer"). A row applies to every class whose
-# skill tree contains its aegis_name, so inherited skills (Knight's bash,
-# Champion's asura_strike) need only one row.
+# (e.g. soul_breaker / "Soul Destroyer").
 #
-# Comment ids are catalog (Gravity) skill ids, not engine ids.
+# A row applies to EVERY class whose skill tree contains its aegis_name, so each
+# skill is listed exactly once and inheritance is implicit. Sections mirror the
+# job tree: first-class skills sit in their own sections, and each second /
+# transcendent / expanded section lists only that job's OWN skills plus a
+# "(+ Parent)" pointer to the first-class section it also inherits. So a Knight
+# scores the Knight section AND the Swordman section; a Bard the Bard section
+# AND the Archer section. (Super Novice inherits every first-class section.)
 skills:
-  # Taekwon Kid
-  - aegis_name: TK_STORMKICK            # Tornado Kick, id 413, max 7
+  # ===== First classes =====
+
+  # Swordman
+  - aegis_name: SM_BASH                 # Bash, max 10
+    attack_skill: { name: bash }
+  - aegis_name: SM_MAGNUM               # Magnum Break, max 10
+    attack_skill: { name: magnum_break }
+
+  # Mage. Magic damage scales off MATK.
+  - aegis_name: MG_FIREBOLT             # Fire Bolt, max 10
+    attack_skill: { name: fire_bolt }
+  - aegis_name: MG_COLDBOLT             # Cold Bolt, max 10
+    attack_skill: { name: cold_bolt }
+  - aegis_name: MG_LIGHTNINGBOLT        # Lightning Bolt, max 10
+    attack_skill: { name: lightning_bolt }
+  - aegis_name: MG_FIREBALL             # Fire Ball, max 10
+    attack_skill: { name: fire_ball }
+  - aegis_name: MG_FIREWALL             # Fire Wall, max 10
+    attack_skill: { name: fire_wall }
+  - aegis_name: MG_FROSTDIVER           # Frost Diver, max 10
+    attack_skill: { name: frost_diver }
+  - aegis_name: MG_THUNDERSTORM         # Thunderstorm, max 10
+    attack_skill: { name: thunder_storm }
+  - aegis_name: MG_NAPALMBEAT           # Napalm Beat, max 10
+    attack_skill: { name: napalm_beat }
+  - aegis_name: MG_SOULSTRIKE           # Soul Strike, max 10
+    attack_skill: { name: soul_strike }
+
+  # Archer. Ranged skills compute off the equipped bow.
+  - aegis_name: AC_DOUBLE               # Double Strafe, max 10
+    attack_skill: { name: double_strafe }
+  - aegis_name: AC_SHOWER               # Arrow Shower, max 10
+    attack_skill: { name: arrow_shower }
+  - aegis_name: AC_CHARGEARROW          # Charge Arrow (Arrow Repel), max 1
+    attack_skill: { name: charge_arrow }
+
+  # Acolyte
+  - aegis_name: AL_HOLYLIGHT            # Holy Light, max 1
+    attack_skill: { name: holy_light }
+
+  # Merchant
+  - aegis_name: MC_MAMMONITE            # Mammonite, max 10
+    attack_skill: { name: mammonite }
+  - aegis_name: MC_CARTREVOLUTION       # Cart Revolution, max 1
+    attack_skill: { name: cart_revolution }
+
+  # Thief
+  - aegis_name: TF_POISON               # Envenom, max 10
+    attack_skill: { name: envenom }
+  - aegis_name: TF_SPRINKLESAND         # Sand Attack, max 1
+    attack_skill: { name: sand_attack }
+
+  # Taekwon Kid (expanded first job; the kicks are inherited by Star Gladiator
+  # and Soul Linker).
+  - aegis_name: TK_STORMKICK            # Tornado Kick, max 7
     attack_skill: { name: tornado_kick }
-  - aegis_name: TK_DOWNKICK             # Heel Drop, id 415, max 7
+  - aegis_name: TK_DOWNKICK             # Heel Drop, max 7
     attack_skill: { name: heel_drop }
-  - aegis_name: TK_TURNKICK             # Roundhouse Kick, id 417, max 7
+  - aegis_name: TK_TURNKICK             # Roundhouse Kick, max 7
     attack_skill: { name: roundhouse }
-  - aegis_name: TK_COUNTER              # Counter Kick, id 419, max 7
+  - aegis_name: TK_COUNTER              # Counter Kick, max 7
     attack_skill: { name: counter_kick }
-  - aegis_name: TK_JUMPKICK             # Flying Kick, id 421, max 7
+  - aegis_name: TK_JUMPKICK             # Flying Kick, max 7
     # Flying Kick damage scales with movement distance; static scoring approximates it.
     attack_skill: { name: flying_kick }
 
-  # Assassin / Assassin Cross (TF_/AS_ skills are inherited from Thief/Assassin)
-  - aegis_name: TF_POISON               # Envenom, id 52, max 10
-    attack_skill: { name: envenom }
-  - aegis_name: AS_SONICBLOW            # Sonic Blow, id 136, max 10
-    attack_skill: { name: sonic_blow }
-  - aegis_name: AS_GRIMTOOTH            # Grimtooth, id 137, max 5
-    # The calc flags Grimtooth damage as approximate (distance-dependent).
-    attack_skill: { name: grimtooth }
-  - aegis_name: AS_SPLASHER             # Venom Splasher, id 141, max 10
-    # Poison React level sub-parameter defaults to 0.
-    attack_skill: { name: venom_splasher }
-  - aegis_name: AS_POISONREACT          # Poison React, id 139, max 10
-    attack_skill: { name: poison_react }
-  - aegis_name: ASC_BREAKER             # Soul Breaker (Soul Destroyer), id 379, max 10
-    # The calc flags Soul Breaker damage as slightly off in-game.
-    attack_skill: { name: soul_breaker }
-  - aegis_name: ASC_METEORASSAULT       # Meteor Assault, id 406, max 10
-    attack_skill: { name: meteor_assault }
-  - aegis_name: TF_SPRINKLESAND         # Sand Attack, id 149, max 1
-    attack_skill: { name: sand_attack }
-  - aegis_name: AS_VENOMKNIFE           # Throw Venom Knife, id 1004, max 1
-    attack_skill: { name: throw_venom_knife }
+  # ===== Second / transcendent / expanded classes =====
 
-  # Knight / Lord Knight (SM_/KN_ skills are in Lord Knight's tree too)
-  - aegis_name: SM_BASH                 # Bash, id 5, max 10
-    attack_skill: { name: bash }
-  - aegis_name: SM_MAGNUM               # Magnum Break, id 7, max 10
-    attack_skill: { name: magnum_break }
-  - aegis_name: KN_PIERCE               # Pierce, id 56, max 10
+  # Knight / Lord Knight (+ Swordman)
+  - aegis_name: KN_PIERCE               # Pierce, max 10
     attack_skill: { name: pierce }
-  - aegis_name: KN_SPEARSTAB            # Spear Stab, id 58, max 10
+  - aegis_name: KN_SPEARSTAB            # Spear Stab, max 10
     attack_skill: { name: spear_stab }
-  - aegis_name: KN_SPEARBOOMERANG       # Spear Boomerang, id 59, max 5
+  - aegis_name: KN_SPEARBOOMERANG       # Spear Boomerang, max 5
     attack_skill: { name: spear_boomerang }
-  - aegis_name: KN_BRANDISHSPEAR        # Brandish Spear, id 57, max 10
+  - aegis_name: KN_BRANDISHSPEAR        # Brandish Spear, max 10
     attack_skill: { name: brandish_spear }
-  - aegis_name: KN_BOWLINGBASH          # Bowling Bash, id 62, max 10
+  - aegis_name: KN_BOWLINGBASH          # Bowling Bash, max 10
     attack_skill: { name: bowling_bash }
-  - aegis_name: KN_CHARGEATK            # Charge Attack, id 1001, max 1
+  - aegis_name: KN_CHARGEATK            # Charge Attack, max 1
     attack_skill: { name: charge_attack }
-  - aegis_name: LK_SPIRALPIERCE         # Spiral Pierce, id 397, max 5
+  - aegis_name: LK_SPIRALPIERCE         # Spiral Pierce, max 5
     attack_skill: { name: spiral_pierce }
-  - aegis_name: LK_HEADCRUSH            # Head Crush (Traumatic Blow), id 398, max 5
+  - aegis_name: LK_HEADCRUSH            # Head Crush (Traumatic Blow), max 5
     attack_skill: { name: head_crush }
-  - aegis_name: LK_JOINTBEAT            # Joint Beat (Vital Strike), id 399, max 10
+  - aegis_name: LK_JOINTBEAT            # Joint Beat (Vital Strike), max 10
     attack_skill: { name: joint_beat }
 
-  # Hunter / Sniper (AC_/HT_ skills are in Sniper's tree too)
-  - aegis_name: AC_DOUBLE               # Double Strafe, id 46, max 10
-    attack_skill: { name: double_strafe }
-  - aegis_name: AC_SHOWER               # Arrow Shower, id 47, max 10
-    attack_skill: { name: arrow_shower }
-  - aegis_name: AC_CHARGEARROW          # Charge Arrow (Arrow Repel), id 148, max 1
-    attack_skill: { name: charge_arrow }
-  - aegis_name: HT_PHANTASMIC           # Phantasmic Arrow, id 1009, max 1
-    attack_skill: { name: phantasmic_arrow }
-  - aegis_name: HT_BLITZBEAT            # Blitz Beat, id 129, max 5
-    attack_skill: { name: blitz_beat }
-  - aegis_name: HT_LANDMINE             # Land Mine, id 116, max 5
-    attack_skill: { name: land_mine }
-  - aegis_name: HT_FREEZINGTRAP         # Freezing Trap, id 121, max 5
-    attack_skill: { name: freezing_trap }
-  - aegis_name: HT_BLASTMINE            # Blast Mine, id 122, max 5
-    attack_skill: { name: blast_mine }
-  - aegis_name: HT_CLAYMORETRAP         # Claymore Trap, id 123, max 5
-    attack_skill: { name: claymore_trap }
-  - aegis_name: SN_SHARPSHOOTING        # Sharp Shooting (Focused Arrow Strike), id 382, max 5
-    attack_skill: { name: sharp_shooting }
-  - aegis_name: SN_FALCONASSAULT        # Falcon Assault, id 381, max 5
-    attack_skill: { name: falcon_assault }
+  # Crusader / Paladin (+ Swordman). The three shield skills compute off the
+  # equipped shield's weight/refine, so they need a shield equipped (zero
+  # barehanded).
+  - aegis_name: CR_SHIELDCHARGE         # Smite (Shield Charge), max 5
+    attack_skill: { name: shield_charge }
+  - aegis_name: CR_SHIELDBOOMERANG      # Shield Boomerang, max 5
+    attack_skill: { name: shield_boomerang }
+  - aegis_name: CR_HOLYCROSS            # Holy Cross, max 10
+    attack_skill: { name: holy_cross }
+  - aegis_name: CR_GRANDCROSS           # Grand Cross, max 10
+    attack_skill: { name: grand_cross }
+  - aegis_name: PA_PRESSURE             # Gloria Domini (Pressure), max 5
+    attack_skill: { name: pressure }
+  - aegis_name: PA_SACRIFICE            # Martyr's Reckoning (Sacrifice), max 5
+    # Damage scales with the caster's current HP; static scoring approximates it.
+    attack_skill: { name: martyrs_reckoning }
+  - aegis_name: PA_SHIELDCHAIN          # Shield Chain, max 5
+    # The calc flags Shield Chain damage as slightly off in-game.
+    attack_skill: { name: shield_chain }
 
-  # Wizard / High Wizard (MG_/WZ_ skills are in High Wizard's tree too).
-  # Magic damage scales off MATK.
-  - aegis_name: MG_FIREBOLT             # Fire Bolt, id 19, max 10
-    attack_skill: { name: fire_bolt }
-  - aegis_name: MG_COLDBOLT             # Cold Bolt, id 14, max 10
-    attack_skill: { name: cold_bolt }
-  - aegis_name: MG_LIGHTNINGBOLT        # Lightning Bolt, id 20, max 10
-    attack_skill: { name: lightning_bolt }
-  - aegis_name: MG_FIREBALL             # Fire Ball, id 17, max 10
-    attack_skill: { name: fire_ball }
-  - aegis_name: MG_FIREWALL             # Fire Wall, id 18, max 10
-    attack_skill: { name: fire_wall }
-  - aegis_name: MG_FROSTDIVER           # Frost Diver, id 15, max 10
-    attack_skill: { name: frost_diver }
-  - aegis_name: MG_THUNDERSTORM         # Thunderstorm, id 21, max 10
-    attack_skill: { name: thunder_storm }
-  - aegis_name: MG_NAPALMBEAT           # Napalm Beat, id 11, max 10
-    attack_skill: { name: napalm_beat }
-  - aegis_name: MG_SOULSTRIKE           # Soul Strike, id 13, max 10
-    attack_skill: { name: soul_strike }
-  - aegis_name: WZ_FIREPILLAR           # Fire Pillar, id 80, max 10
+  # Wizard / High Wizard (+ Mage)
+  - aegis_name: WZ_FIREPILLAR           # Fire Pillar, max 10
     attack_skill: { name: fire_pillar }
-  - aegis_name: WZ_SIGHTRASHER          # Sightrasher, id 81, max 10
+  - aegis_name: WZ_SIGHTRASHER          # Sightrasher, max 10
     attack_skill: { name: sightrasher }
-  - aegis_name: WZ_METEOR               # Meteor Storm, id 83, max 10
+  - aegis_name: WZ_METEOR               # Meteor Storm, max 10
     attack_skill: { name: meteor_storm }
-  - aegis_name: WZ_JUPITEL              # Jupitel Thunder, id 84, max 10
+  - aegis_name: WZ_JUPITEL              # Jupitel Thunder, max 10
     attack_skill: { name: jupitel_thunder }
-  - aegis_name: WZ_VERMILION            # Lord of Vermilion, id 85, max 10
+  - aegis_name: WZ_VERMILION            # Lord of Vermilion, max 10
     attack_skill: { name: lord_of_vermilion }
-  - aegis_name: WZ_WATERBALL            # Water Ball, id 86, max 5
+  - aegis_name: WZ_WATERBALL            # Water Ball, max 5
     attack_skill: { name: water_ball }
-  - aegis_name: WZ_FROSTNOVA            # Frost Nova, id 88, max 10
+  - aegis_name: WZ_FROSTNOVA            # Frost Nova, max 10
     attack_skill: { name: frost_nova }
-  - aegis_name: WZ_STORMGUST            # Storm Gust, id 89, max 10
+  - aegis_name: WZ_STORMGUST            # Storm Gust, max 10
     # Hit count defaults to 3; actual hits depend on target dwell time in the area.
     attack_skill: { name: storm_gust }
-  - aegis_name: WZ_EARTHSPIKE           # Earth Spike, id 90, max 5
+  - aegis_name: WZ_EARTHSPIKE           # Earth Spike, max 5
     attack_skill: { name: earth_spike }
-  - aegis_name: WZ_HEAVENDRIVE          # Heaven's Drive, id 91, max 5
+  - aegis_name: WZ_HEAVENDRIVE          # Heaven's Drive, max 5
     attack_skill: { name: heavens_drive }
-  - aegis_name: HW_MAGICCRASHER         # Magic Crasher (Stave Crasher), id 365, max 1
+  - aegis_name: HW_MAGICCRASHER         # Magic Crasher (Stave Crasher), max 1
     attack_skill: { name: magic_crasher }
-  - aegis_name: HW_NAPALMVULCAN         # Napalm Vulcan, id 400, max 5
+  - aegis_name: HW_NAPALMVULCAN         # Napalm Vulcan, max 5
     attack_skill: { name: napalm_vulcan }
-  - aegis_name: HW_GRAVITATION          # Gravitation Field, id 484, max 5
+  - aegis_name: HW_GRAVITATION          # Gravitation Field, max 5
     attack_skill: { name: gravitation_field }
 
-  # Monk / Champion (MO_ skills are in Champion's tree too). Finger Offensive
-  # and Ki Explosion explode spirit spheres; the sidecar drives a full sphere
-  # count so they score (the calc reads 0 with no spheres).
-  - aegis_name: AL_HOLYLIGHT            # Holy Light, id 156, max 1
-    attack_skill: { name: holy_light }
-  - aegis_name: MO_FINGEROFFENSIVE      # Finger Offensive (Throw Spirit Sphere), id 267, max 5
+  # Sage / Professor (+ Mage): no exclusive damage rows. They score the Mage
+  # bolts and also learn Earth Spike / Heaven's Drive (listed in the Wizard
+  # section, both in the Sage tree too).
+
+  # Hunter / Sniper (+ Archer)
+  - aegis_name: HT_PHANTASMIC           # Phantasmic Arrow, max 1
+    attack_skill: { name: phantasmic_arrow }
+  - aegis_name: HT_BLITZBEAT            # Blitz Beat, max 5
+    attack_skill: { name: blitz_beat }
+  - aegis_name: HT_LANDMINE             # Land Mine, max 5
+    attack_skill: { name: land_mine }
+  - aegis_name: HT_FREEZINGTRAP         # Freezing Trap, max 5
+    attack_skill: { name: freezing_trap }
+  - aegis_name: HT_BLASTMINE            # Blast Mine, max 5
+    attack_skill: { name: blast_mine }
+  - aegis_name: HT_CLAYMORETRAP         # Claymore Trap, max 5
+    attack_skill: { name: claymore_trap }
+  - aegis_name: SN_SHARPSHOOTING        # Sharp Shooting (Focused Arrow Strike), max 5
+    attack_skill: { name: sharp_shooting }
+  - aegis_name: SN_FALCONASSAULT        # Falcon Assault, max 5
+    attack_skill: { name: falcon_assault }
+
+  # Bard / Clown + Dancer / Gypsy (+ Archer). Ranged skills compute off the bow.
+  - aegis_name: BA_MUSICALSTRIKE        # Melody Strike (Musical Strike), max 5
+    attack_skill: { name: musical_strike }
+  - aegis_name: DC_THROWARROW           # Slinging Arrow, max 5
+    attack_skill: { name: slinging_arrow }
+  - aegis_name: CG_ARROWVULCAN          # Vulcan Arrow (Arrow Vulcan), max 10
+    attack_skill: { name: arrow_vulcan }
+
+  # Priest / High Priest (+ Acolyte). Both only damage Undead and Demon targets;
+  # zero against everything else.
+  - aegis_name: PR_TURNUNDEAD           # Turn Undead, max 10
+    # Affects Undead only: instant-death chance plus holy damage.
+    attack_skill: { name: turn_undead }
+  - aegis_name: PR_MAGNUS               # Magnus Exorcismus, max 10
+    # Damages Undead and Demon-race targets only.
+    attack_skill: { name: magnus_exorcismus }
+
+  # Monk / Champion (+ Acolyte). Finger Offensive and Ki Explosion explode spirit
+  # spheres; the sidecar drives a full sphere count so they score (the calc reads
+  # 0 with no spheres).
+  - aegis_name: MO_FINGEROFFENSIVE      # Finger Offensive (Throw Spirit Sphere), max 5
     attack_skill: { name: finger_offensive }
-  - aegis_name: MO_BALKYOUNG            # Excruciating Palm (Ki Explosion), id 1016, max 1
+  - aegis_name: MO_BALKYOUNG            # Excruciating Palm (Ki Explosion), max 1
     attack_skill: { name: excruciating_palm }
-  - aegis_name: MO_CHAINCOMBO           # Chain Combo (Raging Quadruple Blow), id 272, max 5
+  - aegis_name: MO_CHAINCOMBO           # Chain Combo (Raging Quadruple Blow), max 5
     attack_skill: { name: chain_combo }
-  - aegis_name: MO_COMBOFINISH          # Combo Finish (Raging Thrust), id 273, max 5
+  - aegis_name: MO_COMBOFINISH          # Combo Finish (Raging Thrust), max 5
     attack_skill: { name: combo_finish }
-  - aegis_name: MO_INVESTIGATE          # Investigate (Occult Impaction), id 266, max 5
+  - aegis_name: MO_INVESTIGATE          # Investigate (Occult Impaction), max 5
     # Damage scales with target DEF; near-zero against low-DEF mobs.
     attack_skill: { name: investigate }
-  - aegis_name: MO_EXTREMITYFIST        # Asura Strike, id 271, max 5
+  - aegis_name: MO_EXTREMITYFIST        # Asura Strike, max 5
     # Damage assumes a near-full SP pool (remaining SP defaults to max - 1).
     attack_skill: { name: asura_strike }
-  - aegis_name: CH_PALMSTRIKE           # Palm Push Strike (Raging Palm Strike), id 370, max 5
+  - aegis_name: CH_PALMSTRIKE           # Palm Push Strike (Raging Palm Strike), max 5
     attack_skill: { name: palm_push_strike }
-  - aegis_name: CH_TIGERFIST            # Tiger Knuckle Fist (Glacier Fist), id 371, max 5
+  - aegis_name: CH_TIGERFIST            # Tiger Knuckle Fist (Glacier Fist), max 5
     attack_skill: { name: tiger_knuckle_fist }
-  - aegis_name: CH_CHAINCRUSH           # Chain Crush Combo, id 372, max 10
+  - aegis_name: CH_CHAINCRUSH           # Chain Crush Combo, max 10
     attack_skill: { name: chain_crush_combo }
+
+  # Blacksmith / Whitesmith (+ Merchant)
+  - aegis_name: WS_CARTTERMINATION      # Cart Termination, max 10
+    attack_skill: { name: cart_termination }
+
+  # Alchemist / Creator (+ Merchant)
+  - aegis_name: AM_ACIDTERROR           # Acid Terror, max 5
+    attack_skill: { name: acid_terror }
+  - aegis_name: AM_DEMONSTRATION        # Bomb (Demonstration), max 5
+    attack_skill: { name: demonstration }
+  - aegis_name: CR_ACIDDEMONSTRATION    # Acid Demonstration, max 10
+    # Damage scales with the target's VIT; varies sharply by target.
+    attack_skill: { name: acid_demonstration }
+
+  # Assassin / Assassin Cross (+ Thief)
+  - aegis_name: AS_SONICBLOW            # Sonic Blow, max 10
+    attack_skill: { name: sonic_blow }
+  - aegis_name: AS_GRIMTOOTH            # Grimtooth, max 5
+    # The calc flags Grimtooth damage as approximate (distance-dependent).
+    attack_skill: { name: grimtooth }
+  - aegis_name: AS_SPLASHER             # Venom Splasher, max 10
+    # Poison React level sub-parameter defaults to 0.
+    attack_skill: { name: venom_splasher }
+  - aegis_name: AS_POISONREACT          # Poison React, max 10
+    attack_skill: { name: poison_react }
+  - aegis_name: ASC_BREAKER             # Soul Breaker (Soul Destroyer), max 10
+    # The calc flags Soul Breaker damage as slightly off in-game.
+    attack_skill: { name: soul_breaker }
+  - aegis_name: ASC_METEORASSAULT       # Meteor Assault, max 10
+    attack_skill: { name: meteor_assault }
+  - aegis_name: AS_VENOMKNIFE           # Throw Venom Knife, max 1
+    attack_skill: { name: throw_venom_knife }
+
+  # Rogue / Stalker (+ Thief). Rogues also learn Double Strafe (Archer section)
+  # natively in their own tree.
+  - aegis_name: RG_BACKSTAP             # Back Stab, max 10
+    attack_skill: { name: back_stab }
+  - aegis_name: RG_RAID                 # Sightless Mind (Raid), max 5
+    attack_skill: { name: raid }
+
+  # Gunslinger (standalone expanded class). Gun skills compute off the firearm.
+  - aegis_name: GS_FLING                # Fling, max 1
+    attack_skill: { name: fling }
+  - aegis_name: GS_TRIPLEACTION         # Triple Action, max 1
+    attack_skill: { name: triple_action }
+  - aegis_name: GS_BULLSEYE             # Bull's Eye, max 1
+    attack_skill: { name: bulls_eye }
+  - aegis_name: GS_MAGICALBULLET        # Magical Bullet, max 1
+    attack_skill: { name: magical_bullet }
+  - aegis_name: GS_RAPIDSHOWER          # Rapid Shower, max 10
+    attack_skill: { name: rapid_shower }
+  - aegis_name: GS_DESPERADO            # Desperado, max 10
+    attack_skill: { name: desperado }
+  - aegis_name: GS_TRACKING             # Tracking, max 10
+    attack_skill: { name: tracking }
+  - aegis_name: GS_PIERCINGSHOT         # Piercing Shot, max 5
+    attack_skill: { name: piercing_shot }
+  - aegis_name: GS_DUST                 # Dust, max 10
+    attack_skill: { name: dust }
+  - aegis_name: GS_FULLBUSTER           # Full Buster, max 10
+    attack_skill: { name: full_buster }
+  - aegis_name: GS_SPREADATTACK         # Spread Attack, max 10
+    attack_skill: { name: spread_attack }
+  - aegis_name: GS_GROUNDDRIFT          # Ground Drift, max 10
+    # Damage and element depend on the loaded gemstone ammunition.
+    attack_skill: { name: ground_drift }
+
+  # Ninja (standalone expanded class). Magic spells (Crimson Fire / Ice / Wind)
+  # scale off MATK; throws compute off the equipped shuriken/kunai. Semantic keys
+  # follow the catalog's renewal display names.
+  - aegis_name: NJ_SYURIKEN             # Throw Shuriken, max 10
+    attack_skill: { name: throw_shuriken }
+  - aegis_name: NJ_KUNAI                # Throw Kunai, max 5
+    attack_skill: { name: throw_kunai }
+  - aegis_name: NJ_HUUMA                # Throw Huuma Shuriken, max 5
+    attack_skill: { name: throw_huuma_shuriken }
+  - aegis_name: NJ_ZENYNAGE             # Throw Zeny, max 10
+    # Fixed damage based on the zeny spent.
+    attack_skill: { name: throw_zeny }
+  - aegis_name: NJ_KASUMIKIRI           # Vanishing Slash, max 10
+    attack_skill: { name: vanishing_slash }
+  - aegis_name: NJ_KIRIKAGE             # Shadow Slash, max 5
+    attack_skill: { name: shadow_slash }
+  - aegis_name: NJ_ISSEN                # Final Strike, max 10
+    # Damage scales with the caster's max HP and reduces HP to 1.
+    attack_skill: { name: final_strike }
+  - aegis_name: NJ_KOUENKA              # Crimson Fire Petal, max 10
+    attack_skill: { name: crimson_fire_petal }
+  - aegis_name: NJ_KAENSIN              # Crimson Fire Formation, max 10
+    attack_skill: { name: crimson_fire_formation }
+  - aegis_name: NJ_BAKUENRYU            # Raging Fire Dragon, max 5
+    attack_skill: { name: raging_fire_dragon }
+  - aegis_name: NJ_HYOUSENSOU           # Spear of Ice, max 10
+    attack_skill: { name: spear_of_ice }
+  - aegis_name: NJ_HYOUSYOURAKU         # Ice Meteor, max 5
+    attack_skill: { name: ice_meteor }
+  - aegis_name: NJ_HUUJIN               # Wind Blade, max 10
+    attack_skill: { name: wind_blade }
+  - aegis_name: NJ_RAIGEKISAI           # Lightning Strike of Destruction, max 5
+    attack_skill: { name: lightning_strike }
+  - aegis_name: NJ_KAMAITACHI           # Kamaitachi, max 5
+    attack_skill: { name: kamaitachi }
+
+  # Soul Linker. Unlike Star Gladiator, the Taekwon kicks do NOT carry over (only
+  # the utility TK skills do, none of which deal damage), so esma / estin / estun
+  # are its only scoreable skills. Esma is the main MATK-scaled bolt nuke,
+  # castable only right after a Spirit Link or an Estin / Estun / Eske cast. Estin
+  # and Estun are weak bolts gated by target size.
+  - aegis_name: SL_SMA                  # Esma, max 10
+    attack_skill: { name: esma }
+  - aegis_name: SL_STIN                 # Estin, max 7
+    # Meaningful damage only against Small-size targets.
+    attack_skill: { name: estin }
+  - aegis_name: SL_STUN                 # Estun, max 7
+    # Meaningful damage only against Large-size targets.
+    attack_skill: { name: estun }
+
+  # Star Gladiator (+ Taekwon kicks). Warmth of the Sun / Moon / Stars is a fast-
+  # ticking Heat damage-over-time: only active while standing on a designated
+  # Sun / Moon / Star map. Per-hit damage approximates auto-attack but the hit
+  # interval is far shorter, so DPS / time-to-kill carry it. All three are the
+  # same skill on different map types.
+  - aegis_name: SG_SUN_WARM             # Warmth of the Sun, max 3
+    attack_skill: { name: sun_warmth }
+  - aegis_name: SG_MOON_WARM            # Warmth of the Moon, max 3
+    attack_skill: { name: moon_warmth }
+  - aegis_name: SG_STAR_WARM            # Warmth of the Stars, max 3
+    attack_skill: { name: star_warmth }

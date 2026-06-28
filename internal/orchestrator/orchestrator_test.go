@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/levonn-dev/ro-builder/internal/catalog"
+	"github.com/levonn-dev/ro-builder/internal/data"
 	"github.com/levonn-dev/ro-builder/internal/domain"
 	"github.com/levonn-dev/ro-builder/internal/llm"
 	"github.com/levonn-dev/ro-builder/internal/llm/tools"
@@ -719,6 +720,28 @@ func TestFormatUserPrompt(t *testing.T) {
 			nil, nil, nil, 0, 0, 0)
 		if strings.Contains(got, "skill point budget") {
 			t.Errorf("budget line should be absent when budget=0; got:\n%s", got)
+		}
+	})
+
+	t.Run("unusable_skill_annotated_and_not_scoreable", func(t *testing.T) {
+		// A skill the class carries but cannot use (a Taekwon kick a Soul Linker
+		// keeps) is annotated unusable and must NOT get the scoreable tag, even
+		// though it has attack-skill metadata; a usable attack skill still does.
+		unusable := []catalog.ClassSkill{
+			{ID: 264, AegisName: "TK_STORMKICK", Name: "Tornado Kick", MaxLevel: 7, Unusable: true, AttackSkill: &data.AttackSkill{Name: "tornado_kick"}},
+			{ID: 375, AegisName: "SL_SMA", Name: "Esma", MaxLevel: 10, AttackSkill: &data.AttackSkill{Name: "esma"}},
+		}
+		got := formatUserPrompt(
+			GenerateRequest{Class: "soul_linker"},
+			nil, unusable, nil, 99, 50, 100)
+		if !strings.Contains(got, "TK_STORMKICK") || !strings.Contains(got, "unusable in this class") {
+			t.Errorf("TK_STORMKICK should be annotated unusable; got:\n%s", got)
+		}
+		if strings.Contains(got, "scoreable as scored_skills: tornado_kick") {
+			t.Errorf("unusable kick must not be tagged scoreable; got:\n%s", got)
+		}
+		if !strings.Contains(got, "scoreable as scored_skills: esma") {
+			t.Errorf("usable esma should still be scoreable; got:\n%s", got)
 		}
 	})
 
