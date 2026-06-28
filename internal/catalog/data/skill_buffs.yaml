@@ -1,7 +1,7 @@
 # Hand-authored self-buff metadata. Merged onto skill records (by aegis_name)
 # at catalog build time by cmd/build-catalog. Co-located with the skill the
-# buff comes from. Semantic only: no calc-engine ids (the sidecar binding maps
-# name -> engine controls).
+# buff comes from. Semantic only: no calc-engine ids or control names (the
+# sidecar binding maps name -> whatever controls the active calc backend uses).
 #
 # kind: weapon_endow | stat_buff | status | debuff | land   (data.AllBuffKinds)
 # persistence: permanent | transient        (data.AllPersistence)
@@ -28,7 +28,7 @@ skills:
     self_buff: { name: taekwon_ranker, kind: status, persistence: permanent }
 
   # --- High Priest (and inherited Acolyte/Priest) self-buffs ---
-  # Player support buffs -> sidecar support_slot driver (A2_Skill* bank).
+  # Player support buffs.
   - aegis_name: AL_BLESSING            # Blessing, id 34, max 10
     self_buff: { name: blessing, kind: stat_buff, persistence: transient }
   - aegis_name: AL_INCAGI              # Increase AGI, id 29, max 10
@@ -43,7 +43,7 @@ skills:
     self_buff: { name: assumptio, kind: status, persistence: transient }
   - aegis_name: PR_SUFFRAGIUM          # Suffragium, id 67, max 3 (cast-time; applied but not yet scored)
     self_buff: { name: suffragium, kind: stat_buff, persistence: transient }
-  # Holy weapon endow -> existing weapon_endow driver (A_Weapon_element). Holy only.
+  # Holy weapon endow. Holy only.
   - aegis_name: PR_ASPERSIO            # Aspersio, max 5
     self_buff:
       name: aspersio
@@ -51,17 +51,17 @@ skills:
       persistence: transient
       endow:
         elements: [holy]
-  # Player-cast enemy debuffs -> sidecar enemy_debuf driver (B_debuf* bank).
-  - aegis_name: PR_LEXAETERNA          # Lex Aeterna, id (Gravity) max 1; B_debuf6 checkbox; e*=2
+  # Player-cast enemy debuffs.
+  - aegis_name: PR_LEXAETERNA          # Lex Aeterna, max 1; e*=2 (doubles damage taken)
     self_buff: { name: lex_aeterna, kind: debuff, persistence: transient }
-  - aegis_name: AL_DECAGI              # Decrease AGI, max 10; B_debuf11 select; enemy flee/aspd down
+  - aegis_name: AL_DECAGI              # Decrease AGI, max 10; enemy flee/aspd down
     self_buff: { name: decrease_agi, kind: debuff, persistence: transient }
-  - aegis_name: AL_CRUCIS              # Signum Crucis, max 10; B_debuf12 select; enemy DEF down (undead/demon only)
+  - aegis_name: AL_CRUCIS              # Signum Crucis, max 10; enemy DEF down (undead/demon only)
     self_buff: { name: signum_crucis, kind: debuff, persistence: transient }
 
   # --- Scholar (Professor / Sage) self-buffs ---
-  # Elemental weapon endows -> existing weapon_endow driver (A_Weapon_element).
-  # Single-element each (like Aspersio); resolveBuffs forces the matching element.
+  # Elemental weapon endows; single-element each (like Aspersio); resolveBuffs
+  # forces the matching element.
   - aegis_name: SA_FLAMELAUNCHER       # Flame Launcher (Endow Blaze), max 5
     self_buff:
       name: flame_launcher
@@ -90,21 +90,20 @@ skills:
       persistence: transient
       endow:
         elements: [earth]
-  # Land / ground buffs -> NEW land_buff driver (A6_Skill0 type + A6_Skill1 level).
-  # Amplify all same-element damage (auto-attack AND bolts); one active at a time.
+  # Land / ground buffs. Amplify all same-element damage (auto-attack AND
+  # bolts); one active at a time.
   - aegis_name: SA_VOLCANO             # Volcano, max 5 -> amplifies fire
     self_buff: { name: volcano, kind: land, persistence: transient }
   - aegis_name: SA_DELUGE              # Deluge, max 5 -> amplifies water
     self_buff: { name: deluge, kind: land, persistence: transient }
   - aegis_name: SA_VIOLENTGALE         # Violent Gale (Whirlwind), max 5 -> amplifies wind
     self_buff: { name: violent_gale, kind: land, persistence: transient }
-  # Player-cast enemy debuffs -> existing enemy_debuf driver (B_debuf* bank).
-  - aegis_name: PF_MINDBREAKER         # Mind Breaker, max 5; B_debuf18 select; enemy MDEF -12%/lvl
+  # Player-cast enemy debuffs.
+  - aegis_name: PF_MINDBREAKER         # Mind Breaker, max 5; enemy MDEF -12%/lvl
     self_buff: { name: mind_breaker, kind: debuff, persistence: transient }
-  - aegis_name: PF_SPIDERWEB           # Spider Web (Fiber Lock), max 1; B_debuf17 checkbox; +fire dmg, flee down
+  - aegis_name: PF_SPIDERWEB           # Spider Web (Fiber Lock), max 1; +fire dmg, flee down
     self_buff: { name: spider_web, kind: debuff, persistence: transient }
-  # A_skill passives / self-cast -> existing skill_slot driver (the engine's bank
-  # ids diverge from Aegis ids; allocation alone drops them).
+  # Self-cast passives / stat buffs.
   - aegis_name: MG_ENERGYCOAT          # Energy Coat, max 1; cuts incoming physical
     self_buff: { name: energy_coat, kind: status, persistence: transient }
   - aegis_name: SA_ADVANCEDBOOK        # Study (Advanced Book), max 10; +HIT/+ASPD with a book
@@ -117,9 +116,7 @@ skills:
     self_buff: { name: double_casting, kind: stat_buff, persistence: transient }
 
   # --- Assassin Cross (and inherited Thief / Assassin) self-buffs ---
-  # All driven via existing seams: weapon_endow (Enchant Poison) and skill_slot
-  # (everything else). The engine's bank ids diverge from Aegis ids, so allocation
-  # alone drops these passives -- the skill_slot bindings carry the engine's bank id.
+  # Enchant Poison is a weapon endow; the rest are stat/status passives.
   - aegis_name: ASC_EDP                # Enchant Deadly Poison, max 5; big ATK multiplier (no element change in pre-renewal)
     self_buff: { name: enchant_deadly_poison, kind: stat_buff, persistence: transient }
   - aegis_name: AS_ENCHANTPOISON       # Enchant Poison, max 10 -> poison weapon endow
@@ -145,9 +142,7 @@ skills:
     self_buff: { name: sonic_acceleration, kind: status, persistence: permanent }
 
   # --- Sniper (and inherited Archer / Hunter) self-buffs ---
-  # All driven via the existing skill_slot seam (the calc engine's job-buff bank).
-  # The engine's bank ids diverge from Aegis ids, so allocation alone drops these --
-  # the bindings carry the engine's bank id. Owl's / Vulture's scale +1/level (up to +10).
+  # Owl's / Vulture's scale +1/level (up to +10).
   - aegis_name: AC_OWL                 # Owl's Eye, max 10; DEX +1/level (up to +10)
     self_buff: { name: owls_eye, kind: stat_buff, persistence: permanent }
   - aegis_name: AC_VULTURE             # Vulture's Eye, max 10; HIT +1/level (up to +10) + bow range
@@ -164,11 +159,8 @@ skills:
     self_buff: { name: wind_walk, kind: stat_buff, persistence: transient }
 
   # --- Whitesmith (and inherited Merchant / Blacksmith) self-buffs ---
-  # Nine ride the existing skill_slot seam (the calc engine's job-buff bank); the
-  # engine's bank ids diverge from Aegis ids, so the bindings carry the engine's bank
-  # id. Weapon Perfection is not in the job bank -- the calc engine models it as a
-  # supportive buff, so it rides support_slot (A2_Skill7 checkbox). The calc engine
-  # deliberately omits Weapon Perfection from the job-buff bank (skips its id 153).
+  # Most are weapon masteries / steroids; Weapon Perfection is modeled as a
+  # supportive buff rather than a job passive.
   - aegis_name: BS_OVERTHRUST          # Over Thrust ("Power-Thrust"), max 5; +%ATK
     self_buff: { name: over_thrust, kind: stat_buff, persistence: transient }
   - aegis_name: WS_OVERTHRUSTMAX       # Maximum Over Thrust (catalog "Maximum Power Thrust"), max 5; Whitesmith-only; bigger +%ATK
@@ -187,16 +179,14 @@ skills:
     self_buff: { name: hilt_binding, kind: stat_buff, persistence: permanent }
   - aegis_name: BS_SKINTEMPER          # Skin Tempering, max 5; fire/neutral resist -- defensive, not scored by the auto-attack sim
     self_buff: { name: skin_tempering, kind: status, persistence: permanent }
-  - aegis_name: BS_WEAPONPERFECT       # Weapon Perfection, support bank A2_Skill7 checkbox, max 5; ignore weapon size penalty
+  - aegis_name: BS_WEAPONPERFECT       # Weapon Perfection, max 5; ignore weapon size penalty
     self_buff: { name: weapon_perfection, kind: stat_buff, persistence: transient }
 
   # --- Lord Knight (and inherited Swordman / Knight) self-buffs ---
-  # All 13 live in the calc engine's job-buff bank and ride the
-  # skill_slot seam; the engine's bank ids diverge from Aegis ids, so the bindings
-  # carry the engine's bank id. The four LK_ skills (Aura Blade, Concentration,
-  # Berserk, Parrying) are trans-only; the SM_/KN_ skills are inherited down the
-  # Swordman/Knight line. ALL_INCCARRY (universal carry-weight) is left unbound --
-  # see the comment on the Lord Knight block in index.ts.
+  # The four LK_ skills (Aura Blade, Concentration, Berserk, Parrying) are
+  # trans-only; the SM_/KN_ skills are inherited down the Swordman/Knight line.
+  # ALL_INCCARRY (universal carry-weight) is left unbound -- see the Lord Knight
+  # block in index.ts.
   - aegis_name: SM_SWORD               # Sword Mastery, max 10; +ATK with 1H swords
     self_buff: { name: sword_mastery, kind: stat_buff, persistence: permanent }
   - aegis_name: SM_TWOHAND             # Two-Handed Sword Mastery, max 10; +ATK with 2H swords
@@ -213,7 +203,7 @@ skills:
     self_buff: { name: concentration, kind: stat_buff, persistence: transient }
   - aegis_name: LK_BERSERK             # Berserk (catalog "Frenzy"), max 1; trans-only; +ATK/+ASPD, DEF->0
     self_buff: { name: berserk, kind: stat_buff, persistence: transient }
-  - aegis_name: SM_AUTOBERSERK         # Auto Berserk, max 1; the calc engine applies a Provoke-like ATK boost + enemy DEF reduction through the combat sim
+  - aegis_name: SM_AUTOBERSERK         # Auto Berserk, max 1; the calc applies a Provoke-like ATK boost + enemy DEF reduction through the combat sim
     self_buff: { name: auto_berserk, kind: stat_buff, persistence: permanent }
   - aegis_name: SM_ENDURE              # Endure, max 10; knockback resist / +MDEF -- defensive, not scored by the auto-attack sim
     self_buff: { name: endure, kind: status, persistence: transient }
@@ -225,13 +215,11 @@ skills:
     self_buff: { name: parrying, kind: status, persistence: transient }
 
   # --- Champion (and inherited Monk / Acolyte) self-buffs ---
-  # All 8 live in the calc engine's job-buff bank (identical to Monk's --
-  # no trans gating), driven via the skill_slot seam; the engine's bank ids diverge
-  # from Aegis ids, so the bindings carry the engine's bank id. AL_DEMONBANE / AL_DP
+  # Monk and Champion share the same set (no trans gating). AL_DEMONBANE / AL_DP
   # are Acolyte skills, so they also light up for the rest of the Acolyte tree
-  # (Priest / High Priest / Monk). Excluded from the bank: ALL_INCCARRY weight, the
-  # triple-attack-delay counter, and SG_FRIEND (a Star Gladiator skill Monk cannot
-  # learn) -- see the Champion block in index.ts.
+  # (Priest / High Priest / Monk). Excluded: ALL_INCCARRY weight, the
+  # triple-attack-delay counter, and SG_FRIEND (a Star Gladiator skill Monk
+  # cannot learn) -- see the Champion block in index.ts.
   - aegis_name: AL_DEMONBANE           # Demon Bane, max 10; +ATK vs Undead element / Demon race (scored via damage.ave vs those targets)
     self_buff: { name: demon_bane, kind: stat_buff, persistence: permanent }
   - aegis_name: MO_IRONHAND            # Iron Fists, max 10; +damage with fist/knuckle weapons
@@ -250,12 +238,12 @@ skills:
     self_buff: { name: mental_strength, kind: status, persistence: transient }
 
   # --- Paladin (Crusader-rooted) self-buffs ---
-  # Only Faith and Spear Quicken are new here; the other 9 entries in Paladin's bank
-  # (identical to Crusader's -- no trans gating) are already bound
-  # via the Lord Knight (Sword / Two-Hand / Spear Mastery, Auto Berserk, Endure,
-  # Increase HP Recovery, Cavalier Mastery) and Champion (Demon Bane, Divine
-  # Protection) overlay rows. Both new skills are CR_ (Crusader-only root), so they
-  # light up for Crusader and Paladin only. Spear Quicken's ASPD applies to two-handed
+  # Only Faith and Spear Quicken are new here; the other 9 entries in Paladin's
+  # set (identical to Crusader's -- no trans gating) are already bound via the
+  # Lord Knight (Sword / Two-Hand / Spear Mastery, Auto Berserk, Endure, Increase
+  # HP Recovery, Cavalier Mastery) and Champion (Demon Bane, Divine Protection)
+  # overlay rows. Both new skills are CR_ (Crusader-only root), so they light up
+  # for Crusader and Paladin only. Spear Quicken's ASPD applies to two-handed
   # spears only (correct behavior). See the Paladin block in index.ts.
   - aegis_name: CR_TRUST               # Faith, max 10; +MaxHP / +Holy resist (scored via readDerivedStats().maxHp)
     self_buff: { name: faith, kind: stat_buff, persistence: transient }
@@ -264,7 +252,7 @@ skills:
 
   # --- Stalker (Rogue line) self-buffs ---
   # Only Close Confine, Stealth (Chase Walk), and Counter Instinct (Reject Sword) are
-  # new here; the other 4 entries in Stalker's bank -- Double Attack /
+  # new here; the other 4 in Stalker's set -- Double Attack /
   # Improve Dodge (Assassin Cross), Sword Mastery (Lord Knight), Vulture's Eye (Sniper)
   # -- are already bound. close_confine is a base Rogue skill (Rogue + Stalker); stealth
   # and counter_instinct are Stalker trans-only. Excluded: weight, the
@@ -278,13 +266,13 @@ skills:
     self_buff: { name: counter_instinct, kind: status, persistence: transient }
 
   # --- Gunslinger self-buffs ---
-  # Expanded class: a single skill_slot bank, no trans gating, and the
-  # GS_ skills are gun-class-exclusive in pre-renewal (they also appear in renewal
-  # Rebellion / baby trees, out of scope). Nothing is inherited. Excluded:
-  # ALL_INCCARRY weight. Guns are already mapped (revolver / rifle / shotgun /
-  # gatling / grenade), so all 8 verify against a real gun (Gatling Fever needs a
-  # W_GATLING like Drifter, not a grenade launcher). flip_the_coin moves damage.ave
-  # (the calc engine models the coin-damage bonus). See the Gunslinger block in index.ts.
+  # Expanded class: no trans gating, and the GS_ skills are gun-class-exclusive
+  # in pre-renewal (they also appear in renewal Rebellion / baby trees, out of
+  # scope). Nothing is inherited. Excluded: ALL_INCCARRY weight. Guns are already
+  # mapped (revolver / rifle / shotgun / gatling / grenade), so all 8 verify
+  # against a real gun (Gatling Fever needs a W_GATLING like Drifter, not a
+  # grenade launcher). flip_the_coin moves damage.ave (the calc models the
+  # coin-damage bonus). See the Gunslinger block in index.ts.
   - aegis_name: GS_SINGLEACTION        # Single Action, max 10; +HIT/+ASPD with a gun (readDerivedStats().hit + .aspd)
     self_buff: { name: single_action, kind: stat_buff, persistence: transient }
   - aegis_name: GS_SNAKEEYE            # Snake Eye, max 10; +HIT/+range with guns (readDerivedStats().hit)
@@ -299,16 +287,15 @@ skills:
     self_buff: { name: chain_action, kind: stat_buff, persistence: transient }
   - aegis_name: GS_GATLINGFEVER        # Gatling Fever, max 10; +ASPD with a gatling (W_GATLING), -FLEE (readDerivedStats().aspd)
     self_buff: { name: gatling_fever, kind: stat_buff, persistence: transient }
-  - aegis_name: GS_GLITTERING          # Flip the Coin, max 5; the calc engine models the coin-damage bonus, scales with level (readCombatResults().damage.ave)
+  - aegis_name: GS_GLITTERING          # Flip the Coin, max 5; the calc models the coin-damage bonus, scales with level (readCombatResults().damage.ave)
     self_buff: { name: flip_the_coin, kind: stat_buff, persistence: transient }
 
   # --- Clown / Gypsy performer passives ---
   # Musical Lesson (Bard/Clown) and Dancing Lesson (Dancer/Gypsy) boost the
   # performer's own weapon damage (Instrument / Whip respectively), so they are
-  # real self-buffs on the existing skill_slot seam (the calc engine's job-buff
-  # bank). The Bard/Dancer SONGS are a separate control surface (the music bank)
-  # and do NOT affect the performer, so they get no row here -- see the music
-  # driver + bindings in index.ts. The 3 inherited Archer buffs
+  # real self-buffs. The Bard/Dancer SONGS are a separate effect that does NOT
+  # affect the performer, so they get no row here -- see the song bindings in
+  # index.ts. The 3 inherited Archer buffs
   # (owls_eye/vultures_eye/improve_concentration) already gate+drive.
   - aegis_name: BA_MUSICALLESSON       # Musical Lesson, max 10; +Instrument damage (readCombatResults().damage.ave, instrument-only)
     self_buff: { name: musical_lesson, kind: stat_buff, persistence: permanent }
@@ -316,16 +303,14 @@ skills:
     self_buff: { name: dancing_lesson, kind: stat_buff, persistence: permanent }
 
   # --- Star Gladiator self-buffs ---
-  # 13th class. Pure-data: every buff uses
-  # the skill_slot driver. SG_ skills are Star Gladiator-exclusive in pre-renewal,
-  # so no blast radius; 3 TK buffs (mild_wind / spurt / taekwon_ranker) are already
+  # 13th class. SG_ skills are Star Gladiator-exclusive in pre-renewal, so no
+  # blast radius; 3 TK buffs (mild_wind / spurt / taekwon_ranker) are already
   # inherited and need no row. Excluded: ALL_INCCARRY weight, SG_MIRACLE
-  # (not learnable -- no tree anchor), SG_*_WARM (absent from the engine's bank). The
-  # three Wrath skills are enemy size+maxHP gated inside the calc engine (Solar=Small,
-  # Lunar=Medium maxHP>=6000, Stellar=Large maxHP>=20000); solar_protection is
-  # defensive (lowers incoming damage). The calc engine collapses the 3 Bless skills
-  # into one bank slot, anchored here to SG_SUN_BLESS. See the Star Gladiator block in
-  # index.ts.
+  # (not learnable -- no tree anchor), SG_*_WARM (not modeled). The three Wrath
+  # skills are enemy size+maxHP gated inside the calc (Solar=Small, Lunar=Medium
+  # maxHP>=6000, Stellar=Large maxHP>=20000); solar_protection is defensive
+  # (lowers incoming damage). The calc collapses the 3 Bless skills into one,
+  # anchored here to SG_SUN_BLESS. See the Star Gladiator block in index.ts.
   - aegis_name: SG_SUN_ANGER           # Solar Wrath, max 3; +damage vs Small monsters (readCombatResults().damage.ave)
     self_buff: { name: sls_solar_wrath, kind: stat_buff, persistence: transient }
   - aegis_name: SG_MOON_ANGER          # Lunar Wrath, max 3; +damage vs Medium maxHP>=6000 (readCombatResults().damage.ave)
@@ -340,25 +325,23 @@ skills:
     self_buff: { name: sls_stellar_protection, kind: stat_buff, persistence: transient }
   - aegis_name: SG_FUSION              # Union, max 1; +damage / "increases most things" (readCombatResults().damage.ave)
     self_buff: { name: sls_union, kind: stat_buff, persistence: transient }
-  - aegis_name: SG_DEVIL               # Demon, max 10; intended +ASPD but broken in the calc engine -- wired-but-inert
+  - aegis_name: SG_DEVIL               # Demon, max 10; intended +ASPD but broken in the calc -- wired-but-inert
     self_buff: { name: sls_demon, kind: status, persistence: permanent }
   - aegis_name: SG_KNOWLEDGE           # Knowledge (a.k.a. "Courier"), max 10; carry-weight only -- wired-but-inert
     self_buff: { name: sls_knowledge, kind: status, persistence: permanent }
-  - aegis_name: SG_SUN_BLESS           # Blessings, max 5; the calc engine collapses the 3 Bless skills to one slot; exp-rate only -- wired-but-inert
+  - aegis_name: SG_SUN_BLESS           # Blessings, max 5; the calc collapses the 3 Bless skills to one; exp-rate only -- wired-but-inert
     # persistence transient (vs the passive demon/knowledge above): Blessing is a timed self-cast, not an always-on passive. Documentary only -- the scorer does not read persistence.
     self_buff: { name: sls_blessing, kind: status, persistence: transient }
 
   # --- Ninja self-buffs ---
-  # 14th class. Pure-data:
-  # every buff uses the skill_slot driver. Ninja is an Expanded class -- no rebirth
-  # (no trans-gating) and no shared tree (no inherited buffs), so ClassBuffs[ninja]
-  # is exactly these 3. Excluded: ALL_INCCARRY weight. The engine's bank ids diverge
-  # from Aegis ids, so the sidecar bindings carry the engine's bank id (see the Ninja
-  # block in index.ts). Only ninja_aura is scored (raises STR/INT -> ATK/MATK ->
-  # damage.ave); ninja_mastery (SP recovery) and throwing_mastery (throw-skill
-  # damage) move no field the auto-attack sim reads, so they are wired-but-inert per
-  # the bind-every-control directive. Cicada Skin Shed / Mirror Image are in the
-  # engine's skill table but NOT in the bank, so they have no control surface and are ignored.
+  # 14th class. Ninja is an Expanded class -- no rebirth (no trans-gating) and no
+  # shared tree (no inherited buffs), so ClassBuffs[ninja] is exactly these 3.
+  # Excluded: ALL_INCCARRY weight (see the Ninja block in index.ts). Only
+  # ninja_aura is scored (raises STR/INT -> ATK/MATK -> damage.ave);
+  # ninja_mastery (SP recovery) and throwing_mastery (throw-skill damage) move no
+  # field the auto-attack sim reads, so they are wired-but-inert per the
+  # bind-every-control directive. Cicada Skin Shed / Mirror Image are not
+  # modeled, so they have no control surface and are ignored.
   - aegis_name: NJ_NEN                  # Ninja Aura ("Soul"), max 5; +STR/INT -> +damage (readCombatResults().damage.ave)
     self_buff: { name: ninja_aura, kind: stat_buff, persistence: transient }
   - aegis_name: NJ_NINPOU               # Ninja Mastery ("Spirit of the Blade" / Ninpou Training), max 10; SP recovery only -- wired-but-inert
@@ -367,32 +350,31 @@ skills:
     self_buff: { name: throwing_mastery, kind: status, persistence: permanent }
 
   # --- Alchemist / Creator self-buffs ---
-  # 15th class (alchemist / creator banks are identical -> no trans gating, like
-  # Champion=Monk). Pure-data: skill_slot only. Only Axe Mastery is new here;
-  # crazy_uproar (MC_LOUD) already gates in via the Merchant tree (see
-  # the Whitesmith block) and needs no row -- the catalog test asserts it. Excluded:
-  # Enlarge Weight Limit R (universal carry-weight) and Enlarge Weight Limit /
-  # MC_INCCARRY (Merchant carry-weight -- also excluded in Whitesmith's
-  # bank). Axe Mastery is axe-gated in the calc engine (+ATK with axes only; non-axe
-  # weapons see no change) and the bonus is combat-sim mastery ATK -- it moves
-  # readCombatResults().damage.ave, not derived atk.base, like Sword Mastery.
+  # 15th class (alchemist / creator sets are identical -> no trans gating, like
+  # Champion=Monk). Only Axe Mastery is new here; crazy_uproar (MC_LOUD) already
+  # gates in via the Merchant tree (see the Whitesmith block) and needs no row --
+  # the catalog test asserts it. Excluded: Enlarge Weight Limit R (universal
+  # carry-weight) and Enlarge Weight Limit / MC_INCCARRY (Merchant carry-weight --
+  # also excluded in Whitesmith's set). Axe Mastery is axe-gated in the calc
+  # (+ATK with axes only; non-axe weapons see no change) and the bonus is
+  # combat-sim mastery ATK -- it moves readCombatResults().damage.ave, not
+  # derived atk.base, like Sword Mastery.
   - aegis_name: AM_AXEMASTERY           # Axe Mastery, cat 226, max 10; +ATK with axes (readCombatResults().damage.ave, axe-only)
     self_buff: { name: axe_mastery, kind: stat_buff, persistence: permanent }
 
   # --- Soul Linker self-buffs ---
-  # 16th class. Pure-data: skill_slot only. Expanded class on the TaeKwon branch; it
-  # inherits mild_wind/spurt (already mapped). Kaina (SL_KAINA) is the one
-  # SL-specific buff and the only one scored: it raises maxSp (readDerivedStats().
-  # maxSp / Go Derived.MaxSP), +30/level, a sustain/defense-side stat_buff like
-  # Paladin faith->maxHp. The 4 TaeKwon skills below (Tumbling/Peaceful Break/Happy
-  # Break/Kihop) are SHARED across the TaeKwon branch's job-buff banks, so
-  # these rows also surface for TaeKwon Kid and Star Gladiator (count-locks 7 and 16).
-  # All 4 are inert across the scored field set (broad-field probe) -- bound per
-  # bind-every-control. taekwon_ranker (TK_MISSION) is NOT here: it is TaeKwon-Kid-only
-  # and is removed from the SL/SG trees by usabilityExclusions in cmd/build-catalog.
-  # Excluded: carry-weight and the Kihop party-count sub-param. The Soul Link
-  # / Ka / Es skills are NOT in the engine's bank, so they have no control surface and
-  # are ignored.
+  # 16th class. Expanded class on the TaeKwon branch; it inherits mild_wind/spurt
+  # (already mapped). Kaina (SL_KAINA) is the one SL-specific buff and the only
+  # one scored: it raises maxSp (readDerivedStats().maxSp / Go Derived.MaxSP),
+  # +30/level, a sustain/defense-side stat_buff like Paladin faith->maxHp. The 4
+  # TaeKwon skills below (Tumbling/Peaceful Break/Happy Break/Kihop) are SHARED
+  # across the TaeKwon branch, so these rows also surface for TaeKwon Kid and Star
+  # Gladiator (count-locks 7 and 16). All 4 are inert across the scored field set
+  # (broad-field probe) -- bound per bind-every-control. taekwon_ranker
+  # (TK_MISSION) is NOT here: it is TaeKwon-Kid-only and is removed from the SL/SG
+  # trees by usabilityExclusions in cmd/build-catalog. Excluded: carry-weight and
+  # the Kihop party-count sub-param. The Soul Link / Ka / Es skills are not
+  # modeled, so they have no control surface and are ignored.
   - aegis_name: SL_KAINA                # Kaina, cat 466, max 7; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
     self_buff: { name: kaina, kind: stat_buff, persistence: permanent }
   - aegis_name: TK_DODGE                # Tumbling (Break Fall), cat 420, max 1; dodge -- wired-but-inert
@@ -405,14 +387,12 @@ skills:
     self_buff: { name: kihop, kind: status, persistence: transient }
 
   # --- High Wizard self-buffs (Mage -> Wizard -> High Wizard) ---
-  # All ride the calc engine's job-buff bank. Pure-data, skill_slot only.
-  # energy_coat (MG_ENERGYCOAT) is already mapped (Scholar / Mage tree) and
-  # needs no row. soul_drain + mystical_amplification are HW_ (High Wizard trans-only
-  # root) -> high_wizard only. increase_sp_recovery is MG_ (Mage root) -> lights up the
-  # whole Mage tree (intentional, like demon_bane -> Acolyte tree). The engine's bank
-  # ids diverge from Aegis/catalog ids, so the sidecar bindings carry the engine's bank
-  # id. Excluded: ALL_INCCARRY (universal carry-weight). Quagmire (WZ_QUAGMIRE) is
-  # modeled in the engine's enemy-ailment bank (not the B_debuf seam) -> deferred (new seam).
+  # energy_coat (MG_ENERGYCOAT) is already mapped (Scholar / Mage tree) and needs
+  # no row. soul_drain + mystical_amplification are HW_ (High Wizard trans-only
+  # root) -> high_wizard only. increase_sp_recovery is MG_ (Mage root) -> lights
+  # up the whole Mage tree (intentional, like demon_bane -> Acolyte tree).
+  # Excluded: ALL_INCCARRY (universal carry-weight). Quagmire (WZ_QUAGMIRE) needs
+  # a different control surface than the other debuffs -> deferred (new seam).
   - aegis_name: HW_SOULDRAIN            # Soul Drain, cat 364, max 10; HW-only; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
     self_buff: { name: soul_drain, kind: stat_buff, persistence: permanent }
   - aegis_name: HW_MAGICPOWER           # Mystical Amplification (Amplify Magic Power), cat 366, max 10; HW-only; +derived MATK (readDerivedStats().matk; not gate-scored in the auto-attack sim, like dragonology)
