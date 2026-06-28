@@ -488,11 +488,14 @@ export function createShim(): ShimSession {
   // ATTACK_SKILL_BINDINGS maps a semantic attack-skill name to its rocalc
   // A_ActiveSkill id. This is the only place rocalc's attack-skill ids live;
   // the contract stays semantic. uncertainty mirrors the overlay caveat so the
-  // breakdown entry can carry it. Add a row per skill to onboard a class.
+  // breakdown entry can carry it. spheres (when set) is the spirit-sphere count
+  // a sphere-explosion skill needs to deal damage; computeSkillBreakdown drives
+  // A2_Skill12 to it while that skill is active. Add a row per skill to onboard.
   const ATTACK_SKILL_BINDINGS: Record<
     string,
-    { rocalcId: number; uncertainty?: string }
+    { rocalcId: number; uncertainty?: string; spheres?: number }
   > = {
+    // Taekwon Kid
     tornado_kick: { rocalcId: 331 },
     heel_drop: { rocalcId: 333 },
     roundhouse: { rocalcId: 335 },
@@ -502,6 +505,112 @@ export function createShim(): ShimSession {
       uncertainty:
         "rocalc cannot model Flying Kick's movement-distance scaling; damage approximated",
     },
+    // Assassin / Assassin Cross. Sonic Blow probed lv10 = 1776 (8 hits) vs
+    // barehanded auto 222, matching the spec's ~8x baseline.
+    envenom: { rocalcId: 17 },
+    sonic_blow: { rocalcId: 83 },
+    grimtooth: {
+      rocalcId: 84,
+      uncertainty:
+        "rocalc flags Grimtooth damage as approximate (long-range vs melee is distance-dependent)",
+    },
+    venom_splasher: {
+      rocalcId: 88,
+      uncertainty:
+        "Venom Splasher's Poison React level sub-parameter defaults to 0",
+    },
+    poison_react: { rocalcId: 86 },
+    soul_breaker: {
+      rocalcId: 263,
+      uncertainty:
+        "rocalc flags Soul Breaker (Soul Destroyer) damage as differing slightly from in-game",
+    },
+    meteor_assault: { rocalcId: 264 },
+    sand_attack: { rocalcId: 19 },
+    throw_venom_knife: { rocalcId: 306 },
+    // Knight / Lord Knight (SM_/KN_ skills inherited by Lord Knight's tree too).
+    bash: { rocalcId: 6 },
+    magnum_break: { rocalcId: 7 },
+    pierce: { rocalcId: 70 },
+    spear_stab: { rocalcId: 71 },
+    spear_boomerang: { rocalcId: 72 },
+    brandish_spear: { rocalcId: 73 },
+    bowling_bash: { rocalcId: 76 },
+    charge_attack: { rocalcId: 308 },
+    spiral_pierce: { rocalcId: 259 },
+    head_crush: { rocalcId: 260 },
+    joint_beat: { rocalcId: 261 },
+    // Hunter / Sniper. Ranged skills compute off the equipped bow; barehanded
+    // probe numbers are a floor, the orchestrator supplies the weapon.
+    double_strafe: { rocalcId: 40 },
+    arrow_shower: { rocalcId: 41 },
+    charge_arrow: { rocalcId: 44 },
+    phantasmic_arrow: { rocalcId: 307 },
+    blitz_beat: { rocalcId: 118 },
+    land_mine: { rocalcId: 106 },
+    freezing_trap: { rocalcId: 111 },
+    blast_mine: { rocalcId: 112 },
+    claymore_trap: { rocalcId: 113 },
+    sharp_shooting: { rocalcId: 272 },
+    falcon_assault: { rocalcId: 271 },
+    // Wizard / High Wizard. Magic flows through A_ActiveSkill: damage scales
+    // off MATK (probed lv99 INT99: Lightning Bolt 7710, Jupitel 9252, Meteor
+    // Storm 7700).
+    fire_bolt: { rocalcId: 51 },
+    cold_bolt: { rocalcId: 54 },
+    lightning_bolt: { rocalcId: 56 },
+    fire_ball: { rocalcId: 52 },
+    fire_wall: { rocalcId: 53 },
+    frost_diver: { rocalcId: 55 },
+    thunder_storm: { rocalcId: 57 },
+    napalm_beat: { rocalcId: 46 },
+    soul_strike: { rocalcId: 47 },
+    fire_pillar: { rocalcId: 122 },
+    sightrasher: { rocalcId: 124 },
+    meteor_storm: { rocalcId: 125 },
+    jupitel_thunder: { rocalcId: 126 },
+    lord_of_vermilion: { rocalcId: 127 },
+    water_ball: { rocalcId: 128 },
+    frost_nova: { rocalcId: 130 },
+    storm_gust: {
+      rocalcId: 131,
+      uncertainty:
+        "Storm Gust hit count defaults to 3; actual hits depend on how long the target stays in the area",
+    },
+    earth_spike: { rocalcId: 132 },
+    heavens_drive: { rocalcId: 133 },
+    magic_crasher: { rocalcId: 275 },
+    napalm_vulcan: { rocalcId: 277 },
+    gravitation_field: { rocalcId: 325 },
+    // Monk / Champion (MO_ skills inherited by Champion's tree too). Finger
+    // Offensive and Ki Explosion explode spirit spheres: they read 0 unless
+    // A2_Skill12 (# of Spirit Spheres) is driven > 0, so they carry spheres.
+    holy_light: { rocalcId: 37 },
+    chain_combo: { rocalcId: 188 },
+    combo_finish: { rocalcId: 189 },
+    finger_offensive: {
+      rocalcId: 192,
+      spheres: 5,
+      uncertainty: "Finger Offensive damage assumes a full 5 spirit spheres",
+    },
+    excruciating_palm: {
+      rocalcId: 382,
+      spheres: 5,
+      uncertainty: "Ki Explosion damage assumes a full 5 spirit spheres",
+    },
+    investigate: {
+      rocalcId: 193,
+      uncertainty:
+        "Investigate/Occult Impaction damage scales with the target's DEF; near-zero against low-DEF mobs",
+    },
+    asura_strike: {
+      rocalcId: 197,
+      uncertainty:
+        "Asura Strike damage assumes a near-full SP pool (remaining SP defaults to max - 1)",
+    },
+    palm_push_strike: { rocalcId: 288 },
+    tiger_knuckle_fist: { rocalcId: 289 },
+    chain_crush_combo: { rocalcId: 290 },
   };
 
   type PendingAttackSkill = {
@@ -510,6 +619,7 @@ export function createShim(): ShimSession {
     level: number;
     primary: boolean;
     uncertainty?: string;
+    spheres?: number;
   };
   let pendingAttackSkills: PendingAttackSkill[] = [];
   let lastSkillBreakdown: SkillDamage[] | undefined = undefined;
@@ -1829,6 +1939,7 @@ export function createShim(): ShimSession {
         level: sk.level,
         primary: sk.primary ?? false,
         uncertainty: bind.uncertainty,
+        spheres: bind.spheres,
       });
     }
     // Exactly one skill drives the top-level CombatResults cells (the primary).
@@ -1874,6 +1985,18 @@ export function createShim(): ShimSession {
       form.A_ActiveSkill.value = String(sk.rocalcId);
       win.ClickActiveSkill();
       setSelectClamped(form.A_ActiveSkillLV, sk.level);
+      // Spirit-sphere-explosion skills (Finger Offensive, Ki Explosion) read
+      // n_A_Buf2[12] and deal 0 without spheres. Drive A2_Skill12 to the
+      // skill's sphere count and enable the support section so StAllCalc reads
+      // it; clear it for non-sphere skills so the count doesn't carry over.
+      // n_SkillSW is only ever turned ON here (never off) so a build's own
+      // support buffs survive; reset() zeroes both between requests.
+      if (sk.spheres) {
+        setSelectClamped(form.A2_Skill12, sk.spheres);
+        win.n_SkillSW = 1;
+      } else {
+        form.A2_Skill12.value = "0";
+      }
       win.StAllCalc();
       win.StCalc();
       win.calc();
@@ -2091,6 +2214,8 @@ function installBuffControls(doc: Document): void {
     A2_Skill2: 5,
     A2_Skill4: 10,
     A2_Skill10: 3,
+    A2_Skill12: 5, // # of Spirit Spheres (0..5); drives sphere-explosion attack skills
+
     B_debuf11: 10,
     B_debuf12: 10,
     B_debuf18: 5,

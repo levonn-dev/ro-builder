@@ -452,7 +452,7 @@ Sort: <select name="ENEMY_SORT" onchange="EnemySort()|calc()">
 <!--<span name="show_ActiveSkillLV"></span>--><select name="A_ActiveSkillLV" onchange="calc()"><option value="-">-</option></select>
 <!--<span id="AASkillName"></span><span id="AASkill"></span>-->
 </td></tr>
-<tr><td colspan="2" class="subheader" style="padding-top:0;"><span id="AASkill" style="float:right;"></span></td></tr>
+<tr><td colspan="2" class="subheader" style="padding-top:0;"><span id="AASkill" style="float:right;"><!-- Seeds the SkillSubNum name into form.elements so installFormNameProxies registers a live getter for it. rocalc replaces this via myInnerHtml(AASkill,...) when a sub-parameter skill is selected (Storm Gust hits, etc.); because the stub lives INSIDE AASkill, the inject clears it first, so there is never a duplicate-name collision. --><select id="SkillSubNum" name="SkillSubNum"></select></span></td></tr>
 
 <tr><td id="nm053" class="right">Player's Hit Ratio</td><td><span id="BattleHIT"></span>%</td></tr>
 <tr><td id="nm074" class="right">Attack Element</td><td id="A_WeaponElement"></td></tr>
@@ -927,7 +927,12 @@ Last updates by <a href="http://forum.ratemyserver.net/general-discussion/update
 <select id="SP_OBJ" name="SP_OBJ"></select>
 <select id="S_LV" name="S_LV"></select>
 <select id="S_OBJ" name="S_OBJ"></select>
-<select id="SkillSubNum" name="SkillSubNum"></select>
+<!-- SkillSubNum is intentionally NOT stubbed here. rocalc injects it into the
+     AASkill container per active skill (Storm Gust hits, Venom Splasher Poison
+     React lvl, Asura remaining SP, etc.) and guards every other read with
+     c.contains(c.SkillSubNum). A standalone stub collides with the injected
+     element (two same-named controls -> RadioNodeList, no .options), which
+     broke select-type sub-param skills. Matches rocalc's own index.html. -->
 <select id="Smug_LV" name="Smug_LV"></select>
 <select id="SocketChance" name="SocketChance"></select>
 <select id="StartingRefine" name="StartingRefine"></select>
