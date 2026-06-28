@@ -491,6 +491,8 @@ export function createShim(): ShimSession {
   // breakdown entry can carry it. spheres (when set) is the spirit-sphere count
   // a sphere-explosion skill needs to deal damage; computeSkillBreakdown drives
   // A2_Skill12 to it while that skill is active. Add a row per skill to onboard.
+  const HEAT_UNCERTAINTY =
+    "Warmth (Heat) only deals damage while standing on a designated Sun / Moon / Star map; per-hit damage approximates auto-attack at the faster Heat hit interval (Heat-specific gear is not modeled)";
   const ATTACK_SKILL_BINDINGS: Record<
     string,
     { rocalcId: number; uncertainty?: string; spheres?: number }
@@ -611,6 +613,120 @@ export function createShim(): ShimSession {
     palm_push_strike: { rocalcId: 288 },
     tiger_knuckle_fist: { rocalcId: 289 },
     chain_crush_combo: { rocalcId: 290 },
+    // Crusader / Paladin (CR_/PA_ skills; CR_ inherited by Paladin's tree too).
+    shield_charge: { rocalcId: 158 },
+    shield_boomerang: { rocalcId: 159 },
+    holy_cross: { rocalcId: 161 },
+    grand_cross: { rocalcId: 162 },
+    pressure: { rocalcId: 283 },
+    martyrs_reckoning: {
+      rocalcId: 284,
+      uncertainty:
+        "Martyr's Reckoning damage scales with the caster's current HP; static scoring approximates it",
+    },
+    shield_chain: {
+      rocalcId: 324,
+      uncertainty:
+        "rocalc flags Shield Chain damage as differing slightly from in-game",
+    },
+    // Merchant line: Blacksmith / Whitesmith (MC_ inherited by both; also
+    // reaches Alchemist/Creator/Super Novice trees).
+    mammonite: { rocalcId: 65 },
+    cart_revolution: { rocalcId: 66 },
+    cart_termination: { rocalcId: 326 },
+    // Alchemist / Creator (AM_ inherited by Creator's tree too).
+    acid_terror: { rocalcId: 244 },
+    demonstration: { rocalcId: 248 },
+    acid_demonstration: {
+      rocalcId: 328,
+      uncertainty:
+        "Acid Demonstration damage scales with the target's VIT; varies sharply by target",
+    },
+    // Bard / Clown / Dancer / Gypsy. Ranged skills compute off the equipped bow;
+    // barehanded probe numbers are a floor, the orchestrator supplies the weapon.
+    musical_strike: { rocalcId: 199 },
+    slinging_arrow: { rocalcId: 207 },
+    arrow_vulcan: { rocalcId: 292 },
+    // Rogue / Stalker (RG_ inherited by Stalker's tree too).
+    back_stab: { rocalcId: 169 },
+    raid: { rocalcId: 171 },
+    // Gunslinger. Gun skills compute off the equipped firearm; barehanded probe
+    // numbers are a floor, the orchestrator supplies the weapon.
+    fling: { rocalcId: 417 },
+    triple_action: { rocalcId: 418 },
+    bulls_eye: { rocalcId: 419 },
+    magical_bullet: { rocalcId: 423 },
+    rapid_shower: { rocalcId: 428 },
+    desperado: { rocalcId: 429 },
+    tracking: { rocalcId: 430 },
+    piercing_shot: { rocalcId: 432 },
+    dust: { rocalcId: 434 },
+    full_buster: { rocalcId: 435 },
+    spread_attack: { rocalcId: 436 },
+    ground_drift: {
+      rocalcId: 437,
+      uncertainty:
+        "Ground Drift damage and element depend on the loaded gemstone ammunition",
+    },
+    // Ninja. Magic spells (Crimson Fire/Ice/Wind) scale off MATK; throws compute
+    // off the equipped shuriken/kunai. The catalog displays renewal skill names;
+    // semantic keys follow them (e.g. crimson_fire_petal = NJ_KOUENKA).
+    throw_shuriken: { rocalcId: 394 },
+    throw_kunai: { rocalcId: 395 },
+    throw_huuma_shuriken: { rocalcId: 396 },
+    throw_zeny: {
+      rocalcId: 397,
+      uncertainty: "Throw Zeny deals fixed damage based on the zeny spent",
+    },
+    vanishing_slash: { rocalcId: 400 },
+    shadow_slash: { rocalcId: 401 },
+    final_strike: {
+      rocalcId: 405,
+      uncertainty:
+        "Final Strike damage scales with the caster's max HP and reduces HP to 1",
+    },
+    crimson_fire_petal: { rocalcId: 407 },
+    crimson_fire_formation: { rocalcId: 408 },
+    raging_fire_dragon: { rocalcId: 409 },
+    spear_of_ice: { rocalcId: 410 },
+    ice_meteor: { rocalcId: 412 },
+    wind_blade: { rocalcId: 413 },
+    lightning_strike: { rocalcId: 414 },
+    kamaitachi: { rocalcId: 415 },
+    // Soul Linker (SL_ skills). Esma is the main MATK-scaled nuke; Estin/Estun
+    // are fixed small-damage bolts gated on target size.
+    esma: { rocalcId: 375 },
+    estin: {
+      rocalcId: 373,
+      uncertainty:
+        "Estin deals meaningful damage only to Small-size targets; near-zero otherwise",
+    },
+    estun: {
+      rocalcId: 374,
+      uncertainty:
+        "Estun deals meaningful damage only to Large-size targets; near-zero otherwise",
+    },
+    // Priest / High Priest (PR_ inherited by High Priest's tree too). Both only
+    // damage Undead and Demon targets; near-zero against everything else.
+    turn_undead: {
+      rocalcId: 102,
+      uncertainty:
+        "Turn Undead only affects Undead targets (instant-death chance plus holy damage); zero against other races",
+    },
+    magnus_exorcismus: {
+      rocalcId: 104,
+      uncertainty:
+        "Magnus Exorcismus only damages Undead and Demon-race targets; zero against everything else",
+    },
+    // Star Gladiator Warmth of the Sun / Moon / Stars. All three are the same
+    // "Heat" damage-over-time; bind the NO-PUSHBACK Heat variant (318). The
+    // pushback variant (317) breaks rocalc's continuous-hit time-to-kill (it
+    // returns null). Per-hit damage mirrors auto-attack, but the Heat hit
+    // interval is far shorter (probed TTK 0.05 vs auto 0.51 on Poring), so
+    // battleTimeSec carries the real DPS.
+    sun_warmth: { rocalcId: 318, uncertainty: HEAT_UNCERTAINTY },
+    moon_warmth: { rocalcId: 318, uncertainty: HEAT_UNCERTAINTY },
+    star_warmth: { rocalcId: 318, uncertainty: HEAT_UNCERTAINTY },
   };
 
   type PendingAttackSkill = {

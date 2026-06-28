@@ -271,10 +271,15 @@ type ClassSkillRequirement struct {
 // the orchestrator's user-prompt block and the list_class_skills tool;
 // each caller projects further to its own consumer-specific shape.
 type ClassSkill struct {
-	ID            int
-	AegisName     string
-	Name          string
-	MaxLevel      int
+	ID        int
+	AegisName string
+	Name      string
+	MaxLevel  int
+	// Unusable: allocated in the tree (points spent in a prior job) but not
+	// castable in this class -- e.g. the Taekwon kicks a Soul Linker keeps. Still
+	// counts toward the skill-point budget; excluded from scoreable attacks and
+	// usable buffs. Copied from the class's tree entry.
+	Unusable      bool
 	AttackType    string
 	Element       string
 	CastTimeMs    int
@@ -307,7 +312,7 @@ func (c *Catalog) ClassSkills(requestClass string) ([]ClassSkill, bool) {
 	byName := c.SkillsByName()
 	out := make([]ClassSkill, 0, len(tree.Skills))
 	for _, s := range tree.Skills {
-		entry := ClassSkill{AegisName: s.AegisName, MaxLevel: s.MaxLevel}
+		entry := ClassSkill{AegisName: s.AegisName, MaxLevel: s.MaxLevel, Unusable: s.Unusable}
 		if sk, ok := byName[s.AegisName]; ok {
 			entry.ID = sk.ID
 			entry.Name = sk.Name
@@ -347,7 +352,7 @@ func (c *Catalog) ClassBuffs(requestClass string) ([]ClassSkill, bool) {
 	}
 	out := make([]ClassSkill, 0, 4)
 	for _, s := range skills {
-		if s.SelfBuff != nil {
+		if s.SelfBuff != nil && !s.Unusable {
 			out = append(out, s)
 		}
 	}
@@ -365,7 +370,7 @@ func (c *Catalog) ClassAttackSkills(requestClass string) ([]ClassSkill, bool) {
 	}
 	out := make([]ClassSkill, 0, 4)
 	for _, s := range skills {
-		if s.AttackSkill != nil {
+		if s.AttackSkill != nil && !s.Unusable {
 			out = append(out, s)
 		}
 	}

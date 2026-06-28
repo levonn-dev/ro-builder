@@ -828,14 +828,16 @@ func formatUserPrompt(req GenerateRequest, profile *domain.ServerProfile, classS
 				}
 				line += " requires: " + strings.Join(parts, ", ")
 			}
-			if s.AttackSkill != nil {
+			if s.Unusable {
+				line += " [unusable in this class: allocated in a prior job (still counts toward skill points) but cannot be cast or scored here]"
+			} else if s.AttackSkill != nil {
 				line += " [scoreable as scored_skills: " + s.AttackSkill.Name + "]"
 			}
 			sb.WriteString(line + "\n")
 		}
 		hasScoreable := false
 		for _, s := range classSkills {
-			if s.AttackSkill != nil {
+			if s.AttackSkill != nil && !s.Unusable {
 				hasScoreable = true
 				break
 			}

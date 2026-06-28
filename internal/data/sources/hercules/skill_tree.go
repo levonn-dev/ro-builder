@@ -34,6 +34,14 @@ type ClassSkillEntry struct {
 	AegisName string         `json:"aegis_name"`
 	MaxLevel  int            `json:"max_level"`
 	Requires  map[string]int `json:"requires,omitempty"` // aegis_name → required level
+	// Unusable marks a skill the class carries in its tree (inherited, with
+	// points spent in an earlier job) but cannot actually USE in this job -- e.g.
+	// the Taekwon kicks a Soul Linker keeps but can't cast. NOT from Hercules;
+	// set by cmd/build-catalog. Kept in the tree so the skill still counts toward
+	// the skill-point budget and skill monotonicity (the points were really
+	// spent), but excluded from scoreable attacks and usable buffs and annotated
+	// for the LLM. Default false (usable).
+	Unusable bool `json:"unusable,omitempty"`
 }
 
 // LoadSkillTreeDB reads a Hercules skill_tree.conf and returns one

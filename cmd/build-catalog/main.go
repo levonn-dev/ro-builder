@@ -817,16 +817,43 @@ func loadJobMaxLevels(herculesPath, repoRoot string) ([]data.JobMaxLevels, error
 	return data.LoadJobMaxLevels(full, data.PreRenewal)
 }
 
-// usabilityExclusions removes skills that Hercules's skill_tree.conf carries as
-// allocated (inherited) for a class but which the class cannot actually USE. A
-// Soul Linker / Star Gladiator was a TaeKwon Kid, so the flattened tree carries
-// every TK skill, but only a usable subset remains. Taekwon Ranker (TK_MISSION)
-// is TaeKwon-Kid-only (the calc engine applies it only for TaeKwon Kid); without this it
-// would wrongly surface as a self-buff for both 2nd classes. Keyed by shim-style
-// class name -> set of aegis names to drop.
+// usabilityExclusions DROPS skills that Hercules's skill_tree.conf carries as
+// allocated (inherited) for a class but which are not point-allocated and the
+// class cannot USE. Taekwon Ranker (TK_MISSION) is a quest STATUS (no skill
+// points spent) that's TaeKwon-Kid-only (the calc engine applies it only for
+// TaeKwon Kid); without this it would wrongly surface as a self-buff for both
+// expanded 2nd classes. Dropping it has no skill-point-budget impact. Keyed by
+// shim-style class name -> set of aegis names to drop.
+//
+// Skills that ARE point-allocated but unusable (the Taekwon kicks a Soul Linker
+// keeps) go in unusableSkills below, NOT here -- they must stay in the tree.
 var usabilityExclusions = map[string]map[string]bool{
 	"soul_linker":    {"TK_MISSION": true},
 	"star_gladiator": {"TK_MISSION": true},
+}
+
+// unusableSkills FLAGS (does not drop) skills a class has allocated -- points
+// really spent in an earlier job -- but cannot USE in its current job. A Soul
+// Linker was a TaeKwon Kid and spent Taekwon job points on the kicks and their
+// stances; those points carry over (and so must the skills, for the skill-point
+// budget and skill monotonicity to stay correct), but the kicks cannot be cast
+// as a Soul Linker. They stay in the tree marked Unusable so scoring/buffs skip
+// them and the prompt annotates them. A Soul Linker keeps only the usable TK
+// utility skills (Tumbling, Sprint, Peaceful/Happy Break, Kihop, Leap, Mild
+// Wind). Star Gladiator (the fighter branch) CAN use the kicks, so it's absent
+// here. Keyed by shim-style class name -> aegis names to flag.
+var unusableSkills = map[string]map[string]bool{
+	"soul_linker": {
+		"TK_STORMKICK":    true, // Tornado Kick
+		"TK_DOWNKICK":     true, // Heel Drop
+		"TK_TURNKICK":     true, // Roundhouse Kick
+		"TK_COUNTER":      true, // Counter Kick
+		"TK_JUMPKICK":     true, // Flying Kick
+		"TK_READYSTORM":   true, // Tornado Kick stance
+		"TK_READYDOWN":    true, // Heel Drop stance
+		"TK_READYTURN":    true, // Roundhouse Kick stance
+		"TK_READYCOUNTER": true, // Counter Kick stance
+	},
 }
 
 // filterSkills returns skills with any entry whose AegisName is in drop removed.
@@ -841,6 +868,23 @@ func filterSkills(skills []data.ClassSkillEntry, drop map[string]bool) []data.Cl
 			continue
 		}
 		out = append(out, e)
+	}
+	return out
+}
+
+// markUnusable returns skills with Unusable=true set on any entry whose
+// AegisName is in flag (kept in the tree, not dropped). A nil/empty flag is a
+// no-op. Operates on a copy so the caller's slice is untouched.
+func markUnusable(skills []data.ClassSkillEntry, flag map[string]bool) []data.ClassSkillEntry {
+	if len(flag) == 0 {
+		return skills
+	}
+	out := make([]data.ClassSkillEntry, len(skills))
+	copy(out, skills)
+	for i := range out {
+		if flag[out[i].AegisName] {
+			out[i].Unusable = true
+		}
 	}
 	return out
 }
@@ -870,6 +914,7 @@ func buildClassMap(herculesPath, repoRoot string) (map[string]data.ClassSkillTre
 		flat := flattenSkills(c, out)
 		key := classKeyFromHerculesName(c.Name)
 		flat = filterSkills(flat, usabilityExclusions[key])
+		flat = markUnusable(flat, unusableSkills[key])
 		out[key] = data.ClassSkillTree{
 			Name:    c.Name,
 			Inherit: c.Inherit,

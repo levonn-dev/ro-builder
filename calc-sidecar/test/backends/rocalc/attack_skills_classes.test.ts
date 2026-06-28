@@ -9,6 +9,7 @@ import { createShim } from "../../../src/shim.ts";
 // probe are in the comments for reference.
 
 const PORING = 1002;
+const ZOMBIE = 1015; // Undead-race target for the Priest exorcism skills.
 
 interface Build {
   cls: string;
@@ -24,19 +25,19 @@ interface Build {
   };
 }
 
-function scoreSkill(b: Build, name: string, level: number) {
+function scoreSkill(b: Build, name: string, level: number, enemy = PORING) {
   const shim = createShim();
   shim.setClass(b.cls);
   shim.setLevel({ base: b.base, job: b.job });
   shim.setStats(b.stats);
-  shim.setEnemy(PORING);
+  shim.setEnemy(enemy);
   const auto = shim.readCombatResults().damage.ave;
 
   shim.reset();
   shim.setLevel({ base: b.base, job: b.job });
   shim.setStats(b.stats);
   shim.setAttackSkills([{ name, level, primary: true }]);
-  shim.setEnemy(PORING);
+  shim.setEnemy(enemy);
   const c = shim.readCombatResults();
   return { auto, results: c, skill: c.skills?.[0] };
 }
@@ -115,5 +116,128 @@ test("monk Asura Strike scores off a near-full SP pool (probe ~15573 vs auto 190
   assert.ok(
     skill.damage.ave! > 5000,
     `asura_strike ${skill.damage.ave} should reflect a full SP pool (>5000)`,
+  );
+});
+
+const GUNSLINGER: Build = {
+  cls: "gunslinger",
+  base: 99,
+  job: 50,
+  // Test stats, not a real build: STR gives the barehanded ATK floor (no gun
+  // equipped here) so the skill clearly clears auto-attack; DEX/LUK feed guns.
+  stats: { str: 80, agi: 60, vit: 1, int: 1, dex: 99, luk: 60 },
+};
+const NINJA: Build = {
+  cls: "ninja",
+  base: 99,
+  job: 50,
+  stats: { str: 1, agi: 1, vit: 1, int: 99, dex: 90, luk: 1 },
+};
+const SOUL_LINKER: Build = {
+  cls: "soul_linker",
+  base: 99,
+  job: 50,
+  stats: { str: 1, agi: 1, vit: 1, int: 99, dex: 90, luk: 1 },
+};
+const WHITESMITH: Build = {
+  cls: "whitesmith",
+  base: 99,
+  job: 70,
+  stats: { str: 99, agi: 1, vit: 40, int: 1, dex: 60, luk: 1 },
+};
+const PRIEST: Build = {
+  cls: "priest",
+  base: 99,
+  job: 50,
+  stats: { str: 1, agi: 1, vit: 1, int: 99, dex: 90, luk: 1 },
+};
+
+test("gunslinger Desperado computes as a gun skill above auto-attack (probe ~3261)", () => {
+  const { auto, skill } = scoreSkill(GUNSLINGER, "desperado", 10);
+  assert.ok(skill && auto !== null);
+  assert.equal(skill.name, "desperado");
+  assert.ok(
+    skill.damage.ave! > auto,
+    `desperado ${skill.damage.ave} should exceed auto ${auto}`,
+  );
+});
+
+test("ninja Crimson Fire Petal: a fuzzy-mapped spell computes MATK damage (probe ~1210)", () => {
+  const { auto, skill } = scoreSkill(NINJA, "crimson_fire_petal", 10);
+  assert.ok(skill && auto !== null);
+  assert.equal(skill.name, "crimson_fire_petal");
+  // Guards the Ninja name remap (rocalc's old names vs the catalog's renewal
+  // names): the binding must hit a real MATK-scaled spell, not auto-fallback.
+  assert.ok(
+    skill.damage.ave! > 1000,
+    `crimson_fire_petal ${skill.damage.ave} should be MATK-scaled (>1000)`,
+  );
+});
+
+test("soul_linker Esma is a strong MATK bolt above auto (probe ~4460)", () => {
+  const { auto, skill } = scoreSkill(SOUL_LINKER, "esma", 10);
+  assert.ok(skill && auto !== null);
+  assert.equal(skill.name, "esma");
+  assert.ok(
+    skill.damage.ave! > 1000,
+    `esma ${skill.damage.ave} should be MATK-scaled (>1000)`,
+  );
+});
+
+test("whitesmith Cart Termination scores without the sub-parameter crash (probe ~2251)", () => {
+  // Cart Termination carries a cart-weight sub-parameter; this guards that the
+  // SkillSubNum machinery feeds it a default instead of throwing.
+  const { auto, skill } = scoreSkill(WHITESMITH, "cart_termination", 10);
+  assert.ok(skill && auto !== null);
+  assert.equal(skill.name, "cart_termination");
+  assert.ok(
+    skill.damage.ave! > auto,
+    `cart_termination ${skill.damage.ave} should exceed auto ${auto}`,
+  );
+});
+
+test("priest Magnus Exorcismus damages Undead but is zero against non-Undead", () => {
+  const vsUndead = scoreSkill(PRIEST, "magnus_exorcismus", 10, ZOMBIE);
+  assert.ok(vsUndead.skill && vsUndead.auto !== null);
+  assert.ok(
+    vsUndead.skill.damage.ave! > 1000,
+    `magnus vs Zombie ${vsUndead.skill.damage.ave} should be a real holy nuke (>1000)`,
+  );
+  // The defining behavior: zero against a non-Undead, non-Demon target.
+  const vsPoring = scoreSkill(PRIEST, "magnus_exorcismus", 10, PORING);
+  assert.equal(
+    vsPoring.skill?.damage.ave,
+    0,
+    `magnus vs Poring should be 0, got ${vsPoring.skill?.damage.ave}`,
+  );
+});
+
+test("star_gladiator Warmth (Heat) models a fast DoT: time-to-kill far below auto", () => {
+  // Heat's per-hit damage mirrors auto-attack, but its hit interval is far
+  // shorter, so battleTimeSec (driven by the primary skill) drops sharply. That
+  // timing -- not per-hit damage -- is the modeled signal. Also guards the
+  // no-pushback binding choice: the pushback Heat variant returns a null TTK.
+  const shim = createShim();
+  shim.setClass("star_gladiator");
+  const stats = { str: 90, agi: 60, vit: 40, int: 1, dex: 60, luk: 1 };
+  shim.setLevel({ base: 99, job: 50 });
+  shim.setStats(stats);
+  shim.setEnemy(PORING);
+  const autoTtk = shim.readCombatResults().battleTimeSec;
+
+  shim.reset();
+  shim.setLevel({ base: 99, job: 50 });
+  shim.setStats(stats);
+  shim.setAttackSkills([{ name: "sun_warmth", level: 3, primary: true }]);
+  shim.setEnemy(PORING);
+  const c = shim.readCombatResults();
+  assert.equal(c.skills?.[0]?.name, "sun_warmth");
+  assert.ok(
+    autoTtk !== null && c.battleTimeSec !== null,
+    "both time-to-kill values should be non-null (no-pushback Heat variant)",
+  );
+  assert.ok(
+    c.battleTimeSec! < autoTtk!,
+    `warmth ttk ${c.battleTimeSec} should be below auto ttk ${autoTtk}`,
   );
 });

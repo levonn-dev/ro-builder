@@ -8,7 +8,7 @@
 # endow.elements: ordered; index (1-based) == required buff level. Element
 #   names from data.AllElements.
 skills:
-  - aegis_name: TK_SEVENWIND          # Mild Wind, id 425, max 7
+  - aegis_name: TK_SEVENWIND          # Mild Wind, max 7
     self_buff:
       name: mild_wind
       kind: weapon_endow
@@ -22,26 +22,26 @@ skills:
         # Keep the two in sync: any reorder here must be reflected there,
         # and TestMildWindOrder in internal/catalog/buffs_test.go pins this list.
         elements: [earth, wind, water, fire, ghost, shadow, holy]
-  - aegis_name: TK_RUN                 # Sprint, id 411 (Spurt status: +STR/ATK, 150s)
+  - aegis_name: TK_RUN                 # Sprint (Spurt status: +STR/ATK, 150s)
     self_buff: { name: spurt, kind: stat_buff, persistence: transient }
-  - aegis_name: TK_MISSION             # Taekwon Mission, id 493 -- ranker anchor
+  - aegis_name: TK_MISSION             # Taekwon Mission -- ranker anchor
     self_buff: { name: taekwon_ranker, kind: status, persistence: permanent }
 
   # --- High Priest (and inherited Acolyte/Priest) self-buffs ---
   # Player support buffs.
-  - aegis_name: AL_BLESSING            # Blessing, id 34, max 10
+  - aegis_name: AL_BLESSING            # Blessing, max 10
     self_buff: { name: blessing, kind: stat_buff, persistence: transient }
-  - aegis_name: AL_INCAGI              # Increase AGI, id 29, max 10
+  - aegis_name: AL_INCAGI              # Increase AGI, max 10
     self_buff: { name: increase_agi, kind: stat_buff, persistence: transient }
-  - aegis_name: PR_IMPOSITIO           # Impositio Manus, id 66, max 5
+  - aegis_name: PR_IMPOSITIO           # Impositio Manus, max 5
     self_buff: { name: impositio_manus, kind: stat_buff, persistence: transient }
-  - aegis_name: PR_GLORIA              # Gloria, id 75, max 5
+  - aegis_name: PR_GLORIA              # Gloria, max 5
     self_buff: { name: gloria, kind: stat_buff, persistence: transient }
-  - aegis_name: AL_ANGELUS             # Angelus, id 33, max 10
+  - aegis_name: AL_ANGELUS             # Angelus, max 10
     self_buff: { name: angelus, kind: stat_buff, persistence: transient }
-  - aegis_name: HP_ASSUMPTIO           # Assumptio, id 361, max 5 (High Priest)
+  - aegis_name: HP_ASSUMPTIO           # Assumptio, max 5 (High Priest)
     self_buff: { name: assumptio, kind: status, persistence: transient }
-  - aegis_name: PR_SUFFRAGIUM          # Suffragium, id 67, max 3 (cast-time; applied but not yet scored)
+  - aegis_name: PR_SUFFRAGIUM          # Suffragium, max 3 (cast-time; applied but not yet scored)
     self_buff: { name: suffragium, kind: stat_buff, persistence: transient }
   # Holy weapon endow. Holy only.
   - aegis_name: PR_ASPERSIO            # Aspersio, max 5
@@ -359,7 +359,7 @@ skills:
   # (+ATK with axes only; non-axe weapons see no change) and the bonus is
   # combat-sim mastery ATK -- it moves readCombatResults().damage.ave, not
   # derived atk.base, like Sword Mastery.
-  - aegis_name: AM_AXEMASTERY           # Axe Mastery, cat 226, max 10; +ATK with axes (readCombatResults().damage.ave, axe-only)
+  - aegis_name: AM_AXEMASTERY           # Axe Mastery, max 10; +ATK with axes (readCombatResults().damage.ave, axe-only)
     self_buff: { name: axe_mastery, kind: stat_buff, persistence: permanent }
 
   # --- Soul Linker self-buffs ---
@@ -375,15 +375,15 @@ skills:
   # trees by usabilityExclusions in cmd/build-catalog. Excluded: carry-weight and
   # the Kihop party-count sub-param. The Soul Link / Ka / Es skills are not
   # modeled, so they have no control surface and are ignored.
-  - aegis_name: SL_KAINA                # Kaina, cat 466, max 7; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
+  - aegis_name: SL_KAINA                # Kaina, max 7; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
     self_buff: { name: kaina, kind: stat_buff, persistence: permanent }
-  - aegis_name: TK_DODGE                # Tumbling (Break Fall), cat 420, max 1; dodge -- wired-but-inert
+  - aegis_name: TK_DODGE                # Tumbling (Break Fall), max 1; dodge -- wired-but-inert
     self_buff: { name: tumbling, kind: status, persistence: permanent }
-  - aegis_name: TK_HPTIME               # Peaceful Break, cat 422, max 10; HP rest -- wired-but-inert
+  - aegis_name: TK_HPTIME               # Peaceful Break, max 10; HP rest -- wired-but-inert
     self_buff: { name: peaceful_break, kind: status, persistence: permanent }
-  - aegis_name: TK_SPTIME               # Happy Break, cat 423, max 10; SP rest -- wired-but-inert
+  - aegis_name: TK_SPTIME               # Happy Break, max 10; SP rest -- wired-but-inert
     self_buff: { name: happy_break, kind: status, persistence: permanent }
-  - aegis_name: TK_POWER                # Kihop (Fighting Chant), cat 424, max 5; party ATK -- wired-but-inert
+  - aegis_name: TK_POWER                # Kihop (Fighting Chant), max 5; party ATK -- wired-but-inert
     self_buff: { name: kihop, kind: status, persistence: transient }
 
   # --- High Wizard self-buffs (Mage -> Wizard -> High Wizard) ---
@@ -393,9 +393,9 @@ skills:
   # up the whole Mage tree (intentional, like demon_bane -> Acolyte tree).
   # Excluded: ALL_INCCARRY (universal carry-weight). Quagmire (WZ_QUAGMIRE) needs
   # a different control surface than the other debuffs -> deferred (new seam).
-  - aegis_name: HW_SOULDRAIN            # Soul Drain, cat 364, max 10; HW-only; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
+  - aegis_name: HW_SOULDRAIN            # Soul Drain, max 10; HW-only; +maxSp (readDerivedStats().maxSp / Go Derived.MaxSP)
     self_buff: { name: soul_drain, kind: stat_buff, persistence: permanent }
-  - aegis_name: HW_MAGICPOWER           # Mystical Amplification (Amplify Magic Power), cat 366, max 10; HW-only; +derived MATK (readDerivedStats().matk; not gate-scored in the auto-attack sim, like dragonology)
+  - aegis_name: HW_MAGICPOWER           # Mystical Amplification (Amplify Magic Power), max 10; HW-only; +derived MATK (readDerivedStats().matk; not gate-scored in the auto-attack sim, like dragonology)
     self_buff: { name: mystical_amplification, kind: stat_buff, persistence: transient }
-  - aegis_name: MG_SRECOVERY            # Increase SP Recovery, cat 9, max 10; Mage tree; SP-regen rate only -- wired-but-inert (does not move maxSp, unlike soul_drain)
+  - aegis_name: MG_SRECOVERY            # Increase SP Recovery, max 10; Mage tree; SP-regen rate only -- wired-but-inert (does not move maxSp, unlike soul_drain)
     self_buff: { name: increase_sp_recovery, kind: status, persistence: permanent }
