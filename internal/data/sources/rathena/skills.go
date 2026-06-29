@@ -88,14 +88,52 @@ func LoadSkillDB(rathenaRoot, modeDir string) ([]Skill, error) {
 			// comparison is direct.
 			Element: normalizeElement(element),
 
-			CastTimeMs:    intAtMaxLevel(raw.CastTime, raw.MaxLevel),
-			FixedCastMs:   intAtMaxLevel(raw.FixedCastTime, raw.MaxLevel),
-			AfterCastMs:   intAtMaxLevel(raw.AfterCastActDelay, raw.MaxLevel),
-			CooldownMs:    intAtMaxLevel(raw.Cooldown, raw.MaxLevel),
-			Interruptible: interruptible,
+			CastTimeMs:        intAtMaxLevel(raw.CastTime, raw.MaxLevel),
+			CastTimeByLevelMs: castSliceByLevel(raw.CastTime, raw.MaxLevel),
+			FixedCastMs:       intAtMaxLevel(raw.FixedCastTime, raw.MaxLevel),
+			AfterCastMs:       intAtMaxLevel(raw.AfterCastActDelay, raw.MaxLevel),
+			CooldownMs:        intAtMaxLevel(raw.Cooldown, raw.MaxLevel),
+			Interruptible:     interruptible,
 		})
 	}
 	return out, nil
+}
+
+// castSliceByLevel resolves a rAthena per-level numeric field
+// (`[{Level: 1, Time: 700}, ...]`) to a per-level slice (index i = level
+// i+1). Returns nil for a flat int or absent field.
+func castSliceByLevel(v any, maxLevel int) []int {
+	seq, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	byLevel := map[int]int{}
+	n := maxLevel
+	for _, raw := range seq {
+		lv, time, ok := levelTimeEntry(raw)
+		if !ok {
+			continue
+		}
+		byLevel[lv] = time
+		if lv > n {
+			n = lv
+		}
+	}
+	if len(byLevel) == 0 {
+		return nil
+	}
+	if n <= 0 {
+		return nil
+	}
+	out := make([]int, n)
+	for i := 0; i < n; i++ {
+		if t, ok := byLevel[i+1]; ok {
+			out[i] = t
+		} else if i > 0 {
+			out[i] = out[i-1]
+		}
+	}
+	return out
 }
 
 // intAtMaxLevel resolves a rAthena skill_db numeric field to its MaxLevel

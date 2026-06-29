@@ -108,7 +108,7 @@ type QualityGates struct {
 	EHPMultiplier  EHPMultiplierGates        `yaml:"ehp_multiplier,omitempty" json:"ehp_multiplier,omitempty"`
 	TTKMVPMaxSec   int                       `yaml:"ttk_mvp_max_sec,omitempty" json:"ttk_mvp_max_sec,omitempty"`
 	CastTimeWarnMs int                       `yaml:"cast_time_warn_ms,omitempty" json:"cast_time_warn_ms,omitempty"`
-	CastTimeFailMs int                       `yaml:"cast_time_fail_ms,omitempty" json:"cast_time_fail_ms,omitempty"`
+	CastInterruptMs int                      `yaml:"cast_interrupt_ms,omitempty" json:"cast_interrupt_ms,omitempty"`
 	StatusPriority map[string]StatusPriority `yaml:"status_priority,omitempty" json:"status_priority,omitempty"`
 }
 
@@ -461,8 +461,8 @@ func (p *ServerProfile) QualityGatesWarnings() []string {
 	if qg.CastTimeWarnMs == 0 {
 		w = append(w, "cast_time_warn_ms")
 	}
-	if qg.CastTimeFailMs == 0 {
-		w = append(w, "cast_time_fail_ms")
+	if qg.CastInterruptMs == 0 {
+		w = append(w, "cast_interrupt_ms")
 	}
 	if _, ok := qg.StatusPriority["pvm"]; !ok {
 		w = append(w, "status_priority.pvm")

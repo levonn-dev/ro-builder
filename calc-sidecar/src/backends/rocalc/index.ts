@@ -1109,6 +1109,17 @@ export function createShim(): ShimSession {
     };
   }
 
+  // Effective stat = allocation (form input) + rendered bonus (A_<STAT>p).
+  // The bonus reflects gear, cards, and active self-buffs after StAllCalc.
+  function readTotalStats(): Stats {
+    const one = (s: string): number =>
+      parseInt(String(form[`A_${s}`].value), 10) + readStatBonus(doc, `A_${s}p`);
+    return {
+      str: one("STR"), agi: one("AGI"), vit: one("VIT"),
+      int: one("INT"), dex: one("DEX"), luk: one("LUK"),
+    };
+  }
+
   function readDerivedStats(): DerivedStats {
     return {
       hit: readInt(doc, "A_HIT"),
@@ -1122,6 +1133,7 @@ export function createShim(): ShimSession {
       maxHp: readInt(doc, "A_MaxHP"),
       maxSp: readInt(doc, "A_MaxSP"),
       statPointsRemaining: readInt(doc, "A_STPOINT"),
+      totalStats: readTotalStats(),
     };
   }
 
@@ -2484,6 +2496,15 @@ function readInt(doc: Document, id: string): number {
   if (Number.isNaN(n))
     throw new Error(`#${id} not an integer: ${JSON.stringify(text)}`);
   return n;
+}
+
+// A_<STAT>p holds the rendered stat bonus as " + N" or " - N" (gear + cards
+// + active buffs, computed by StAllCalc). Parse it back to a signed int.
+function readStatBonus(doc: Document, id: string): number {
+  const text = readCell(doc, id).replace(/\s+/g, "");
+  if (text === "") return 0;
+  const n = parseInt(text, 10);
+  return Number.isNaN(n) ? 0 : n;
 }
 
 function readFloat(doc: Document, id: string): number {

@@ -59,9 +59,9 @@ func canonicalQualityGates() domain.QualityGates {
 			MVPMelee:      2.0,
 			MVPMagicBurst: 2.5,
 		},
-		TTKMVPMaxSec:   300,
-		CastTimeWarnMs: 2000,
-		CastTimeFailMs: 4000,
+		TTKMVPMaxSec:    300,
+		CastTimeWarnMs:  3000,
+		CastInterruptMs: 2000,
 		StatusPriority: map[string]domain.StatusPriority{
 			"pvm": {
 				Fail: []string{"frozen", "stun"},

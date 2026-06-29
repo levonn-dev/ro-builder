@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/levonn-dev/ro-builder/internal/catalog"
+	"github.com/levonn-dev/ro-builder/internal/data"
 	"github.com/levonn-dev/ro-builder/internal/domain"
 	"github.com/levonn-dev/ro-builder/internal/scoring"
 )
@@ -291,82 +292,151 @@ func TestEvaluateStatusImmunity_RequestOverrideDropsStatus(t *testing.T) {
 	}
 }
 
-// IUC gate: a build with Storm Gust (5s cast, interruptible) and no
-// Phen / Orleans equipped → fail.
-func TestEvaluateIUC_LongCastWithoutPhenFails(t *testing.T) {
-	cat := loadCatalog(t)
-	in := Inputs{
-		Snapshot: &domain.Snapshot{
-			Skills: []domain.SkillAlloc{{ID: 89, Level: 10}}, // WZ_STORMGUST
-		},
-		Catalog: cat,
-		Profile: canonicalProfile(),
+func TestIUC_PhenPasses(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 99)
+	// Phen card (4077) in an accessory grants uninterruptible cast.
+	in.Snapshot.Equipment = map[domain.SlotKey]domain.EquipSpec{
+		"accessory1": {ID: 2785, Cards: []int{4077}},
 	}
-	res := evaluateUninterruptibleCast(in)
-	r, ok := findResult(res, "uninterruptible_cast")
+	r, ok := findResult(evaluateUninterruptibleCast(in), "uninterruptible_cast")
+	if !ok || r.Severity != SeverityPass {
+		t.Fatalf("want pass with Phen; got %+v ok=%v", r, ok)
+	}
+}
+
+func TestIUC_NoMitigationFails(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 99) // 2380ms, interruptible, no gear
+	r, ok := findResult(evaluateUninterruptibleCast(in), "uninterruptible_cast")
+	if !ok || r.Severity != SeverityFail {
+		t.Fatalf("want fail with no cast-safety; got %+v ok=%v", r, ok)
+	}
+}
+
+func TestIUC_SafetyWallDemotesToWarn(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 99)
+	in.Snapshot.Skills = append(in.Snapshot.Skills, scoring.SkillAlloc{ID: 12, Level: 1}) // Safety Wall
+	r, ok := findResult(evaluateUninterruptibleCast(in), "uninterruptible_cast")
 	if !ok {
-		t.Fatalf("uninterruptible_cast missing; got %+v", res)
+		t.Fatal("no result returned")
 	}
-	if r.Severity != SeverityFail {
-		t.Errorf("severity: got %q want fail", r.Severity)
-	}
-}
-
-// IUC gate: same build + Phen card equipped on accessory → pass.
-func TestEvaluateIUC_PhenCardCovers(t *testing.T) {
-	cat := loadCatalog(t)
-	in := Inputs{
-		Snapshot: &domain.Snapshot{
-			Skills: []domain.SkillAlloc{{ID: 89, Level: 10}},
-			Equipment: map[scoring.SlotKey]scoring.EquipSpec{
-				scoring.SlotAccessory1: {ID: 2607 /* placeholder accessory */, Cards: []int{4077 /* Phen_Card */}},
-			},
-		},
-		Catalog: cat,
-		Profile: canonicalProfile(),
-	}
-	res := evaluateUninterruptibleCast(in)
-	r, _ := findResult(res, "uninterruptible_cast")
-	if r.Severity != SeverityPass {
-		t.Errorf("severity with Phen: got %q want pass", r.Severity)
+	if r.Severity != SeverityWarn {
+		t.Fatalf("Safety Wall should demote to warn; got %+v", r)
 	}
 }
 
-// Cast-time gate: Storm Gust (15s base) at 30 DEX → effective 12s cast →
-// fail (above 4s ceiling).
-func TestEvaluateCastTime_StormGustAt30DEXFails(t *testing.T) {
-	cat := loadCatalog(t)
-	in := Inputs{
-		Snapshot: &domain.Snapshot{
-			Stats:  domain.Stats{Dex: 30},
-			Skills: []domain.SkillAlloc{{ID: 89, Level: 10}}, // WZ_STORMGUST
-		},
-		Catalog: cat,
-		Profile: canonicalProfile(),
-	}
-	res := evaluateCastTime(in)
-	r, ok := findResult(res, "cast_time_WZ_STORMGUST")
+func TestIUC_HighDodgeDemotesToWarn(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 99)
+	dodge := 85.0
+	in.Score.Combat = &scoring.CombatResults{Dodge: &dodge}
+	r, ok := findResult(evaluateUninterruptibleCast(in), "uninterruptible_cast")
 	if !ok {
-		t.Fatalf("cast_time_WZ_STORMGUST missing; got %+v", res)
+		t.Fatal("no result returned")
 	}
-	if r.Severity != SeverityFail {
-		t.Errorf("severity: got %q want fail", r.Severity)
+	if r.Severity != SeverityWarn {
+		t.Fatalf("high dodge should demote to warn; got %+v", r)
 	}
 }
 
-// Cast-time gate: same skill at 150 DEX → instant cast → no result emitted.
-func TestEvaluateCastTime_InstantCastClears(t *testing.T) {
-	cat := loadCatalog(t)
-	in := Inputs{
-		Snapshot: &domain.Snapshot{
-			Stats:  domain.Stats{Dex: 150},
-			Skills: []domain.SkillAlloc{{ID: 89, Level: 10}},
-		},
-		Catalog: cat,
-		Profile: canonicalProfile(),
+func TestIUC_FastCastNoFire(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 145) // ~233ms effective < 2000
+	if got := evaluateUninterruptibleCast(in); got != nil {
+		t.Fatalf("fast cast should not fire; got %+v", got)
 	}
+}
+
+func TestIUC_IceWallDemotesToWarn(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 99)
+	in.Snapshot.Skills = append(in.Snapshot.Skills, scoring.SkillAlloc{ID: 87, Level: 1}) // Ice Wall
+	r, ok := findResult(evaluateUninterruptibleCast(in), "uninterruptible_cast")
+	if !ok {
+		t.Fatal("no result returned")
+	}
+	if r.Severity != SeverityWarn {
+		t.Fatalf("Ice Wall should demote to warn; got %+v", r)
+	}
+}
+
+func TestIUC_FireWallDemotesToWarn(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 99)
+	in.Snapshot.Skills = append(in.Snapshot.Skills, scoring.SkillAlloc{ID: 18, Level: 1}) // Fire Wall
+	r, ok := findResult(evaluateUninterruptibleCast(in), "uninterruptible_cast")
+	if !ok {
+		t.Fatal("no result returned")
+	}
+	if r.Severity != SeverityWarn {
+		t.Fatalf("Fire Wall should demote to warn; got %+v", r)
+	}
+}
+
+func TestIUC_NonInterruptiblePrimaryNoFire(t *testing.T) {
+	// Pressure: 4000ms cast (3200ms effective at 30 DEX, well over the threshold)
+	// but non-interruptible, so the interruption gate must not fire.
+	in := castTestInputs(t, "pressure", 367, 5, 30)
+	if got := evaluateUninterruptibleCast(in); got != nil {
+		t.Fatalf("non-interruptible primary should not fire; got %+v", got)
+	}
+}
+
+func TestIUC_NoPrimaryNoFire(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 99)
+	in.Snapshot.ScoredSkills = nil // no primary designated -> nothing to gate
+	if got := evaluateUninterruptibleCast(in); got != nil {
+		t.Fatalf("no primary should not fire; got %+v", got)
+	}
+}
+
+// castTestInputs builds an Inputs for the casting gates: the real embedded
+// catalog, a snapshot whose primary scored skill is primaryName (allocated as
+// skillID at the given level), and a calc score reporting effective DEX. Combat
+// is non-nil so tests can set dodge.
+func castTestInputs(t *testing.T, primaryName string, skillID, level, dex int) Inputs {
+	t.Helper()
+	return Inputs{
+		Catalog: loadCatalog(t),
+		Snapshot: &domain.Snapshot{
+			Class:        "high_wizard",
+			Stats:        domain.Stats{Dex: dex},
+			Skills:       []scoring.SkillAlloc{{ID: skillID, Level: level}},
+			ScoredSkills: []domain.ScoredSkill{{Name: primaryName, Primary: true}},
+		},
+		Score: &scoring.ScoreResponse{
+			Derived: scoring.DerivedStats{TotalStats: domain.Stats{Dex: dex}},
+			Combat:  &scoring.CombatResults{},
+		},
+		Profile: nil,
+	}
+}
+
+func TestEvaluateCastTime_SlowPrimaryWarns(t *testing.T) {
+	in := castTestInputs(t,
+		/*primary*/ "storm_gust", /*skillID*/ 89, /*level*/ 10, /*dex*/ 99)
+	r, ok := findResult(evaluateCastTime(in), "cast_time_WZ_STORMGUST")
+	if !ok {
+		t.Fatalf("expected slowness warn; got %+v", evaluateCastTime(in))
+	}
+	if r.Severity != SeverityWarn {
+		t.Errorf("severity = %v, want warn", r.Severity)
+	}
+}
+
+func TestEvaluateCastTime_GearedBoltClears(t *testing.T) {
+	// Cold Bolt Lv10 base 7000ms; at 108 effective DEX -> 1960ms < 3000 warn.
+	in := castTestInputs(t, "cold_bolt", 14, 10, 108)
 	if got := evaluateCastTime(in); got != nil {
-		t.Errorf("expected no results at 150 DEX; got %+v", got)
+		t.Errorf("expected no warn at 108 DEX, got %+v", got)
+	}
+}
+
+func TestEvaluateCastTime_NonPrimaryIgnored(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 30) // 30 DEX -> Cold Bolt 5600ms fires (> 3000 warn)
+	// Lightning Bolt (id 20) is allocated but NOT primary; it must not be gated.
+	in.Snapshot.Skills = append(in.Snapshot.Skills, scoring.SkillAlloc{ID: 20, Level: 10})
+	results := evaluateCastTime(in)
+	if _, ok := findResult(results, "cast_time_MG_COLDBOLT"); !ok {
+		t.Fatalf("expected primary Cold Bolt to warn at 30 DEX; got %+v", results)
+	}
+	if _, ok := findResult(results, "cast_time_MG_LIGHTNINGBOLT"); ok {
+		t.Fatal("non-primary Lightning Bolt should not be gated")
 	}
 }
 
@@ -392,5 +462,42 @@ func TestEffectiveCastTimeMs(t *testing.T) {
 				t.Errorf("got %d want %d", got, c.want)
 			}
 		})
+	}
+}
+
+func TestBuildCovers_StunUsesEffectiveVit(t *testing.T) {
+	// Base allocation 97 VIT, +3 from gear -> effective 100 -> stun-immune.
+	in := Inputs{
+		Snapshot: &domain.Snapshot{Stats: domain.Stats{Vit: 97}},
+		Score: &scoring.ScoreResponse{
+			Derived: scoring.DerivedStats{TotalStats: domain.Stats{Vit: 100}},
+		},
+	}
+	if !buildCovers(in, data.ImmunityStun) {
+		t.Fatal("effective VIT 100 should grant stun immunity")
+	}
+}
+
+// Regression: a fully-geared endgame High Wizard (Cold Bolt primary, effective
+// DEX 108, Phen accessory, Fire/Lightning Bolt + Jupitel allocated but not
+// primary) must produce zero cast warnings or failures. The incident produced
+// four bogus cast warnings: one for Cold Bolt (incorrectly slow at base DEX)
+// and one each for the three non-primary bolts being gated when they should
+// have been ignored.
+func TestRegression_GearedHWNoSpuriousCastWarnings(t *testing.T) {
+	in := castTestInputs(t, "cold_bolt", 14, 10, 108) // effective DEX 108
+	in.Snapshot.Skills = append(in.Snapshot.Skills,
+		scoring.SkillAlloc{ID: 19, Level: 10}, // Fire Bolt
+		scoring.SkillAlloc{ID: 20, Level: 10}, // Lightning Bolt
+		scoring.SkillAlloc{ID: 84, Level: 10}, // Jupitel
+	)
+	in.Snapshot.Equipment = map[domain.SlotKey]domain.EquipSpec{
+		"accessory1": {ID: 2785, Cards: []int{4077}}, // Phen
+	}
+	results := append(evaluateCastTime(in), evaluateUninterruptibleCast(in)...)
+	for _, r := range results {
+		if r.Severity == SeverityWarn || r.Severity == SeverityFail || r.Severity == SeverityFailHard {
+			t.Errorf("unexpected non-pass cast result: %+v", r)
+		}
 	}
 }

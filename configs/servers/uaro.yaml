@@ -713,8 +713,8 @@ quality_gates:
     mvp_magic_burst: 2.5
 
   ttk_mvp_max_sec: 300       # beyond 5 minutes MVP regen / status timers undermine the kill
-  cast_time_warn_ms: 2000    # any allocated cast skill > 2s effective cast → warn
-  cast_time_fail_ms: 4000    # > 4s effective cast → fail (build can't use the skill in combat)
+  cast_time_warn_ms: 3000    # primary skill effective cast > 3s -> slowness warn
+  cast_interrupt_ms: 2000    # interruptible primary effective cast > 2s + no cast-safety -> interruption gate
 
   # Per-scenario-type status_immunity priority. fail = build must clear
   # immunity (gate emits fail severity if uncovered); warn = LLM should

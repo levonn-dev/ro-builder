@@ -31,7 +31,9 @@ var catalogJSON []byte
 // v2: added JobMaxLevels (per-class base + job level caps parsed from
 // Hercules job_db.conf + exp_group_db.conf), replacing the hand-rolled
 // classMaxLevels table.
-const expectedVersion = 2
+// v3: added Skill.CastTimeByLevelMs (sparse per-level cast time for
+// skills whose cast scales with level, e.g. the bolts, Storm Gust).
+const expectedVersion = 3
 
 // catalogFile mirrors the schema cmd/build-catalog writes.
 type catalogFile struct {

@@ -39,15 +39,17 @@ func targetThreats(in Inputs) *data.MobThreats {
 //	           impossible per the spreadsheet
 //	stone_curse, frozen, curse, silence, blind, poison; equipment-only
 //
-// "Total" stats means base + job bonus; here we take the snapshot's
-// allocated values directly (they already reflect the player's stat
-// sheet). Buff stacking (Bless / Inc.AGI) is NOT counted; gate sees
-// the unbuffed base since buffs aren't durable.
+// Stats are the calc's effective totals (gear + cards + self-buffs);
+// party buffs are excluded because they are never sent to the calc.
+// Falls back to the raw allocation on unscored snapshots.
 func buildCovers(in Inputs, status string) bool {
 	if in.Snapshot == nil {
 		return false
 	}
-	st := in.Snapshot.Stats
+	st, ok := effectiveStats(in)
+	if !ok {
+		st = in.Snapshot.Stats // unscored snapshot: fall back to allocation
+	}
 	switch status {
 	case data.ImmunityStun:
 		if st.Vit >= 100 || (st.Vit >= 97 && st.Luk >= 15) {

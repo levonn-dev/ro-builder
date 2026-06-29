@@ -117,6 +117,11 @@ export interface DerivedStats {
    * over-budget (rocalc's BLVauto is disabled by the shim). Callers
    * should treat negative values as "build is invalid for this level". */
   statPointsRemaining: number;
+  /** The six primary stats after gear, cards, and self-buffs. Excludes
+   * external party buffs (Blessing, Poem of Bragi) because those are never
+   * sent to the calc. Quality gates read these instead of the build's raw
+   * status-point allocation. */
+  totalStats: Stats;
 }
 
 /** Combat-sim output. Numeric fields are `number | null` because rocalc

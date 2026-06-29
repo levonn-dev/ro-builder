@@ -34,6 +34,7 @@ const STUB_DERIVED: DerivedStats = {
   maxHp: 1000,
   maxSp: 100,
   statPointsRemaining: 0,
+  totalStats: { str: 1, agi: 1, vit: 1, int: 1, dex: 1, luk: 1 },
 };
 
 const STUB_COMBAT: CombatResults = {
@@ -118,7 +119,7 @@ export function createShim(): ShimSession {
       state.enemy = null;
     },
     readDerivedStats() {
-      return structuredClone(STUB_DERIVED);
+      return { ...structuredClone(STUB_DERIVED), totalStats: structuredClone(state.stats) };
     },
     readCombatResults() {
       return structuredClone(STUB_COMBAT);
