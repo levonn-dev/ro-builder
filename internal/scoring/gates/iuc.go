@@ -2,32 +2,42 @@ package gates
 
 import "fmt"
 
-// minCastTimeForIUCGateMs is the minimum base cast time at which the
-// uninterruptible-cast gate fires. Below ~1s the cast resolves before
-// most damage instances can interrupt it; gating sub-second skills as
-// needing Phen would over-fire on Heal / Sanctuary / etc.
-const minCastTimeForIUCGateMs = 1000
+// Skill ids for detectable cast-safety strategies (positioning / blocking).
+const (
+	skillSafetyWall = 12 // MG_SAFETYWALL: blocks physical interrupts
+	skillFireWall   = 18 // MG_FIREWALL: positioning / push
+	skillIceWall    = 87 // WZ_ICEWALL: positioning / pathing block
+)
 
-// evaluateUninterruptibleCast fires when the snapshot allocates any
-// skill whose DEX-effective cast time at the build's stats > 1s AND
-// interruptible == true AND no equipped item carries
-// grants_uninterruptible_cast. Phen card and Orleans Gown are the
-// canonical sources.
+// dodgeSafeCastPct is the dodge-vs-target chance above which a flee-based build
+// is considered able to cast safely (rarely hit mid-cast). Tunable.
+const dodgeSafeCastPct = 80.0
+
+// evaluateUninterruptibleCast judges interruption risk on the build's PRIMARY
+// attack skill, at its allocated level, using true effective DEX.
 //
-// "Allocated" means present in Snapshot.Skills with level > 0. The
-// snapshot doesn't tell us which skill is the build's primary, but if
-// the build invested points in a long-cast skill, the gate assumes the
-// player will use it in combat. The effective-time check (rather than
-// raw base) prevents false positives on high-DEX builds where a 2s
-// base cast resolves in <500ms.
+// Prerequisite: resolves the primary attack skill from the snapshot's
+// ScoredSkills; returns nil immediately when no primary is designated or it
+// cannot be resolved.
+//
+// Coverage pre-check: if the build equips uninterruptible-cast gear (Phen /
+// Orleans's Gown), it casts through damage; emit a single pass and return.
+//
+// Fire condition: otherwise fire only when the primary is interruptible AND
+// effective cast > CastInterruptMs. Severity is conditional on a detectable
+// cast-safety strategy: Safety Wall / Ice Wall / Fire Wall allocated, or high
+// dodge vs the target, demote to warn; otherwise fail. The fail reason notes
+// that a tank or positioning party strategy also resolves it (we do not model
+// party play).
+//
+// Fires only on scored snapshots (effective stats require a calc score).
 func evaluateUninterruptibleCast(in Inputs) []Result {
-	if in.Snapshot == nil || in.Catalog == nil {
+	skill, level, ok := primaryAttackSkill(in)
+	if !ok {
 		return nil
 	}
-	hasIUC := equipmentGrantsUninterruptibleCast(in)
-	if hasIUC {
-		// Build covers it; gate passes silently. Emit one pass result
-		// so the breakdown shows the gate ran.
+
+	if equipmentGrantsUninterruptibleCast(in) {
 		return []Result{{
 			Name:     "uninterruptible_cast",
 			Severity: SeverityPass,
@@ -35,33 +45,67 @@ func evaluateUninterruptibleCast(in Inputs) []Result {
 		}}
 	}
 
-	dex := in.Snapshot.Stats.Dex
-	var offenders []string
-	for _, sk := range in.Snapshot.Skills {
-		if sk.Level <= 0 {
-			continue
-		}
-		skill, ok := in.Catalog.Skill(sk.ID)
-		if !ok {
-			continue
-		}
-		if !skill.Interruptible {
-			continue
-		}
-		if effectiveCastTimeMs(skill.CastTimeMs, skill.FixedCastMs, dex) < minCastTimeForIUCGateMs {
-			continue
-		}
-		offenders = append(offenders, skill.AegisName)
+	if !skill.Interruptible {
+		return nil // non-interruptible primary: nothing to cancel
 	}
-	if len(offenders) == 0 {
-		return nil // no long-cast interruptible skills allocated → gate not relevant
+	stats, ok := effectiveStats(in)
+	if !ok {
+		return nil
+	}
+	qg := resolveQualityGates(in.Profile)
+	if qg.CastInterruptMs <= 0 {
+		return nil
+	}
+	effMs := effectiveCastTimeMs(skill.CastAtLevelMs(level), skill.FixedCastMs, stats.Dex)
+	if effMs <= qg.CastInterruptMs {
+		return nil
+	}
+
+	if mitigation, ok := castSafetyMitigation(in); ok {
+		return []Result{{
+			Name:      "uninterruptible_cast",
+			Threshold: qg.CastInterruptMs,
+			Actual:    effMs,
+			Severity:  SeverityWarn,
+			Reason: fmt.Sprintf("%s effective cast %dms at %d effective DEX (incl. gear/cards/buffs, not base allocation) is interruptible with no Phen/Orleans, but %s mitigates interruption; playable with technique",
+				skill.AegisName, effMs, stats.Dex, mitigation),
+		}}
 	}
 	return []Result{{
 		Name:      "uninterruptible_cast",
-		Threshold: "Phen / Orleans Gown / equivalent",
-		Actual:    offenders,
+		Threshold: qg.CastInterruptMs,
+		Actual:    effMs,
 		Severity:  SeverityFail,
-		Reason: fmt.Sprintf("build allocates interruptible long-cast skills (%v) but no equipped item grants uninterruptible cast; incoming damage will cancel the cast",
-			offenders),
+		Reason: fmt.Sprintf("%s effective cast %dms at %d effective DEX (incl. gear/cards/buffs, not base allocation) is interruptible and incoming damage will cancel it; add Phen/Orleans's Gown, Safety Wall, Ice/Fire Wall positioning, or high flee (a tank or positioning party strategy also resolves it)",
+			skill.AegisName, effMs, stats.Dex),
 	}}
+}
+
+// castSafetyMitigation reports the first detectable self-strategy that lets the
+// build cast safely without uninterruptible-cast gear, and a label for it.
+func castSafetyMitigation(in Inputs) (string, bool) {
+	allocated := func(id int) bool {
+		if in.Snapshot == nil {
+			return false
+		}
+		for _, sk := range in.Snapshot.Skills {
+			if sk.ID == id && sk.Level > 0 {
+				return true
+			}
+		}
+		return false
+	}
+	switch {
+	case allocated(skillSafetyWall):
+		return "Safety Wall", true
+	case allocated(skillIceWall):
+		return "Ice Wall positioning", true
+	case allocated(skillFireWall):
+		return "Fire Wall positioning", true
+	}
+	if in.Score != nil && in.Score.Combat != nil && in.Score.Combat.Dodge != nil &&
+		*in.Score.Combat.Dodge >= dodgeSafeCastPct {
+		return fmt.Sprintf("high flee (%.0f%% dodge vs target)", *in.Score.Combat.Dodge), true
+	}
+	return "", false
 }

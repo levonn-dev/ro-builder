@@ -53,6 +53,7 @@ describe("shim shared session; Novice default class", () => {
       maxHp: 40,
       maxSp: 11,
       statPointsRemaining: 48,
+      totalStats: { str: 1, agi: 1, vit: 1, int: 1, dex: 1, luk: 1 },
     });
   });
 

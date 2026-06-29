@@ -261,7 +261,7 @@ func main() {
 	}
 
 	out := catalogFile{
-		Version:          2,
+		Version:          3,
 		Mode:             "pre-renewal",
 		Source:           sourceLabel(source),
 		GeneratedAt:      time.Now().UTC(),

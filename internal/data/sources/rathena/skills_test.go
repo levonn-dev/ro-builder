@@ -109,6 +109,12 @@ func TestLoadSkillDB_PreReCastMetadata(t *testing.T) {
 	}
 }
 
+func TestCastSliceByLevel_EmptySeqIsNil(t *testing.T) {
+	if got := castSliceByLevel([]any{}, 10); got != nil {
+		t.Errorf("empty sequence should yield nil, got %v", got)
+	}
+}
+
 func TestIntAtMaxLevel(t *testing.T) {
 	cases := []struct {
 		name     string

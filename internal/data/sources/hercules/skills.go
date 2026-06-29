@@ -44,11 +44,17 @@ type Skill struct {
 
 	// Cast / cooldown metadata for the quality-gates evaluator. Milliseconds
 	// at MaxLevel. 0 means "no cast / no cooldown".
-	CastTimeMs    int  `json:"cast_time_ms,omitempty"`  // variable cast (DEX-reducible in pre-re per cast = base * (150-DEX)/150)
-	FixedCastMs   int  `json:"fixed_cast_ms,omitempty"` // fixed portion (uncommon in pre-re, present on a few skills)
-	AfterCastMs   int  `json:"after_cast_ms,omitempty"` // post-cast delay (blocks all skills for X ms after the cast finishes)
-	CooldownMs    int  `json:"cooldown_ms,omitempty"`   // single-skill cooldown (blocks reuse of *this* skill)
-	Interruptible bool `json:"interruptible,omitempty"` // cast cancellable by damage; only meaningful when CastTimeMs > 0
+	CastTimeMs  int `json:"cast_time_ms,omitempty"`  // variable cast (DEX-reducible in pre-re per cast = base * (150-DEX)/150)
+	FixedCastMs int `json:"fixed_cast_ms,omitempty"` // fixed portion (uncommon in pre-re, present on a few skills)
+	AfterCastMs int `json:"after_cast_ms,omitempty"` // post-cast delay (blocks all skills for X ms after the cast finishes)
+	CooldownMs  int `json:"cooldown_ms,omitempty"`   // single-skill cooldown (blocks reuse of *this* skill)
+	// CastTimeByLevelMs is the variable cast time at each level (index i =
+	// level i+1), populated only when the source declares per-level cast
+	// (the bolts, Storm Gust, Meteor, etc.). nil for flat-cast skills, which
+	// use the scalar CastTimeMs at every level. Kept sparse to bound the
+	// embedded catalog's size.
+	CastTimeByLevelMs []int `json:"cast_time_by_level_ms,omitempty"`
+	Interruptible     bool  `json:"interruptible,omitempty"` // cast cancellable by damage; only meaningful when CastTimeMs > 0
 
 	// StatusChange is the SC_X identifier of the status the skill applies
 	// when it lands ("SC_FREEZE" for WZ_STORMGUST, "SC_STUN" for
@@ -121,6 +127,7 @@ func skillFromMap(m map[string]any) (Skill, error) {
 	// Cast / cooldown numerics; flat int OR { Lv1: N, Lv2: N, ... }.
 	// Pick the value at MaxLevel; intAtMaxLevel handles both shapes.
 	s.CastTimeMs = intAtMaxLevel(m["CastTime"], s.MaxLevel)
+	s.CastTimeByLevelMs = intSliceByLevel(m["CastTime"], s.MaxLevel)
 	s.FixedCastMs = intAtMaxLevel(m["FixedCastTime"], s.MaxLevel)
 	s.AfterCastMs = intAtMaxLevel(m["AfterCastActDelay"], s.MaxLevel)
 	s.CooldownMs = intAtMaxLevel(m["CoolDown"], s.MaxLevel)
@@ -139,6 +146,60 @@ func skillFromMap(m map[string]any) (Skill, error) {
 	s.StatusChange, _ = m["StatusChange"].(string)
 
 	return s, nil
+}
+
+// CastAtLevelMs returns the variable cast time at the given level. Uses the
+// per-level table when present; otherwise falls back to the scalar
+// CastTimeMs (flat-cast skills). Level is clamped to [1, len].
+func (s Skill) CastAtLevelMs(level int) int {
+	if len(s.CastTimeByLevelMs) == 0 {
+		return s.CastTimeMs
+	}
+	if level < 1 {
+		level = 1
+	}
+	if level > len(s.CastTimeByLevelMs) {
+		level = len(s.CastTimeByLevelMs)
+	}
+	return s.CastTimeByLevelMs[level-1]
+}
+
+// intSliceByLevel resolves a Hercules skill_db numeric field to a per-level
+// slice (index i = level i+1) when it is a grouped object
+// (`{ Lv1: 700, Lv2: 1400, ... }`). Returns nil for a flat int or absent
+// field, signaling "no per-level variation; use the scalar".
+func intSliceByLevel(v any, maxLevel int) []int {
+	t, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	n := maxLevel
+	// Defensive: grow to the highest LvN present if it exceeds maxLevel.
+	for k := range t {
+		if !strings.HasPrefix(k, "Lv") {
+			continue
+		}
+		if lv, err := strconv.Atoi(k[2:]); err == nil && lv > n {
+			n = lv
+		}
+	}
+	if n <= 0 {
+		return nil
+	}
+	out := make([]int, n)
+	populated := false
+	for i := 0; i < n; i++ {
+		if iv, ok := t[fmt.Sprintf("Lv%d", i+1)].(int); ok {
+			out[i] = iv
+			populated = true
+		} else if i > 0 {
+			out[i] = out[i-1] // carry forward sparse gaps
+		}
+	}
+	if !populated {
+		return nil
+	}
+	return out
 }
 
 // stringAtMaxLevel mirrors intAtMaxLevel for string-typed fields
