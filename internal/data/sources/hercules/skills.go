@@ -44,10 +44,10 @@ type Skill struct {
 
 	// Cast / cooldown metadata for the quality-gates evaluator. Milliseconds
 	// at MaxLevel. 0 means "no cast / no cooldown".
-	CastTimeMs    int  `json:"cast_time_ms,omitempty"`  // variable cast (DEX-reducible in pre-re per cast = base * (150-DEX)/150)
-	FixedCastMs   int  `json:"fixed_cast_ms,omitempty"` // fixed portion (uncommon in pre-re, present on a few skills)
-	AfterCastMs   int  `json:"after_cast_ms,omitempty"` // post-cast delay (blocks all skills for X ms after the cast finishes)
-	CooldownMs    int  `json:"cooldown_ms,omitempty"`   // single-skill cooldown (blocks reuse of *this* skill)
+	CastTimeMs  int `json:"cast_time_ms,omitempty"`  // variable cast (DEX-reducible in pre-re per cast = base * (150-DEX)/150)
+	FixedCastMs int `json:"fixed_cast_ms,omitempty"` // fixed portion (uncommon in pre-re, present on a few skills)
+	AfterCastMs int `json:"after_cast_ms,omitempty"` // post-cast delay (blocks all skills for X ms after the cast finishes)
+	CooldownMs  int `json:"cooldown_ms,omitempty"`   // single-skill cooldown (blocks reuse of *this* skill)
 	// CastTimeByLevelMs is the variable cast time at each level (index i =
 	// level i+1), populated only when the source declares per-level cast
 	// (the bolts, Storm Gust, Meteor, etc.). nil for flat-cast skills, which

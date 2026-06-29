@@ -119,7 +119,10 @@ export function createShim(): ShimSession {
       state.enemy = null;
     },
     readDerivedStats() {
-      return { ...structuredClone(STUB_DERIVED), totalStats: structuredClone(state.stats) };
+      return {
+        ...structuredClone(STUB_DERIVED),
+        totalStats: structuredClone(state.stats),
+      };
     },
     readCombatResults() {
       return structuredClone(STUB_COMBAT);

@@ -100,7 +100,7 @@ type DerivedStats struct {
 	// TotalStats is the six primary stats after gear, cards, and self-buffs
 	// (party buffs are never sent to the calc, so excluded). Gates read these
 	// instead of the build's raw status-point allocation.
-	TotalStats          Stats `json:"totalStats"`
+	TotalStats Stats `json:"totalStats"`
 }
 
 // CombatDamage is the player's outgoing damage to the target (one direction

@@ -15,5 +15,8 @@ test("rocalc totalStats reflects gear DEX bonus", () => {
   // before > 99 because rocalc folds High Wizard's job-level DEX bonuses
   // into A_DEXp; that is correct behavior (job bonuses are part of the
   // effective stat). The only firm assertion is that gear raises it further.
-  assert.ok(after > before, `expected DEX bonus from gear: before=${before} after=${after}`);
+  assert.ok(
+    after > before,
+    `expected DEX bonus from gear: before=${before} after=${after}`,
+  );
 });

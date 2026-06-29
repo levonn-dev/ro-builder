@@ -103,13 +103,13 @@ type ServerProfile struct {
 // canonicalQualityGates() and tune; don't ship a partial block expecting
 // defaults to fill the rest.
 type QualityGates struct {
-	HIT            HitGates                  `yaml:"hit,omitempty" json:"hit,omitempty"`
-	FLEE           FleeGates                 `yaml:"flee,omitempty" json:"flee,omitempty"`
-	EHPMultiplier  EHPMultiplierGates        `yaml:"ehp_multiplier,omitempty" json:"ehp_multiplier,omitempty"`
-	TTKMVPMaxSec   int                       `yaml:"ttk_mvp_max_sec,omitempty" json:"ttk_mvp_max_sec,omitempty"`
-	CastTimeWarnMs int                       `yaml:"cast_time_warn_ms,omitempty" json:"cast_time_warn_ms,omitempty"`
-	CastInterruptMs int                      `yaml:"cast_interrupt_ms,omitempty" json:"cast_interrupt_ms,omitempty"`
-	StatusPriority map[string]StatusPriority `yaml:"status_priority,omitempty" json:"status_priority,omitempty"`
+	HIT             HitGates                  `yaml:"hit,omitempty" json:"hit,omitempty"`
+	FLEE            FleeGates                 `yaml:"flee,omitempty" json:"flee,omitempty"`
+	EHPMultiplier   EHPMultiplierGates        `yaml:"ehp_multiplier,omitempty" json:"ehp_multiplier,omitempty"`
+	TTKMVPMaxSec    int                       `yaml:"ttk_mvp_max_sec,omitempty" json:"ttk_mvp_max_sec,omitempty"`
+	CastTimeWarnMs  int                       `yaml:"cast_time_warn_ms,omitempty" json:"cast_time_warn_ms,omitempty"`
+	CastInterruptMs int                       `yaml:"cast_interrupt_ms,omitempty" json:"cast_interrupt_ms,omitempty"`
+	StatusPriority  map[string]StatusPriority `yaml:"status_priority,omitempty" json:"status_priority,omitempty"`
 }
 
 // HitGates: tiered HIT% thresholds. Values are fractions in [0, 1] that

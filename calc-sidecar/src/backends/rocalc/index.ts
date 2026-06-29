@@ -1113,10 +1113,15 @@ export function createShim(): ShimSession {
   // The bonus reflects gear, cards, and active self-buffs after StAllCalc.
   function readTotalStats(): Stats {
     const one = (s: string): number =>
-      parseInt(String(form[`A_${s}`].value), 10) + readStatBonus(doc, `A_${s}p`);
+      parseInt(String(form[`A_${s}`].value), 10) +
+      readStatBonus(doc, `A_${s}p`);
     return {
-      str: one("STR"), agi: one("AGI"), vit: one("VIT"),
-      int: one("INT"), dex: one("DEX"), luk: one("LUK"),
+      str: one("STR"),
+      agi: one("AGI"),
+      vit: one("VIT"),
+      int: one("INT"),
+      dex: one("DEX"),
+      luk: one("LUK"),
     };
   }
 

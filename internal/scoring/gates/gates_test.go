@@ -409,7 +409,7 @@ func castTestInputs(t *testing.T, primaryName string, skillID, level, dex int) I
 
 func TestEvaluateCastTime_SlowPrimaryWarns(t *testing.T) {
 	in := castTestInputs(t,
-		/*primary*/ "storm_gust", /*skillID*/ 89, /*level*/ 10, /*dex*/ 99)
+		/*primary*/ "storm_gust" /*skillID*/, 89 /*level*/, 10 /*dex*/, 99)
 	r, ok := findResult(evaluateCastTime(in), "cast_time_WZ_STORMGUST")
 	if !ok {
 		t.Fatalf("expected slowness warn; got %+v", evaluateCastTime(in))
