@@ -1,7 +1,5 @@
 # Overrides for docker-desktop's k8s. Committed; not sensitive.
 api:
-  persistence:
-    storageClassName: hostpath
   resources:
     requests:
       cpu: 50m

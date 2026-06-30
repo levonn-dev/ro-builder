@@ -54,3 +54,7 @@ across Deployment, Service, ServiceAccount, etc.
 {{- define "ro-builder.sidecarName" -}}
 {{- printf "%s-sidecar" (include "ro-builder.fullname" .) -}}
 {{- end -}}
+
+{{- define "ro-builder.postgresName" -}}
+{{- printf "%s-postgres" (include "ro-builder.fullname" .) -}}
+{{- end -}}

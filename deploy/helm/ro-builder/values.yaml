@@ -21,10 +21,12 @@ api:
     limits:
       cpu: "1"
       memory: 512Mi
-  persistence:
-    size: 1Gi
-    # Empty = cluster default. docker-desktop uses "hostpath".
-    storageClassName: ""
+  replicas: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
   probes:
     liveness:
       initialDelaySeconds: 5
@@ -91,6 +93,23 @@ env:
   GENERATION_POLL_INTERVAL: ""
   GENERATION_SHUTDOWN_TIMEOUT: ""
   GENERATION_MAX_ITERS: ""
+  GENERATION_LEASE_TTL: ""
+  GENERATION_LEASE_SWEEP_INTERVAL: ""
+  GENERATION_MAX_ATTEMPTS: ""
+
+postgresql:
+  # When true, the chart runs an in-cluster Postgres StatefulSet. Set false
+  # to use managed/external Postgres; then supply DATABASE_URL via the
+  # ro-builder-env Secret and the chart runs no Postgres.
+  enabled: true
+  image: pgvector/pgvector:pg17
+  storage:
+    size: 5Gi
+    storageClassName: ""
+  auth:
+    username: robuilder
+    database: robuilder
+    # Password comes from the ro-builder-env Secret key POSTGRES_PASSWORD.
 
 secrets:
   # The chart only references the Secret by name. The actual Secret is

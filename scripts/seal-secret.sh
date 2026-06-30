@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/seal-secret.sh; encrypt LLM_API_KEY from .env into a SealedSecret.
+# scripts/seal-secret.sh; encrypt LLM_API_KEY + Postgres creds from .env into a SealedSecret.
 #
 # Output: deploy/k8s/sealed-secrets/local.sealed-secret.yaml (gitignored).
 # Re-run any time .env changes.
@@ -22,13 +22,20 @@ main() {
 
   # Source .env in a subshell so we don't pollute the caller's env.
   # shellcheck disable=SC1090
-  local LLM_API_KEY
+  local LLM_API_KEY POSTGRES_PASSWORD DATABASE_URL
   LLM_API_KEY=$(grep -E '^LLM_API_KEY=' "$ENV_FILE" | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+  POSTGRES_PASSWORD=$(grep -E '^POSTGRES_PASSWORD=' "$ENV_FILE" | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
 
   if [[ -z "$LLM_API_KEY" ]]; then
     err "LLM_API_KEY is empty in $ENV_FILE. Fill it in before sealing."
     exit 1
   fi
+
+  # Default POSTGRES_PASSWORD to 'robuilder' if not set in .env.
+  POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-robuilder}"
+  # In-cluster DATABASE_URL points at the bundled Postgres service, not localhost.
+  local PG_HOST="ro-builder-postgres"
+  DATABASE_URL="postgres://robuilder:${POSTGRES_PASSWORD}@${PG_HOST}:5432/robuilder?sslmode=disable"
 
   if ! command -v kubeseal >/dev/null 2>&1; then
     err "kubeseal not found on PATH. Run scripts/k8s-bootstrap.sh first."
@@ -45,6 +52,8 @@ main() {
   plaintext=$(kubectl create secret generic "$SECRET_NAME" \
     --namespace "$NAMESPACE" \
     --from-literal=LLM_API_KEY="$LLM_API_KEY" \
+    --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+    --from-literal=DATABASE_URL="$DATABASE_URL" \
     --dry-run=client -o yaml)
 
   log "Sealing against the cluster's controller key..."

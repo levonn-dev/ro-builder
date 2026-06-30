@@ -63,6 +63,7 @@ cleanup() {
 	if [[ -n "${API_PID:-}" ]]; then kill "$API_PID" 2>/dev/null || true; fi
 	if [[ -n "${SIDECAR_PID:-}" ]]; then kill "$SIDECAR_PID" 2>/dev/null || true; fi
 	wait 2>/dev/null || true
+	docker rm -f "${GEN_PG_NAME:-}" >/dev/null 2>&1 || true
 	if (( code != 0 )) && [[ -f "$TMP/api.log" ]]; then
 		echo
 		echo "[generate] FAILED (exit $code); api.log tail:"
@@ -77,9 +78,24 @@ trap cleanup EXIT
 # the dev defaults (7401/8080) and e2e.sh's reserved ports (17401/18080).
 GEN_SIDECAR_PORT="$(shuf -i 20000-29999 -n 1)"
 GEN_API_PORT="$(shuf -i 30000-39999 -n 1)"
+GEN_PG_PORT="$(shuf -i 40000-49999 -n 1)"
 SIDECAR_URL="http://localhost:$GEN_SIDECAR_PORT"
 API_URL="http://localhost:$GEN_API_PORT"
-GEN_DB="$TMP/buildlibrary.db"
+
+GEN_PG_NAME="ro-builder-gen-pg-$$"
+echo "[generate] starting postgres on :$GEN_PG_PORT"
+docker run -d --rm --name "$GEN_PG_NAME" \
+	-e POSTGRES_USER=robuilder -e POSTGRES_PASSWORD=robuilder -e POSTGRES_DB=robuilder \
+	-p "$GEN_PG_PORT:5432" pgvector/pgvector:pg17 >/dev/null
+GEN_DATABASE_URL="postgres://robuilder:robuilder@localhost:$GEN_PG_PORT/robuilder?sslmode=disable"
+for _ in $(seq 1 60); do
+	if docker exec "$GEN_PG_NAME" pg_isready -U robuilder -d robuilder >/dev/null 2>&1; then break; fi
+	sleep 0.5
+done
+if ! docker exec "$GEN_PG_NAME" pg_isready -U robuilder -d robuilder >/dev/null 2>&1; then
+	echo "[generate] postgres did not become ready within 30s" >&2
+	exit 1
+fi
 
 echo "[generate] request: $REQUEST_LABEL"
 
@@ -105,7 +121,7 @@ echo "[generate] building + starting api on :$GEN_API_PORT"
 go build -o "$TMP/api" ./cmd/api >"$TMP/api-build.log" 2>&1 \
 	|| { echo "[generate] api build failed"; tail -20 "$TMP/api-build.log" >&2; exit 1; }
 (
-	ADDR=":$GEN_API_PORT" SIDECAR_URL="$SIDECAR_URL" BUILDLIBRARY_PATH="$GEN_DB" \
+	ADDR=":$GEN_API_PORT" SIDECAR_URL="$SIDECAR_URL" DATABASE_URL="$GEN_DATABASE_URL" \
 		exec "$TMP/api"
 ) >"$TMP/api.log" 2>&1 &
 API_PID=$!

@@ -5,11 +5,11 @@ metadata:
   labels:
     {{- include "ro-builder.labels" (dict "component" "api" "root" .) | nindent 4 }}
 spec:
-  replicas: 1
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: {{ .Values.api.replicas }}
+  {{- end }}
   strategy:
-    # Recreate; the PVC is RWO, so the new pod can't bind the volume
-    # until the old one releases it. RollingUpdate would deadlock.
-    type: Recreate
+    type: RollingUpdate
   selector:
     matchLabels:
       {{- include "ro-builder.selectorLabels" (dict "component" "api" "root" .) | nindent 6 }}
@@ -47,9 +47,6 @@ spec:
                 name: {{ include "ro-builder.fullname" . }}-env
             - secretRef:
                 name: {{ .Values.secrets.externalSecretName }}
-          volumeMounts:
-            - name: buildlibrary
-              mountPath: /data
           livenessProbe:
             httpGet:
               path: /healthz
@@ -74,7 +71,3 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
-      volumes:
-        - name: buildlibrary
-          persistentVolumeClaim:
-            claimName: {{ include "ro-builder.apiName" . }}-buildlibrary

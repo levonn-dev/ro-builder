@@ -1,0 +1,13 @@
+{{- if or (gt (int .Values.api.replicas) 1) .Values.api.autoscaling.enabled -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ro-builder.apiName" . }}
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "api" "root" .) | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "ro-builder.selectorLabels" (dict "component" "api" "root" .) | nindent 6 }}
+{{- end }}

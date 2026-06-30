@@ -8,9 +8,28 @@
 #   task docker:down      # stop + remove
 #
 # .env at the repo root supplies LLM_API_KEY (and any other LLM_*
-# overrides). docker-compose picks it up automatically.
+# overrides) as well as POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+# (optional; defaults are robuilder/robuilder/robuilder).
+# docker-compose picks it up automatically.
 
 services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ro-builder-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-robuilder}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-robuilder}
+      POSTGRES_DB: ${POSTGRES_DB:-robuilder}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-robuilder} -d ${POSTGRES_DB:-robuilder}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
   sidecar:
     build:
       context: .
@@ -52,6 +71,8 @@ services:
     depends_on:
       sidecar:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "${API_HOST_PORT:-8080}:8080"
     # SIDECAR_URL is set in the Dockerfile to the compose service name.
@@ -60,6 +81,7 @@ services:
     # Keep this list in sync with .env.example as new LLM_* / GENERATION_*
     # knobs are added.
     environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-robuilder}:${POSTGRES_PASSWORD:-robuilder}@postgres:5432/${POSTGRES_DB:-robuilder}?sslmode=disable
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       LLM_MODEL: ${LLM_MODEL:-}
@@ -71,11 +93,12 @@ services:
       GENERATION_POLL_INTERVAL: ${GENERATION_POLL_INTERVAL:-}
       GENERATION_SHUTDOWN_TIMEOUT: ${GENERATION_SHUTDOWN_TIMEOUT:-}
       GENERATION_MAX_ITERS: ${GENERATION_MAX_ITERS:-}
+      GENERATION_LEASE_TTL: ${GENERATION_LEASE_TTL:-}
+      GENERATION_LEASE_SWEEP_INTERVAL: ${GENERATION_LEASE_SWEEP_INTERVAL:-}
+      GENERATION_MAX_ATTEMPTS: ${GENERATION_MAX_ATTEMPTS:-}
       LOG_LEVEL: ${LOG_LEVEL:-}
       LOG_FORMAT: ${LOG_FORMAT:-}
-    volumes:
-      - buildlibrary:/data
 
 volumes:
-  buildlibrary:
-    name: ro-builder-buildlibrary
+  pgdata:
+    name: ro-builder-pgdata
