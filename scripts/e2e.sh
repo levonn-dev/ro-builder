@@ -67,6 +67,7 @@ cleanup() {
 		kill "$SIDECAR_PID" 2>/dev/null || true
 	fi
 	wait 2>/dev/null || true
+	docker rm -f "${E2E_PG_NAME:-}" >/dev/null 2>&1 || true
 	if (( code != 0 )); then
 		echo
 		echo "[e2e] FAILED (exit $code); diagnostics follow:"
@@ -86,12 +87,26 @@ trap cleanup EXIT
 # 7401/8080 doesn't fight this script.
 E2E_SIDECAR_PORT=17401
 E2E_API_PORT=18080
-E2E_DB="$TMP/buildlibrary.db"
 SIDECAR_URL="http://localhost:$E2E_SIDECAR_PORT"
 API_URL="http://localhost:$E2E_API_PORT"
 
+E2E_PG_NAME="ro-builder-e2e-pg-$$"
+E2E_PG_PORT=15432
+docker run -d --rm --name "$E2E_PG_NAME" \
+	-e POSTGRES_USER=robuilder -e POSTGRES_PASSWORD=robuilder -e POSTGRES_DB=robuilder \
+	-p "$E2E_PG_PORT:5432" pgvector/pgvector:pg17 >/dev/null
+E2E_DATABASE_URL="postgres://robuilder:robuilder@localhost:$E2E_PG_PORT/robuilder?sslmode=disable"
+for _ in $(seq 1 60); do
+	if docker exec "$E2E_PG_NAME" pg_isready -U robuilder -d robuilder >/dev/null 2>&1; then break; fi
+	sleep 0.5
+done
+if ! docker exec "$E2E_PG_NAME" pg_isready -U robuilder -d robuilder >/dev/null 2>&1; then
+	echo "[e2e] postgres did not become ready within 30s" >&2
+	exit 1
+fi
+
 echo "[e2e] tempdir: $TMP"
-echo "[e2e] sidecar :$E2E_SIDECAR_PORT  api :$E2E_API_PORT  db $E2E_DB"
+echo "[e2e] sidecar :$E2E_SIDECAR_PORT  api :$E2E_API_PORT  pg localhost:$E2E_PG_PORT"
 
 # --- sidecar ---
 echo "[e2e] starting sidecar"
@@ -138,7 +153,7 @@ echo "[e2e] starting api"
 (
 	ADDR=":$E2E_API_PORT" \
 		SIDECAR_URL="$SIDECAR_URL" \
-		BUILDLIBRARY_PATH="$E2E_DB" \
+		DATABASE_URL="$E2E_DATABASE_URL" \
 		exec "$TMP/api"
 ) >"$TMP/api.log" 2>&1 &
 API_PID=$!

@@ -43,8 +43,9 @@ happens outside the chart's lifecycle.
 
 See `values.yaml` for the full schema and defaults. Key sections:
 
-- `api.*`: image, resources, persistence, probes. Always `replicas: 1`
-  with `strategy: Recreate` (SQLite is single-writer).
+- `api.*`: image, resources, persistence, probes. `api.replicas` is
+  configurable; `api.autoscaling` enables HPA. The default strategy is
+  `RollingUpdate` (the API is stateless against Postgres).
 - `sidecar.*`: image, replicas, workers, autoscaling, probes. Stateless.
   - `sidecar.calcBackend`: calc backend selection; see
     `calc-sidecar/src/backends/registry.ts`. Use `stub` for chart smoke
@@ -56,9 +57,10 @@ See `values.yaml` for the full schema and defaults. Key sections:
 - `ingress.*`, `networkPolicy.*`, `metrics.serviceMonitor.*`: gated,
   default off.
 
-## Why replicas: 1 on the API?
+## Database
 
-The buildlibrary is SQLite-backed. SQLite is single-writer and lives in
-a process-local file. Multiple API pods would either fight for the PVC
-lock (RWO mode) or, if they shared one, corrupt the DB. Horizontal scale
-unblocks once the buildlibrary migrates to Postgres.
+The API is stateless and connects to Postgres via `DATABASE_URL`, read
+from the `ro-builder-env` Secret. `postgresql.enabled` (default `true`)
+deploys a bundled in-cluster Postgres StatefulSet. To use a managed
+Postgres instead, set `postgresql.enabled: false` and point `DATABASE_URL`
+at the external host in your sealed secret.

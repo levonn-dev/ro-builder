@@ -111,9 +111,14 @@ k8s_yaml(yaml)
 _secret_dep = ['sealed-secret'] if _sealed_secret_ready else []
 
 k8s_resource(
+    'ro-builder-postgres',
+    labels=['db'],
+)
+
+k8s_resource(
     'ro-builder-api',
     port_forwards=['8080:8080'],
-    resource_deps=_secret_dep + ['api-binary'],
+    resource_deps=_secret_dep + ['api-binary', 'ro-builder-postgres'],
     labels=['app'],
 )
 

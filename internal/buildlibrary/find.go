@@ -8,10 +8,7 @@ import (
 	"fmt"
 )
 
-// FindParams narrows a Find call. Empty / zero fields are ignored
-// (Class="" returns trajectories across all classes). Limit defaults to
-// 5 if zero, capped at 50; the LLM should not need a hundred reference
-// points for a single decision.
+// FindParams narrows a Find call.
 type FindParams struct {
 	Class  string
 	Server string
@@ -23,10 +20,7 @@ const (
 	maxFindLimit     = 50
 )
 
-// Find returns the most recent saved trajectories matching the params,
-// as lightweight summaries. The full trajectory JSON is loadable
-// separately via Get(id); keeps the LLM's context window from filling
-// with stale build details when only a quick scan is needed.
+// Find returns the most recent saved trajectories matching the params.
 func (l *Library) Find(ctx context.Context, p FindParams) ([]Summary, error) {
 	if l == nil || l.db == nil {
 		return nil, errors.New("buildlibrary.Find: nil library")
@@ -45,15 +39,19 @@ FROM saved_trajectories
 WHERE 1=1
 `
 	args := []any{}
+	n := 0
 	if p.Class != "" {
-		q += " AND class = ?"
+		n++
+		q += fmt.Sprintf(" AND class = $%d", n)
 		args = append(args, p.Class)
 	}
 	if p.Server != "" {
-		q += " AND server = ?"
+		n++
+		q += fmt.Sprintf(" AND server = $%d", n)
 		args = append(args, p.Server)
 	}
-	q += " ORDER BY created_at DESC LIMIT ?"
+	n++
+	q += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d", n)
 	args = append(args, limit)
 
 	rows, err := l.db.QueryContext(ctx, q, args...)
@@ -82,8 +80,7 @@ WHERE 1=1
 	return out, nil
 }
 
-// Get loads a full SavedTrajectory by id, including the marshaled
-// Primary and Alternatives. ErrNotFound when no row matches.
+// Get loads a full SavedTrajectory by id.
 func (l *Library) Get(ctx context.Context, id string) (*SavedTrajectory, error) {
 	if l == nil || l.db == nil {
 		return nil, errors.New("buildlibrary.Get: nil library")
@@ -92,7 +89,7 @@ func (l *Library) Get(ctx context.Context, id string) (*SavedTrajectory, error) 
 SELECT id, created_at, class, server, playstyle, mode, description,
        primary_json, alternatives_json, final_text, gate_summary,
        calc_version, catalog_version
-FROM saved_trajectories WHERE id = ?
+FROM saved_trajectories WHERE id = $1
 `
 	var (
 		st        SavedTrajectory
@@ -126,12 +123,10 @@ FROM saved_trajectories WHERE id = ?
 	return &st, nil
 }
 
-// ErrNotFound is returned by Get when no trajectory with the given id
-// exists. Callers can errors.Is against it.
+// ErrNotFound is returned by Get when no trajectory with the given id exists.
 var ErrNotFound = errors.New("buildlibrary: trajectory not found")
 
-// Count returns the total number of saved trajectories. Useful for
-// startup logs ("library has 142 entries") and tests.
+// Count returns the total number of saved trajectories.
 func (l *Library) Count(ctx context.Context) (int, error) {
 	if l == nil || l.db == nil {
 		return 0, errors.New("buildlibrary.Count: nil library")

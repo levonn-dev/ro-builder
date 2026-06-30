@@ -33,7 +33,7 @@ authored for them.
 │  │ HTTP handler │ → │ Orchestrator                         │ │
 │  └──────────────┘   │   ↪ LLM provider (Claude / OpenAI)   │ │
 │                     │   ↪ Tool registry                    │ │
-│                     │   ↪ Build library (SQLite)           │ │
+│                     │   ↪ Build library (PostgreSQL)        │ │
 │                     │   ↪ Scoring client → ─────┐          │ │
 │                     └───────────────────────────│──────────┘ │
 └─────────────────────────────────────────────────│────────────┘
@@ -59,7 +59,7 @@ cmd/                  one Go binary per directory
   verify-mapping/       spot-check tool
 internal/
   api/                  HTTP handlers, OpenAPI types
-  buildlibrary/         SQLite persistence
+  buildlibrary/         PostgreSQL persistence
   catalog/              //go:embed item/mob/skill data
   data/                 emulator-source parsers
     sources/hercules/
@@ -103,7 +103,7 @@ What's wired up today:
 | Servers      | UARO profile shipped; alternates by dropping a YAML under `configs/servers/`             |
 | Playstyle    | PvM tuned; `pvp` / `balanced_*` accepted but less validated                              |
 | LLM provider | Anthropic (default) and OpenAI-compatible (LM Studio, llama.cpp, Ollama, vLLM, ...)      |
-| Persistence  | SQLite at `BUILDLIBRARY_PATH`                                                            |
+| Persistence  | PostgreSQL at `DATABASE_URL`                                                             |
 
 ---
 
@@ -213,8 +213,8 @@ task run:api
 
 ```bash
 task docker:up      # builds both images, runs in the foreground
-task docker:down    # stops; named volume `ro-builder-buildlibrary` survives
-task docker:nuke    # stops AND drops the buildlibrary volume
+task docker:down    # stops; named volume `ro-builder-pgdata` survives
+task docker:nuke    # stops AND drops the pgdata volume
 ```
 
 The sidecar's calc backend defaults to rocalc. Set `CALC_BACKEND=stub` in your shell env (or `.env`) before
@@ -442,8 +442,8 @@ Not yet done, roughly in priority order:
 - [ ] Vector search over saved trajectories' reasoning text. Today's `get_similar_past_builds` uses class+scenario
   lookup.
 - [ ] Add RAG with injecting get_similar_past_builds into initial system prompt
-- [ ] Postgres migration for the build library. SQLite pins the API to `replicas: 1` and `strategy: Recreate`; HPA / PDB
-  are excluded from the Helm chart until this lands.
+- [x] Postgres migration for the build library. The API is now stateless; horizontal scaling is supported via the
+  lease-based generation queue (SKIP LOCKED claim, requeue with cap), configurable replicas, and HPA/PDB in the Helm chart.
 - [ ] General prompt tuning - less tokens, more progress.
 - [ ] More golden fixtures beyond Taekwon Kid. The shim handles all 45 supported classes already
 - [ ] Golden fixtures for Full Support builds

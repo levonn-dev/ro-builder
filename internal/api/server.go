@@ -31,7 +31,7 @@ import (
 // genericInternalError is the user-facing string returned in 500 responses
 // from library-backed endpoints. The actual error is logged server-side via
 // slog with the handler name and request id so operators can correlate, but
-// the wire response carries no SQLite paths, schema names, or constraint
+// the wire response carries no database connection strings, schema names, or constraint
 // details. Pair every use with a slog.Error call that captures the same
 // request context.
 const genericInternalError = "internal server error"
@@ -63,7 +63,7 @@ const userFacingGenerationFailure = "We couldn't generate a build matching your 
 // and /generations endpoints return "not configured" 500s without a
 // Library. main.go constructs the Enqueuer only when LLM_API_KEY is
 // set; without it /generate returns 503 while /score remains available.
-// BUILDLIBRARY_PATH is required at startup, so the Library is always
+// DATABASE_URL is required at startup, so the Library is always
 // present in normal runs.
 type Server struct {
 	scoring  *scoring.Client

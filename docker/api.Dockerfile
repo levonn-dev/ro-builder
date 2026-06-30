@@ -1,7 +1,7 @@
 # Multi-stage build for the ro-builder API binary. The catalog and server
 # profile YAMLs are embedded into the binary via //go:embed, so the
-# runtime image needs only the binary itself plus a writable directory
-# for the SQLite buildlibrary.db.
+# runtime image needs only the binary itself and connects to PostgreSQL
+# over the network (no local writable state).
 
 # --- builder ---
 FROM golang:1.26-alpine AS builder
@@ -29,8 +29,7 @@ FROM alpine:3.20
 # ca-certificates lets the binary make HTTPS calls (Anthropic API);
 # tzdata covers any time-zone formatting in logs.
 RUN apk add --no-cache ca-certificates tzdata && \
-    addgroup -S -g 1000 app && adduser -S -u 1000 -G app app && \
-    mkdir -p /data && chown -R app:app /data
+    addgroup -S -g 1000 app && adduser -S -u 1000 -G app app
 
 USER app
 WORKDIR /home/app
@@ -40,13 +39,8 @@ COPY --from=builder /out/api /usr/local/bin/api
 # Defaults match docker-compose.yml. ADDR and SIDECAR_URL can be
 # overridden per-deploy without rebuilding.
 ENV ADDR=":8080" \
-    SIDECAR_URL="http://sidecar:7401" \
-    BUILDLIBRARY_PATH="/data/buildlibrary.db"
+    SIDECAR_URL="http://sidecar:7401"
 
 EXPOSE 8080
-
-# /data holds the SQLite library; persist via a named volume so
-# generated trajectories survive container restarts.
-VOLUME ["/data"]
 
 ENTRYPOINT ["/usr/local/bin/api"]

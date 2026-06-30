@@ -3,7 +3,6 @@ package workers
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -48,12 +47,17 @@ func (r *fakeRunner) callCount() int {
 
 func newTestLib(t *testing.T) *buildlibrary.Library {
 	t.Helper()
-	dir := t.TempDir()
-	lib, err := buildlibrary.Open(filepath.Join(dir, "test.db"))
+	if testing.Short() {
+		t.Skip("requires Postgres (testcontainers); skipped under -short")
+	}
+	lib, err := buildlibrary.Open(context.Background(), testDSN)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = lib.Close() })
+	if err := lib.Truncate(context.Background()); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
 	return lib
 }
 
@@ -160,6 +164,38 @@ func TestPool_ShutdownTimeoutCancelsJob(t *testing.T) {
 		g, err := lib.GetGeneration(ctx, id)
 		return err == nil && g.Status == buildlibrary.GenStatusFailed && g.FailureReason == buildlibrary.FailureShutdownInterrupt
 	})
+}
+
+func TestPool_HeartbeatKeepsLongJobAlive(t *testing.T) {
+	ctx := context.Background()
+	lib := newTestLib(t)
+	id, _ := lib.Enqueue(ctx, json.RawMessage(`{"class":"novice"}`))
+
+	// Job runs 1.5s, lease TTL 600ms (heartbeat ~200ms), sweeper every
+	// 150ms. Without renewal the sweeper would fail the job at ~600ms;
+	// the heartbeat keeps it alive so it completes.
+	runner := &fakeRunner{
+		result: &orchestrator.GenerateResult{Primary: &domain.Trajectory{Class: "novice"}},
+		delay:  1500 * time.Millisecond,
+	}
+	pool := New(Config{
+		Library: lib, Runner: runner, Workers: 1,
+		PollInterval:  50 * time.Millisecond,
+		LeaseTTL:      600 * time.Millisecond,
+		SweepInterval: 150 * time.Millisecond,
+		MaxAttempts:   0,
+	})
+	pool.Start()
+	t.Cleanup(func() { _ = pool.Shutdown(3 * time.Second) })
+	pool.Notify()
+
+	waitFor(t, 3*time.Second, func() bool {
+		g, err := lib.GetGeneration(ctx, id)
+		return err == nil && g.Status == buildlibrary.GenStatusCompleted
+	})
+	if runner.callCount() != 1 {
+		t.Fatalf("runner calls: got %d, want 1", runner.callCount())
+	}
 }
 
 func waitFor(t *testing.T, max time.Duration, cond func() bool) {

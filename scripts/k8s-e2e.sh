@@ -58,14 +58,19 @@ main() {
   # shell env (Taskfile.yml's dotenv loads .env automatically when invoked
   # via `task tilt:e2e`; when run directly, source .env first or export the
   # var). If LLM_API_KEY is unset, we use 'stub' and skip the /generate slice.
+  # DB creds use fixed local defaults (POSTGRES_PASSWORD=robuilder) matching
+  # the bundled Postgres StatefulSet; DATABASE_URL uses the release-scoped
+  # service name.
   if [[ -z "${LLM_API_KEY:-}" && -f .env ]]; then
     # shellcheck disable=SC1091
     LLM_API_KEY=$(grep -E '^LLM_API_KEY=' .env | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
     export LLM_API_KEY
   fi
-  log "Applying namespaced Secret (LLM_API_KEY: ${LLM_API_KEY:+set}${LLM_API_KEY:-stub})..."
+  log "Applying namespaced Secret (LLM_API_KEY: ${LLM_API_KEY:+set}${LLM_API_KEY:-stub}; POSTGRES_PASSWORD + DATABASE_URL: bundled defaults)..."
   kubectl -n "$NAMESPACE" create secret generic ro-builder-env \
     --from-literal=LLM_API_KEY="${LLM_API_KEY:-stub}" \
+    --from-literal=POSTGRES_PASSWORD=robuilder \
+    --from-literal=DATABASE_URL="postgres://robuilder:robuilder@${RELEASE}-postgres:5432/robuilder?sslmode=disable" \
     --dry-run=client -o yaml | kubectl apply -f -
 
   log "Installing chart ($RELEASE in $NAMESPACE)..."

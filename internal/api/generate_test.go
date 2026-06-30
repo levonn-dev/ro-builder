@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/levonn-dev/ro-builder/internal/buildlibrary"
 	"github.com/levonn-dev/ro-builder/internal/scoring"
@@ -155,7 +156,11 @@ func TestGenerationStatus_ReturnsCompletedWithBuildID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Enqueue: %v", err)
 	}
-	if err := lib.MarkCompleted(ctx, id); err != nil {
+	g, err := lib.ClaimNext(ctx, "test-worker", 90*time.Second)
+	if err != nil || g == nil {
+		t.Fatalf("ClaimNext: %v (g=%v)", err, g)
+	}
+	if err := lib.MarkCompleted(ctx, id, "test-worker"); err != nil {
 		t.Fatalf("MarkCompleted: %v", err)
 	}
 	srv := newTestServer(t).WithLibrary(lib)
@@ -190,7 +195,11 @@ func TestGenerationStatus_ReturnsFailedWithGenericError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Enqueue: %v", err)
 	}
-	if err := lib.MarkFailed(ctx, id, buildlibrary.FailureMaxItersExhausted, "60 iters", nil); err != nil {
+	gf, err := lib.ClaimNext(ctx, "test-worker", 90*time.Second)
+	if err != nil || gf == nil {
+		t.Fatalf("ClaimNext: %v (g=%v)", err, gf)
+	}
+	if err := lib.MarkFailed(ctx, id, "test-worker", buildlibrary.FailureMaxItersExhausted, "60 iters", nil); err != nil {
 		t.Fatalf("MarkFailed: %v", err)
 	}
 	srv := newTestServer(t).WithLibrary(lib)

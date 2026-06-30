@@ -211,7 +211,7 @@ tasks:
       - task: test:sidecar:backend:rocalc
 
   test:sidecar:shim:rocalc:
-    desc: 'Shim contract tests against rocalc. Proves rocalc satisfies the contract. Needs vendor/.'
+    desc: 'Shim contract tests against rocalc. Proves rocalc satisfies the contract. Needs vendor/ .'
     dir: '{{.SIDECAR_DIR}}'
     env:
       CALC_BACKEND: rocalc
@@ -227,7 +227,7 @@ tasks:
       - node --test test/shim/*.test.ts
 
   test:sidecar:backend:rocalc:
-    desc: 'Rocalc-specific tests (numerics, classes). Needs vendor/.'
+    desc: 'Rocalc-specific tests (numerics, classes). Needs vendor/ .'
     dir: '{{.SIDECAR_DIR}}'
     env:
       CALC_BACKEND: rocalc
@@ -329,7 +329,7 @@ tasks:
       - docker compose down
 
   docker:nuke:
-    desc: Stop, remove containers AND named volumes (drops the persisted buildlibrary)
+    desc: Stop, remove containers AND named volumes (drops the postgres data volume)
     cmds:
       - docker compose down -v
 
@@ -340,7 +340,7 @@ tasks:
   #
   # Day-zero: `task tilt:bootstrap` (one-shot; installs sealed-secrets
   # controller, creates namespace), then `task tilt:seal` (encrypts your
-  # .env's LLM_API_KEY), then `task tilt:up`.
+  # .env's LLM_API_KEY and Postgres creds), then `task tilt:up`.
   #
   # The compose path (docker:*) is intact and remains the CI test target.
 
@@ -351,7 +351,7 @@ tasks:
       - ./scripts/k8s-bootstrap.sh
 
   tilt:seal:
-    desc: 'Encrypt LLM_API_KEY from .env into deploy/k8s/sealed-secrets/local.sealed-secret.yaml.'
+    desc: 'Encrypt LLM_API_KEY + Postgres creds from .env into the local SealedSecret.'
     cmds:
       - ./scripts/seal-secret.sh
 
@@ -361,12 +361,12 @@ tasks:
       - tilt up
 
   tilt:down:
-    desc: 'Stop Tilt-managed resources. The PVC (buildlibrary) survives.'
+    desc: 'Stop Tilt-managed resources. The Postgres PVC survives.'
     cmds:
       - tilt down
 
   tilt:nuke:
-    desc: 'Stop Tilt + delete the namespace (drops the PVC and the buildlibrary).'
+    desc: 'Stop Tilt + delete the namespace (drops the Postgres PVC).'
     cmds:
       - tilt down
       - kubectl delete namespace ro-builder --ignore-not-found

@@ -5,7 +5,7 @@ import (
 )
 
 // healthzHandler is a liveness probe target. Returns 200 with a minimal JSON
-// body. Intentionally does not touch SQLite or the sidecar; those failure
+// body. Intentionally does not touch the database or the sidecar; those failure
 // modes belong to richer probes (or to /readyz, when we add one).
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

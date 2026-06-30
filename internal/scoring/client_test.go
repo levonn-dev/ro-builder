@@ -291,6 +291,9 @@ func TestIntegration_DefaultNoviceMatchesShimBaseline(t *testing.T) {
 		MaxHP:               40,
 		MaxSP:               11,
 		StatPointsRemaining: 48,
+		// Default Novice with all stats at 1; gear + cards = none, so
+		// TotalStats matches the raw stat allocation exactly.
+		TotalStats: Stats{Str: 1, Agi: 1, Vit: 1, Int: 1, Dex: 1, Luk: 1},
 	}
 	if resp.Derived != want {
 		t.Errorf("derived: got %+v want %+v", resp.Derived, want)

@@ -1,10 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -28,11 +28,17 @@ func fakeSidecar(t *testing.T, status int) string {
 
 func openTempLibrary(t *testing.T) *buildlibrary.Library {
 	t.Helper()
-	lib, err := buildlibrary.Open(filepath.Join(t.TempDir(), "test.db"))
+	if testing.Short() {
+		t.Skip("requires Postgres (testcontainers); skipped under -short")
+	}
+	lib, err := buildlibrary.Open(context.Background(), testDSN)
 	if err != nil {
 		t.Fatalf("buildlibrary.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = lib.Close() })
+	if err := lib.Truncate(context.Background()); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
 	return lib
 }
 

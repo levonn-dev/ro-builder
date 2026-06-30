@@ -16,9 +16,12 @@ api:
   resources:
     requests: { cpu: 250m, memory: 256Mi }
     limits:   { cpu: "2",  memory: 1Gi }
-  persistence:
-    size: 10Gi
-    storageClassName: gp3   # adjust per cluster
+  replicas: 2
+  autoscaling:
+    enabled: true
+    # minReplicas: 2
+    # maxReplicas: 8
+    # targetCPUUtilizationPercentage: 70
 
 sidecar:
   image:

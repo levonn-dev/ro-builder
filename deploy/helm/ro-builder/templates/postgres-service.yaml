@@ -1,0 +1,16 @@
+{{- if .Values.postgresql.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ro-builder.postgresName" . }}
+  labels:
+    {{- include "ro-builder.labels" (dict "component" "postgres" "root" .) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgres
+      name: postgres
+  selector:
+    {{- include "ro-builder.selectorLabels" (dict "component" "postgres" "root" .) | nindent 4 }}
+{{- end }}

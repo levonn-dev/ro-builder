@@ -22,6 +22,7 @@ import (
 // async job tracking row and the saved trajectory share the same key.
 type SaveInput struct {
 	ID             string // required; must match an existing generations.id
+	Owner          string // lease owner that claimed this generation; scopes the completion UPDATE
 	Class          string
 	Server         string
 	Playstyle      string
@@ -33,6 +34,15 @@ type SaveInput struct {
 	CalcVersion    string
 	CatalogVersion int
 }
+
+// insertSavedTrajectory is the shared INSERT used by Save and SaveAndComplete.
+const insertSavedTrajectory = `
+INSERT INTO saved_trajectories
+	(id, created_at, class, server, playstyle, mode, description,
+	 primary_json, alternatives_json, final_text, gate_summary,
+	 calc_version, catalog_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12, $13)
+`
 
 // ErrFailingGates is returned by Save when at least one scored snapshot
 // in Primary or Alternatives carries a fail / fail_hard gate result.
@@ -93,14 +103,7 @@ func (l *Library) Save(ctx context.Context, in SaveInput) (string, error) {
 		return "", fmt.Errorf("marshal gate_summary: %w", err)
 	}
 
-	const stmt = `
-INSERT INTO saved_trajectories
-	(id, created_at, class, server, playstyle, mode, description,
-	 primary_json, alternatives_json, final_text, gate_summary,
-	 calc_version, catalog_version)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`
-	if _, err := l.db.ExecContext(ctx, stmt,
+	if _, err := l.db.ExecContext(ctx, insertSavedTrajectory,
 		in.ID, time.Now().UTC(),
 		in.Class, in.Server, in.Playstyle, in.Mode, in.Description,
 		string(primaryJSON), nullableJSON(altsJSON), in.FinalText, string(summaryJSON),
@@ -113,9 +116,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
 // SaveAndComplete atomically inserts the trajectory into saved_trajectories
 // AND marks the corresponding generation as completed, inside a single
-// BEGIN IMMEDIATE transaction. A process crash between the two writes
-// cannot leave an orphaned saved_trajectories row whose generation shows
-// as failed in RecoverOrphans.
+// transaction. A process crash between the two writes cannot leave an
+// orphaned saved_trajectories row whose generation shows as failed in
+// RecoverOrphans. The UPDATE is scoped to lease_owner=in.Owner so a stale
+// worker that lost its lease cannot accidentally complete a job it no
+// longer owns.
 //
 // Prefer this over calling Save + MarkCompleted separately. Save is kept
 // for callers (tests, tooling) that do not own a generation row.
@@ -146,29 +151,18 @@ func (l *Library) SaveAndComplete(ctx context.Context, in SaveInput) (string, er
 		return "", fmt.Errorf("marshal gate_summary: %w", err)
 	}
 
-	conn, err := l.db.Conn(ctx)
+	tx, err := l.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", fmt.Errorf("acquire conn: %w", err)
-	}
-	defer func() { _ = conn.Close() }()
-
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return "", fmt.Errorf("begin immediate: %w", err)
+		return "", fmt.Errorf("begin: %w", err)
 	}
 	committed := false
 	defer func() {
 		if !committed {
-			_, _ = conn.ExecContext(context.Background(), "ROLLBACK")
+			_ = tx.Rollback()
 		}
 	}()
 
-	const insertStmt = `
-INSERT INTO saved_trajectories
-	(id, created_at, class, server, playstyle, mode, description,
-	 primary_json, alternatives_json, final_text, gate_summary,
-	 calc_version, catalog_version)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	if _, err := conn.ExecContext(ctx, insertStmt,
+	if _, err := tx.ExecContext(ctx, insertSavedTrajectory,
 		in.ID, time.Now().UTC(),
 		in.Class, in.Server, in.Playstyle, in.Mode, in.Description,
 		string(primaryJSON), nullableJSON(altsJSON), in.FinalText, string(summaryJSON),
@@ -177,10 +171,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		return "", fmt.Errorf("insert: %w", err)
 	}
 
-	res, err := conn.ExecContext(ctx, `
+	res, err := tx.ExecContext(ctx, `
 UPDATE generations
-   SET status='completed', completed_at=?
- WHERE id=? AND status IN ('queued','running')`, time.Now().UTC(), in.ID)
+   SET status='completed', completed_at=$1, lease_expires_at=NULL, lease_owner=NULL
+ WHERE id=$2 AND status='running' AND lease_owner=$3`,
+		time.Now().UTC(), in.ID, in.Owner)
 	if err != nil {
 		return "", fmt.Errorf("mark completed: %w", err)
 	}
@@ -188,7 +183,7 @@ UPDATE generations
 		return "", fmt.Errorf("buildlibrary.SaveAndComplete id=%s: %w", in.ID, ErrAlreadyTerminal)
 	}
 
-	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("commit: %w", err)
 	}
 	committed = true
