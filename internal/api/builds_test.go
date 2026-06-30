@@ -7,9 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/levonn-dev/ro-builder/internal/buildlibrary"
 	"github.com/levonn-dev/ro-builder/internal/catalog"
@@ -19,11 +19,17 @@ import (
 
 func openTempLibrary(t *testing.T) *buildlibrary.Library {
 	t.Helper()
-	lib, err := buildlibrary.Open(filepath.Join(t.TempDir(), "test.db"))
+	if testing.Short() {
+		t.Skip("requires Postgres (testcontainers); skipped under -short")
+	}
+	lib, err := buildlibrary.Open(context.Background(), testDSN)
 	if err != nil {
 		t.Fatalf("buildlibrary.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = lib.Close() })
+	if err := lib.Truncate(context.Background()); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
 	return lib
 }
 
@@ -53,7 +59,9 @@ func buildsServer(t *testing.T, lib *buildlibrary.Library, cat *catalog.Catalog)
 // seedSavedBuild inserts a small TK trajectory referencing real catalog
 // item / card / skill ids so the enrichment has something to resolve.
 // Returns the saved id. Snapshot carries a passing gate so the library's
-// save guard accepts it.
+// save guard accepts it. Uses Enqueue + ClaimNext + SaveAndComplete so
+// the generation row ends up in status=completed, matching what a real
+// worker produces.
 func seedSavedBuild(t *testing.T, lib *buildlibrary.Library) string {
 	t.Helper()
 	ctx := context.Background()
@@ -61,11 +69,16 @@ func seedSavedBuild(t *testing.T, lib *buildlibrary.Library) string {
 	if err != nil {
 		t.Fatalf("Enqueue: %v", err)
 	}
-	if err := lib.MarkCompleted(ctx, id); err != nil {
-		t.Fatalf("MarkCompleted: %v", err)
+	// Claim the job so SaveAndComplete can mark it completed.
+	// SaveAndComplete requires status='running' and a matching lease_owner.
+	const testOwner = "test-worker"
+	gen, err := lib.ClaimNext(ctx, testOwner, 30*time.Second)
+	if err != nil || gen == nil {
+		t.Fatalf("ClaimNext: gen=%v err=%v", gen, err)
 	}
 	in := buildlibrary.SaveInput{
 		ID:        id,
+		Owner:     testOwner,
 		Class:     "taekwon_kid",
 		Server:    "uaro",
 		Playstyle: "pvm",
@@ -100,8 +113,8 @@ func seedSavedBuild(t *testing.T, lib *buildlibrary.Library) string {
 		},
 		FinalText: "test build",
 	}
-	if _, err := lib.Save(ctx, in); err != nil {
-		t.Fatalf("Save: %v", err)
+	if _, err := lib.SaveAndComplete(ctx, in); err != nil {
+		t.Fatalf("SaveAndComplete: %v", err)
 	}
 	return id
 }
@@ -318,9 +331,6 @@ func TestListBuilds_FiltersByClass(t *testing.T) {
 	noviceID, err := lib.Enqueue(context.Background(), json.RawMessage(`{}`))
 	if err != nil {
 		t.Fatalf("Enqueue novice: %v", err)
-	}
-	if err := lib.MarkCompleted(context.Background(), noviceID); err != nil {
-		t.Fatalf("MarkCompleted novice: %v", err)
 	}
 	other := buildlibrary.SaveInput{
 		ID:        noviceID,

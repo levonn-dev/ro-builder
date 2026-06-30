@@ -5,9 +5,10 @@
 //
 // Required environment:
 //
-//	BUILDLIBRARY_PATH  - SQLite file path for the build library. The DB
-//	                     holds the generations queue + saved trajectories.
-//	                     Required; the binary refuses to start without it.
+//	DATABASE_URL  - PostgreSQL connection string for the build library
+//	               (e.g. postgres://user:pass@host:5432/robuilder?sslmode=disable).
+//	               Holds the generations queue + saved trajectories.
+//	               Required; the binary refuses to start without it.
 //
 // Optional environment:
 //
@@ -24,6 +25,9 @@
 //	GENERATION_POLL_INTERVAL        - worker fallback poll cadence (default 5s)
 //	GENERATION_SHUTDOWN_TIMEOUT     - drain window on SIGTERM/SIGINT (default 5m)
 //	GENERATION_MAX_ITERS            - orchestrator tool-use cap (default 60)
+//	GENERATION_LEASE_TTL            - job lease duration (default 90s)
+//	GENERATION_LEASE_SWEEP_INTERVAL - expired-lease sweep cadence (default 30s)
+//	GENERATION_MAX_ATTEMPTS         - requeue cap; 0 disables retry (default 0)
 //	LOG_LEVEL                       - debug|info|warn|error (default info)
 //	LOG_FORMAT                      - text|json (default text)
 package main
@@ -64,9 +68,9 @@ func main() {
 }
 
 func run() error {
-	libPath := os.Getenv("BUILDLIBRARY_PATH")
-	if libPath == "" {
-		return errors.New("BUILDLIBRARY_PATH is required")
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return errors.New("DATABASE_URL is required")
 	}
 
 	logger := buildLogger()
@@ -104,17 +108,20 @@ func run() error {
 	}
 	logger.Info("server profiles loaded", slog.Any("profiles", profileKeys))
 
-	lib, err := buildlibrary.Open(libPath)
+	lib, err := buildlibrary.Open(context.Background(), dsn)
 	if err != nil {
-		return fmt.Errorf("buildlibrary open at %s: %w", libPath, err)
+		return fmt.Errorf("buildlibrary open: %w", err)
 	}
 	defer func() { _ = lib.Close() }()
-	n, err := lib.RecoverOrphans(context.Background())
+
+	maxAttempts := envInt("GENERATION_MAX_ATTEMPTS", 0)
+	rq, fl, err := lib.RecoverExpiredLeases(context.Background(), maxAttempts)
 	if err != nil {
-		return fmt.Errorf("recover orphans at startup: %w", err)
+		return fmt.Errorf("recover expired leases at startup: %w", err)
 	}
-	if n > 0 {
-		logger.Warn("recovered orphaned generations", slog.Int("count", n))
+	if rq > 0 || fl > 0 {
+		logger.Warn("recovered expired leases at startup",
+			slog.Int("requeued", rq), slog.Int("failed", fl))
 	}
 
 	llmCfg := llm.LoadConfigFromEnv()
@@ -158,12 +165,18 @@ func run() error {
 			WithCatalog(cat).
 			WithMaxIters(maxIters)
 
+		leaseTTL := envDuration("GENERATION_LEASE_TTL", 90*time.Second)
+		sweepInterval := envDuration("GENERATION_LEASE_SWEEP_INTERVAL", 30*time.Second)
+
 		pool = workers.New(workers.Config{
-			Library:      lib,
-			Runner:       orchestratorRunner{orch: orch},
-			Save:         makeSaveCallback(lib, cat),
-			Workers:      numWorkers,
-			PollInterval: pollInterval,
+			Library:       lib,
+			Runner:        orchestratorRunner{orch: orch},
+			Save:          makeSaveCallback(lib, cat),
+			Workers:       numWorkers,
+			PollInterval:  pollInterval,
+			LeaseTTL:      leaseTTL,
+			SweepInterval: sweepInterval,
+			MaxAttempts:   maxAttempts,
 		})
 		pool.Start()
 
@@ -267,12 +280,13 @@ func (e *apiEnqueuer) ShutdownTimeoutSeconds() int { return int(e.shutdownTimeou
 // successful generation to the saved_trajectories table keyed to the
 // generation's id.
 func makeSaveCallback(lib *buildlibrary.Library, cat *catalog.Catalog) workers.SaveCallback {
-	return func(ctx context.Context, id string, req orchestrator.GenerateRequest, res *orchestrator.GenerateResult) error {
+	return func(ctx context.Context, id, owner string, req orchestrator.GenerateRequest, res *orchestrator.GenerateResult) error {
 		if res == nil || res.Primary == nil {
 			return errors.New("nil result; nothing to save")
 		}
 		in := buildlibrary.SaveInput{
 			ID:             id,
+			Owner:          owner,
 			Class:          req.Class,
 			Server:         req.Server,
 			Playstyle:      req.Playstyle,

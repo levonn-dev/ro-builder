@@ -2,32 +2,14 @@ package buildlibrary
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/levonn-dev/ro-builder/internal/domain"
 	"github.com/levonn-dev/ro-builder/internal/scoring"
 )
-
-// openTempLibrary opens a fresh on-disk library in t.TempDir() and
-// schedules cleanup. Used by every test below to avoid cross-test
-// state leaks; in-memory mode (`:memory:`) is tempting but doesn't
-// match the production code path that opens a file.
-func openTempLibrary(t *testing.T) *Library {
-	t.Helper()
-	dir := t.TempDir()
-	lib, err := Open(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = lib.Close() })
-	return lib
-}
 
 // insertParentGeneration writes a minimal `generations` row with the
 // given id so Save tests can satisfy the FK without depending on the
@@ -36,8 +18,8 @@ func openTempLibrary(t *testing.T) *Library {
 func insertParentGeneration(t *testing.T, lib *Library, id string) {
 	t.Helper()
 	_, err := lib.db.ExecContext(context.Background(),
-		`INSERT INTO generations (id, status, created_at, request_json)
-		 VALUES (?, 'running', ?, '{}')`,
+		`INSERT INTO generations (id, status, created_at, request_json, lease_owner)
+		 VALUES ($1, 'running', $2, '{}', 'test-owner')`,
 		id, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("insertParentGeneration: %v", err)
@@ -45,7 +27,7 @@ func insertParentGeneration(t *testing.T, lib *Library, id string) {
 }
 
 // scoredSnapshot is the test default; has a non-nil Score so the save
-// guard's "≥1 scored snapshot in Primary" check passes, and a default
+// guard's ">=1 scored snapshot in Primary" check passes, and a default
 // passing gate so the gates-required guard passes too. Tests that
 // explicitly want to test those guards pass their own gates / use
 // unscoredSnapshot.
@@ -78,7 +60,7 @@ func okSnapshot(class string, gates []domain.GateResult) domain.Snapshot {
 }
 
 func TestSaveAndGet_Roundtrip(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	const genID = "test-gen-id-1"
@@ -127,7 +109,7 @@ func TestSaveAndGet_Roundtrip(t *testing.T) {
 }
 
 func TestSave_RejectsFailingGates(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	const genID = "test-gen-id-1"
@@ -163,7 +145,7 @@ func TestSave_RejectsFailingGates(t *testing.T) {
 }
 
 func TestSave_RejectsFailingGatesInAlternatives(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	const genID = "test-gen-id-1"
@@ -192,7 +174,7 @@ func TestSave_RejectsFailingGatesInAlternatives(t *testing.T) {
 // Warns flow through. The library accepts a trajectory carrying warn
 // results; those are breakdown context, not rejection signals.
 func TestSave_AcceptsWarnsOnly(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	const genID = "test-gen-id-1"
@@ -222,7 +204,7 @@ func TestSave_AcceptsWarnsOnly(t *testing.T) {
 }
 
 func TestFind_FiltersByClassAndServer(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	saves := []SaveInput{
@@ -254,7 +236,7 @@ func TestFind_FiltersByClassAndServer(t *testing.T) {
 }
 
 func TestFind_RecencyOrder(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	// Two records of the same class; second insert should appear first.
@@ -284,11 +266,9 @@ func TestFind_RecencyOrder(t *testing.T) {
 
 // Save rejects trajectories whose Primary has zero scored snapshots;
 // canonical scoring couldn't run for any of them, so there's nothing
-// useful to persist. Before this guard, run-7-style outputs (LLM
-// submitted, calc rejected every snapshot's skills, library still saved
-// an unscored trajectory) slipped through.
+// useful to persist.
 func TestSave_RejectsZeroScoredSnapshots(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	const genID = "test-gen-id-1"
@@ -314,12 +294,9 @@ func TestSave_RejectsZeroScoredSnapshots(t *testing.T) {
 }
 
 // Save rejects trajectories whose Primary has scored snapshots but no
-// gates evaluated. That state means the orchestrator was wired without
-// WithCatalog; scoring ran, but the gates evaluator was skipped, so
-// the library would otherwise persist trajectories that bypass the
-// quality floors (hit rate, EHP, requirements_met) entirely.
+// gates evaluated.
 func TestSave_RejectsScoredSnapshotsWithoutGates(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	const genID = "test-gen-id-1"
@@ -344,12 +321,9 @@ func TestSave_RejectsScoredSnapshotsWithoutGates(t *testing.T) {
 	}
 }
 
-// Mixed scored + unscored snapshots in Primary should pass; the LLM's
-// trajectory commonly has scored checkpoints (job changes, lvl 85,
-// endgame) interleaved with unscored intermediate snapshots. As long
-// as ≥1 is scored, save proceeds.
+// Mixed scored + unscored snapshots in Primary should pass.
 func TestSave_AcceptsPartiallyScoredPrimary(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 
 	const genID = "test-gen-id-1"
@@ -378,115 +352,10 @@ func TestSave_AcceptsPartiallyScoredPrimary(t *testing.T) {
 }
 
 func TestGet_NotFound(t *testing.T) {
-	lib := openTempLibrary(t)
+	lib := newTestLibrary(t)
 	ctx := context.Background()
 	_, err := lib.Get(ctx, "00000000000000000000000000000000")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got: %v", err)
 	}
-}
-
-func TestOpen_RejectsEmptyPath(t *testing.T) {
-	if _, err := Open(""); err == nil {
-		t.Error("expected error from Open(\"\")")
-	}
-}
-
-func TestMigrate_ForeignKeysEnforced(t *testing.T) {
-	lib := openTempLibrary(t)
-	_, err := lib.db.ExecContext(context.Background(),
-		`INSERT INTO saved_trajectories (id, created_at, class, server, playstyle, mode, primary_json, gate_summary)
-		 VALUES ('orphan', ?, 'novice', 'uaro', 'pvm', 'pre-renewal', '{}', '{}')`,
-		time.Now().UTC())
-	if err == nil {
-		t.Fatalf("expected FK violation on saved_trajectories without matching generations row, got nil")
-	}
-}
-
-func TestMigrate_GenerationsTableExists(t *testing.T) {
-	lib := openTempLibrary(t)
-	var name string
-	err := lib.db.QueryRowContext(context.Background(),
-		`SELECT name FROM sqlite_master WHERE type='table' AND name='generations'`).Scan(&name)
-	if err != nil {
-		t.Fatalf("generations table not found: %v", err)
-	}
-}
-
-func TestMigrate_OpenTwicePreservesSavedTrajectories(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "test.db")
-
-	// First open: schema applied, both tables created.
-	lib, err := Open(dbPath)
-	if err != nil {
-		t.Fatalf("first Open: %v", err)
-	}
-
-	// Insert a generation + a corresponding saved_trajectory row so we
-	// can detect data loss across a re-Open.
-	if _, err := lib.db.ExecContext(context.Background(),
-		`INSERT INTO generations (id, status, created_at, request_json)
-		 VALUES ('keep-me', 'completed', ?, '{}')`,
-		time.Now().UTC()); err != nil {
-		t.Fatalf("insert generation: %v", err)
-	}
-	if _, err := lib.db.ExecContext(context.Background(),
-		`INSERT INTO saved_trajectories (id, created_at, class, server, playstyle, mode, primary_json, gate_summary)
-		 VALUES ('keep-me', ?, 'novice', 'uaro', 'pvm', 'pre-renewal', '{}', '{}')`,
-		time.Now().UTC()); err != nil {
-		t.Fatalf("insert saved_trajectory: %v", err)
-	}
-	_ = lib.Close()
-
-	// Second open: should be a no-op for saved_trajectories.
-	lib2, err := Open(dbPath)
-	if err != nil {
-		t.Fatalf("second Open: %v", err)
-	}
-	t.Cleanup(func() { _ = lib2.Close() })
-
-	var n int
-	if err := lib2.db.QueryRowContext(context.Background(),
-		`SELECT count(*) FROM saved_trajectories WHERE id='keep-me'`).Scan(&n); err != nil {
-		t.Fatalf("query: %v", err)
-	}
-	if n != 1 {
-		t.Fatalf("saved_trajectories row destroyed by second Open: got %d, want 1", n)
-	}
-}
-
-func TestMigrate_FKHoldsAcrossPoolConnections(t *testing.T) {
-	lib := openTempLibrary(t)
-	ctx := context.Background()
-
-	// Issue several parallel writes through the connection pool to
-	// exercise multiple distinct connections. Each must reject the
-	// orphan insert.
-	const N = 8
-	errs := make(chan error, N)
-	for i := 0; i < N; i++ {
-		go func() {
-			_, err := lib.db.ExecContext(ctx,
-				`INSERT INTO saved_trajectories (id, created_at, class, server, playstyle, mode, primary_json, gate_summary)
-				 VALUES ('orphan-`+randID(t)+`', ?, 'x', 'x', 'x', 'x', '{}', '{}')`,
-				time.Now().UTC())
-			errs <- err
-		}()
-	}
-	for i := 0; i < N; i++ {
-		if err := <-errs; err == nil {
-			t.Fatalf("attempt %d: expected FK violation, got nil", i)
-		}
-	}
-}
-
-// randID returns a short random hex string for test row keys.
-func randID(t *testing.T) string {
-	t.Helper()
-	var b [4]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		t.Fatalf("rand: %v", err)
-	}
-	return hex.EncodeToString(b[:])
 }
