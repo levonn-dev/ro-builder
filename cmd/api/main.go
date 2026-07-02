@@ -28,6 +28,15 @@
 //	GENERATION_LEASE_TTL            - job lease duration (default 90s)
 //	GENERATION_LEASE_SWEEP_INTERVAL - expired-lease sweep cadence (default 30s)
 //	GENERATION_MAX_ATTEMPTS         - requeue cap; 0 disables retry (default 0)
+//	EMBEDDING_BASE_URL              - OpenAI-compatible /v1 root; presence
+//	                                  enables RAG over saved builds (pgvector).
+//	                                  Unset = recency-only, no pgvector needed.
+//	EMBEDDING_MODEL / EMBEDDING_DIM - embedder model id + vector dimension
+//	                                  (required when EMBEDDING_BASE_URL is set)
+//	EMBEDDING_API_KEY               - optional bearer for cloud embedders
+//	EMBEDDING_SEED_MAX_DISTANCE     - Tier A proactive-seed ceiling (default 0.15)
+//	EMBEDDING_SIMILAR_MAX_DISTANCE  - Tier B list floor for get_similar_past_builds (default 0.5)
+//	EMBEDDING_HNSW_M / _EF_CONSTRUCTION / _EF_SEARCH - HNSW index tuning (0 = pgvector default)
 //	LOG_LEVEL                       - debug|info|warn|error (default info)
 //	LOG_FORMAT                      - text|json (default text)
 package main
@@ -42,6 +51,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -50,8 +60,10 @@ import (
 	"github.com/levonn-dev/ro-builder/internal/buildlibrary"
 	"github.com/levonn-dev/ro-builder/internal/catalog"
 	"github.com/levonn-dev/ro-builder/internal/domain"
+	"github.com/levonn-dev/ro-builder/internal/embedding"
 	"github.com/levonn-dev/ro-builder/internal/llm"
 	"github.com/levonn-dev/ro-builder/internal/llm/tools"
+	"github.com/levonn-dev/ro-builder/internal/logging"
 	"github.com/levonn-dev/ro-builder/internal/orchestrator"
 	"github.com/levonn-dev/ro-builder/internal/scoring"
 	"github.com/levonn-dev/ro-builder/internal/workers"
@@ -108,11 +120,46 @@ func run() error {
 	}
 	logger.Info("server profiles loaded", slog.Any("profiles", profileKeys))
 
-	lib, err := buildlibrary.Open(context.Background(), dsn)
+	embCfg := embedding.LoadConfigFromEnv()
+	if err := embCfg.Validate(); err != nil {
+		return fmt.Errorf("embedding config: %w", err)
+	}
+	var embedder *embedding.Client
+	modelID := embCfg.Model + "@" + strconv.Itoa(embCfg.Dim)
+	if embCfg.Enabled() {
+		embedder = embedding.New(embCfg)
+		logger.Info("embeddings enabled", slog.String("model_id", modelID), slog.Int("dim", embedder.Dimensions()))
+	} else {
+		logger.Info("embeddings disabled (EMBEDDING_BASE_URL unset); retrieval is recency-only")
+	}
+
+	// Retrieval tuning knobs (semantic mode only). similarMaxDist is the
+	// Tier B list floor for get_similar_past_builds; the HNSW knobs tune the
+	// index (0 = pgvector default: m=16, ef_construction=64, ef_search=40).
+	similarMaxDist := envFloat("EMBEDDING_SIMILAR_MAX_DISTANCE", 0.5)
+	hnswM := envInt("EMBEDDING_HNSW_M", 0)
+	hnswEfConstruction := envInt("EMBEDDING_HNSW_EF_CONSTRUCTION", 0)
+	hnswEfSearch := envInt("EMBEDDING_HNSW_EF_SEARCH", 0)
+
+	var openOpts []buildlibrary.Option
+	if embCfg.Enabled() {
+		openOpts = append(openOpts, buildlibrary.WithEmbedding(embCfg.Dim, modelID))
+		if hnswM > 0 || hnswEfConstruction > 0 || hnswEfSearch > 0 {
+			openOpts = append(openOpts, buildlibrary.WithHNSW(hnswM, hnswEfConstruction, hnswEfSearch))
+		}
+	}
+	lib, err := buildlibrary.Open(context.Background(), dsn, openOpts...)
 	if err != nil {
 		return fmt.Errorf("buildlibrary open: %w", err)
 	}
 	defer func() { _ = lib.Close() }()
+	if embCfg.Enabled() {
+		if lib.SemanticEnabled() {
+			logger.Info("semantic retrieval active", slog.String("model_id", modelID), slog.Int("dim", lib.EmbeddingDim()))
+		} else {
+			logger.Warn("semantic retrieval degraded to recency-only (EMBEDDING_BASE_URL set but the pgvector bootstrap did not complete; see earlier embedding errors)", slog.String("model_id", modelID))
+		}
+	}
 
 	maxAttempts := envInt("GENERATION_MAX_ATTEMPTS", 0)
 	rq, fl, err := lib.RecoverExpiredLeases(context.Background(), maxAttempts)
@@ -153,7 +200,8 @@ func run() error {
 		registry.Register(tools.NewLookupSkill(cat))
 		registry.Register(tools.NewListClassSkills(cat))
 		registry.Register(tools.NewListClassBuffs(cat))
-		registry.Register(tools.NewGetSimilarPastBuilds(lib))
+		registry.Register(tools.NewGetSimilarPastBuilds(lib, similarMaxDist))
+		registry.Register(tools.NewGetSavedBuild(lib))
 		// submit_trajectory is intentionally NOT registered here; the
 		// orchestrator constructs a per-request overlay version via
 		// Registry.WithTool, wiring in the per-request Scoring / EvaluateGates /
@@ -164,6 +212,10 @@ func run() error {
 			WithScoringClient(scoringClient).
 			WithCatalog(cat).
 			WithMaxIters(maxIters)
+		if embedder != nil {
+			orch = orch.WithEmbedder(embedder).WithSeeder(lib).
+				WithSeedMaxDistance(envFloat("EMBEDDING_SEED_MAX_DISTANCE", 0.15))
+		}
 
 		leaseTTL := envDuration("GENERATION_LEASE_TTL", 90*time.Second)
 		sweepInterval := envDuration("GENERATION_LEASE_SWEEP_INTERVAL", 30*time.Second)
@@ -171,7 +223,7 @@ func run() error {
 		pool = workers.New(workers.Config{
 			Library:       lib,
 			Runner:        orchestratorRunner{orch: orch},
-			Save:          makeSaveCallback(lib, cat),
+			Save:          makeSaveCallback(lib, cat, embedder),
 			Workers:       numWorkers,
 			PollInterval:  pollInterval,
 			LeaseTTL:      leaseTTL,
@@ -278,8 +330,10 @@ func (e *apiEnqueuer) ShutdownTimeoutSeconds() int { return int(e.shutdownTimeou
 
 // makeSaveCallback returns a workers.SaveCallback that persists a
 // successful generation to the saved_trajectories table keyed to the
-// generation's id.
-func makeSaveCallback(lib *buildlibrary.Library, cat *catalog.Catalog) workers.SaveCallback {
+// generation's id. When embedder is non-nil the request+answer document is
+// embedded best-effort: a failure is logged and the save continues without a
+// vector rather than blocking persistence.
+func makeSaveCallback(lib *buildlibrary.Library, cat *catalog.Catalog, embedder *embedding.Client) workers.SaveCallback {
 	return func(ctx context.Context, id, owner string, req orchestrator.GenerateRequest, res *orchestrator.GenerateResult) error {
 		if res == nil || res.Primary == nil {
 			return errors.New("nil result; nothing to save")
@@ -298,8 +352,27 @@ func makeSaveCallback(lib *buildlibrary.Library, cat *catalog.Catalog) workers.S
 			CalcVersion:    extractCalcVersion(res.Primary),
 			CatalogVersion: cat.Version(),
 		}
-		_, err := lib.SaveAndComplete(ctx, in)
-		return err
+		if embedder != nil && lib.SemanticEnabled() {
+			doc := strings.TrimSpace(req.Playstyle + "\n" + req.Description + "\n" + res.Final)
+			if vecs, err := embedder.Embed(ctx, []string{doc}); err != nil {
+				logging.From(ctx).Warn("save: document embed failed; storing without vector", slog.Any("err", err))
+			} else if len(vecs) > 0 {
+				in.Embedding = vecs[0]
+				logging.From(ctx).Info("save: document embedded",
+					slog.Int("dim", len(vecs[0])), slog.Int("doc_chars", len(doc)))
+			}
+		}
+		if _, err := lib.SaveAndComplete(ctx, in); err != nil {
+			return err
+		}
+		logging.From(ctx).Info("build saved to library",
+			slog.String("id", id),
+			slog.Bool("embedded", in.Embedding != nil),
+			slog.Int("embedding_dim", len(in.Embedding)),
+			slog.String("class", req.Class),
+			slog.String("server", req.Server),
+			slog.Int("snapshots", len(res.Primary.Snapshots)))
+		return nil
 	}
 }
 
@@ -386,6 +459,15 @@ func envDuration(k string, d time.Duration) time.Duration {
 		}
 	}
 	return d
+}
+
+func envFloat(k string, def float64) float64 {
+	if v := os.Getenv(k); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
 }
 
 func envLevel(k string, d slog.Level) slog.Level {

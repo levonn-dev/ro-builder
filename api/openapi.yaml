@@ -6,12 +6,13 @@ info:
   description: |
     Ragnarok Online (pre-renewal) build optimizer.
 
-    Four endpoints:
-      - POST /score           direct calc; fully-specified Build → derived stats + optional combat sim
-      - POST /generate        LLM-driven; enqueue a generation job; returns 202 + {id}
-      - GET  /generations/{id} poll status of an enqueued generation
-      - GET  /builds          paginated list of saved trajectories
-      - GET  /builds/{id}     one full saved trajectory with item/skill names resolved
+    Six endpoints:
+      - POST /score              direct calc; fully-specified Build → derived stats + optional combat sim
+      - POST /generate           LLM-driven; enqueue a generation job; returns 202 + {id}
+      - GET  /generations/{id}   poll status of an enqueued generation
+      - GET  /builds             paginated list of saved trajectories (filter with ?accepted=)
+      - GET  /builds/{id}        one full saved trajectory with item/skill names resolved
+      - POST /builds/{id}/accept mark a build user-accepted so RAG retrieval can seed from it
 
     The /generate endpoint requires LLM_API_KEY at the API process. Without it,
     /generate returns 503 (Service Unavailable); /score continues to work.
@@ -164,6 +165,14 @@ paths:
             minimum: 1
             maximum: 50
           description: cap results (default 5, max 50)
+        - name: accepted
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: >
+            filter by acceptance state; true = accepted only, false = pending
+            (not yet accepted) only, omitted = all
       responses:
         "200":
           description: List of trajectory summaries
@@ -216,6 +225,43 @@ paths:
                 $ref: "#/components/schemas/ErrorBody"
         "500":
           description: Library / encode failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+
+  /builds/{id}/accept:
+    post:
+      operationId: acceptBuild
+      summary: Accept a saved trajectory, making it visible to RAG retrieval
+      description: >
+        Marks the build as user-accepted. Until accepted, a saved build is
+        fetchable via GET /builds/{id} but is NOT surfaced by the retrieval
+        tools (proactive seed injection, get_similar_past_builds,
+        get_saved_build). Idempotent: re-accepting keeps the original
+        timestamp.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: id of the saved build to accept
+      responses:
+        "200":
+          description: Build accepted (or already accepted)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptBuildResponse"
+        "404":
+          description: No trajectory with that id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+        "500":
+          description: Library failure
           content:
             application/json:
               schema:
@@ -559,6 +605,10 @@ components:
         playstyle: { type: string }
         description: { type: string }
         gate_summary: { $ref: "#/components/schemas/GateSummary" }
+        accepted_at:
+          type: string
+          format: date-time
+          description: when the build was user-accepted; absent = pending (not RAG-visible)
 
     ListBuildsResponse:
       type: object
@@ -567,6 +617,13 @@ components:
         builds:
           type: array
           items: { $ref: "#/components/schemas/BuildSummary" }
+
+    AcceptBuildResponse:
+      type: object
+      required: [ id, accepted_at ]
+      properties:
+        id: { type: string }
+        accepted_at: { type: string, format: date-time }
 
     EnrichedBuild:
       type: object
@@ -587,3 +644,7 @@ components:
         gate_summary: { $ref: "#/components/schemas/GateSummary" }
         calc_version: { type: string }
         catalog_version: { type: integer }
+        accepted_at:
+          type: string
+          format: date-time
+          description: when the build was user-accepted; absent = pending (not RAG-visible)

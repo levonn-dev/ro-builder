@@ -96,6 +96,18 @@ env:
   GENERATION_LEASE_TTL: ""
   GENERATION_LEASE_SWEEP_INTERVAL: ""
   GENERATION_MAX_ATTEMPTS: ""
+  # Embeddings (optional; enables RAG over the saved-build library).
+  # Unset EMBEDDING_BASE_URL = recency-only retrieval, no pgvector required.
+  # A cloud embedder's EMBEDDING_API_KEY goes in the Secret (see
+  # deploy/k8s/sealed-secrets/), not here; local servers need no key.
+  # EMBEDDING_BASE_URL: ""               # OpenAI-compatible /v1 root; presence enables the feature
+  # EMBEDDING_MODEL: "nomic-embed-text"  # e.g. text-embedding-nomic-embed-text-v1.5@q8_0 (LM Studio)
+  # EMBEDDING_DIM: "768"                 # required when EMBEDDING_BASE_URL is set; must match model output dim
+  # EMBEDDING_SEED_MAX_DISTANCE: ""      # Tier A proactive-seed ceiling (default 0.15)
+  # EMBEDDING_SIMILAR_MAX_DISTANCE: ""   # Tier B get_similar_past_builds floor (default 0.5)
+  # EMBEDDING_HNSW_M: ""                 # HNSW build param (default 16; reindex to change)
+  # EMBEDDING_HNSW_EF_CONSTRUCTION: ""   # HNSW build param (default 64; reindex to change)
+  # EMBEDDING_HNSW_EF_SEARCH: ""         # HNSW query param (default 40; higher recall, slower)
 
 postgresql:
   # When true, the chart runs an in-cluster Postgres StatefulSet. Set false

@@ -23,3 +23,13 @@ env:
   GENERATION_MAX_ITERS: "80"
   LLM_MODEL: claude-opus-4-7
   LLM_PROVIDER: anthropic
+  # Embeddings / RAG (local LM Studio nomic). "localhost" is the pod itself,
+  # not your machine, so a pod reaches an embedder running on the
+  # docker-desktop host via host.docker.internal (Docker Desktop injects it
+  # into pods). This is committed, so it carries no machine-specific LAN IP;
+  # if your embedder runs on a different box, override EMBEDDING_BASE_URL in an
+  # uncommitted local values file. Optional knobs (EMBEDDING_SIMILAR_MAX_DISTANCE,
+  # EMBEDDING_HNSW_*) keep built-in defaults; see the root README.
+  EMBEDDING_BASE_URL: http://host.docker.internal:1234/v1
+  EMBEDDING_MODEL: text-embedding-nomic-embed-text-v1.5@q8_0
+  EMBEDDING_DIM: "768"

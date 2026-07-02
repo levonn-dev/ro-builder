@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	pgvector "github.com/pgvector/pgvector-go"
+
 	"github.com/levonn-dev/ro-builder/internal/domain"
 )
 
@@ -33,9 +35,14 @@ type SaveInput struct {
 	FinalText      string
 	CalcVersion    string
 	CatalogVersion int
+
+	// Embedding is the request+answer document vector for semantic
+	// retrieval. Optional: nil/empty stores NULL (the row is then invisible
+	// to FindSimilar). Ignored entirely when the library is recency-only.
+	Embedding []float32
 }
 
-// insertSavedTrajectory is the shared INSERT used by Save and SaveAndComplete.
+// insertSavedTrajectory is the recency-only INSERT (no embedding column).
 const insertSavedTrajectory = `
 INSERT INTO saved_trajectories
 	(id, created_at, class, server, playstyle, mode, description,
@@ -43,6 +50,24 @@ INSERT INTO saved_trajectories
 	 calc_version, catalog_version)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12, $13)
 `
+
+const insertSavedTrajectoryWithEmbedding = `
+INSERT INTO saved_trajectories
+	(id, created_at, class, server, playstyle, mode, description,
+	 primary_json, alternatives_json, final_text, gate_summary,
+	 calc_version, catalog_version, embedding)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12, $13, $14)
+`
+
+// embeddingArg returns the $14 bind value for the with-embedding INSERT:
+// a pgvector.Vector when a vector is supplied, or nil (SQL NULL) otherwise.
+func embeddingArg(emb []float32) any {
+	if len(emb) == 0 {
+		return nil
+	}
+	v := pgvector.NewVector(emb)
+	return v
+}
 
 // ErrFailingGates is returned by Save when at least one scored snapshot
 // in Primary or Alternatives carries a fail / fail_hard gate result.
@@ -103,12 +128,20 @@ func (l *Library) Save(ctx context.Context, in SaveInput) (string, error) {
 		return "", fmt.Errorf("marshal gate_summary: %w", err)
 	}
 
-	if _, err := l.db.ExecContext(ctx, insertSavedTrajectory,
-		in.ID, time.Now().UTC(),
-		in.Class, in.Server, in.Playstyle, in.Mode, in.Description,
-		string(primaryJSON), nullableJSON(altsJSON), in.FinalText, string(summaryJSON),
-		in.CalcVersion, in.CatalogVersion,
-	); err != nil {
+	if l.semanticEnabled {
+		_, err = l.db.ExecContext(ctx, insertSavedTrajectoryWithEmbedding,
+			in.ID, time.Now().UTC(),
+			in.Class, in.Server, in.Playstyle, in.Mode, in.Description,
+			string(primaryJSON), nullableJSON(altsJSON), in.FinalText, string(summaryJSON),
+			in.CalcVersion, in.CatalogVersion, embeddingArg(in.Embedding))
+	} else {
+		_, err = l.db.ExecContext(ctx, insertSavedTrajectory,
+			in.ID, time.Now().UTC(),
+			in.Class, in.Server, in.Playstyle, in.Mode, in.Description,
+			string(primaryJSON), nullableJSON(altsJSON), in.FinalText, string(summaryJSON),
+			in.CalcVersion, in.CatalogVersion)
+	}
+	if err != nil {
 		return "", fmt.Errorf("insert: %w", err)
 	}
 	return in.ID, nil
@@ -162,13 +195,22 @@ func (l *Library) SaveAndComplete(ctx context.Context, in SaveInput) (string, er
 		}
 	}()
 
-	if _, err := tx.ExecContext(ctx, insertSavedTrajectory,
-		in.ID, time.Now().UTC(),
-		in.Class, in.Server, in.Playstyle, in.Mode, in.Description,
-		string(primaryJSON), nullableJSON(altsJSON), in.FinalText, string(summaryJSON),
-		in.CalcVersion, in.CatalogVersion,
-	); err != nil {
-		return "", fmt.Errorf("insert: %w", err)
+	var insertErr error
+	if l.semanticEnabled {
+		_, insertErr = tx.ExecContext(ctx, insertSavedTrajectoryWithEmbedding,
+			in.ID, time.Now().UTC(),
+			in.Class, in.Server, in.Playstyle, in.Mode, in.Description,
+			string(primaryJSON), nullableJSON(altsJSON), in.FinalText, string(summaryJSON),
+			in.CalcVersion, in.CatalogVersion, embeddingArg(in.Embedding))
+	} else {
+		_, insertErr = tx.ExecContext(ctx, insertSavedTrajectory,
+			in.ID, time.Now().UTC(),
+			in.Class, in.Server, in.Playstyle, in.Mode, in.Description,
+			string(primaryJSON), nullableJSON(altsJSON), in.FinalText, string(summaryJSON),
+			in.CalcVersion, in.CatalogVersion)
+	}
+	if insertErr != nil {
+		return "", fmt.Errorf("insert: %w", insertErr)
 	}
 
 	res, err := tx.ExecContext(ctx, `

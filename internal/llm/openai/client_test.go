@@ -251,3 +251,114 @@ func TestClient_Complete_FinishReasonLengthMapsToMaxTokens(t *testing.T) {
 		t.Errorf("stop: got %q want max_tokens", resp.StopReason)
 	}
 }
+
+func TestRecoverToolCalls_QwenXMLFormat(t *testing.T) {
+	// Exact shape observed from Qwen3 via LM Studio: the tool call lands in
+	// reasoning_content as <function=...><parameter=...> markup while
+	// tool_calls stays empty. The build parameter's value is a JSON object.
+	reasoning := "thinking...\n</thinking>\n\n<tool_call>\n<function=score_build>\n<parameter=build>\n{\"class\": \"taekwon_kid\", \"stats\": {\"str\": 30}}\n</parameter>\n</function>\n</tool_call>"
+	calls := recoverToolCalls(reasoning, "resp1")
+	if len(calls) != 1 {
+		t.Fatalf("want 1 recovered call, got %d", len(calls))
+	}
+	if calls[0].Function.Name != "score_build" {
+		t.Errorf("name: %q", calls[0].Function.Name)
+	}
+	var args map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(calls[0].Function.Arguments), &args); err != nil {
+		t.Fatalf("arguments not valid JSON: %v (%s)", err, calls[0].Function.Arguments)
+	}
+	if _, ok := args["build"]; !ok {
+		t.Fatalf("expected a build param, got %s", calls[0].Function.Arguments)
+	}
+	// The build value must be preserved as a nested object, not a string.
+	if !strings.HasPrefix(strings.TrimSpace(string(args["build"])), "{") ||
+		!strings.Contains(string(args["build"]), `"taekwon_kid"`) {
+		t.Errorf("build value not preserved as object: %s", args["build"])
+	}
+}
+
+func TestRecoverToolCalls_MultipleAndTypedParams(t *testing.T) {
+	xml := "<tool_call><function=a><parameter=x>1</parameter></function></tool_call>\n" +
+		"<tool_call><function=b><parameter=y>hi</parameter></function></tool_call>"
+	got := recoverToolCalls(xml, "r")
+	if len(got) != 2 {
+		t.Fatalf("want 2, got %d", len(got))
+	}
+	if got[0].Function.Name != "a" || got[1].Function.Name != "b" {
+		t.Errorf("names: %q %q", got[0].Function.Name, got[1].Function.Name)
+	}
+	// numeric stays numeric; bare word becomes a quoted string
+	if !strings.Contains(got[0].Function.Arguments, `"x":1`) {
+		t.Errorf("x arg not numeric: %s", got[0].Function.Arguments)
+	}
+	if !strings.Contains(got[1].Function.Arguments, `"y":"hi"`) {
+		t.Errorf("y arg not string-quoted: %s", got[1].Function.Arguments)
+	}
+	if got[0].ID == got[1].ID {
+		t.Errorf("recovered ids must be unique, both %q", got[0].ID)
+	}
+}
+
+func TestRecoverToolCalls_HermesJSONForm(t *testing.T) {
+	hermes := `<tool_call>{"name":"score_build","arguments":{"build":{"class":"knight"}}}</tool_call>`
+	got := recoverToolCalls(hermes, "r")
+	if len(got) != 1 || got[0].Function.Name != "score_build" {
+		t.Fatalf("hermes recovery: %+v", got)
+	}
+	if !strings.Contains(got[0].Function.Arguments, `"knight"`) {
+		t.Errorf("hermes args: %s", got[0].Function.Arguments)
+	}
+}
+
+func TestRecoverToolCalls_NoMarkersReturnsNil(t *testing.T) {
+	if got := recoverToolCalls("just reasoning, no tool call markup here", ""); len(got) != 0 {
+		t.Errorf("expected no recovery, got %d", len(got))
+	}
+}
+
+func TestClient_Complete_RecoversBuriedToolCall(t *testing.T) {
+	// Qwen3-via-LM-Studio failure mode end to end: empty content + empty
+	// tool_calls, the real call buried in reasoning_content. Complete must
+	// recover it and report a tool turn, not an empty end_turn.
+	reasoning := "let me think\n</thinking>\n<tool_call>\n<function=lookup_item>\n<parameter=id_or_name>\n1201\n</parameter>\n</function>\n</tool_call>"
+	body, err := json.Marshal(map[string]any{
+		"id": "cmpl-x", "model": "qwen",
+		"choices": []any{map[string]any{
+			"index": 0, "finish_reason": "stop",
+			"message": map[string]any{
+				"role":              "assistant",
+				"content":           "",
+				"reasoning_content": reasoning,
+				"tool_calls":        []any{},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	url, _, _ := fakeOpenAI(t, http.StatusOK, string(body))
+	c := NewClient("", WithBaseURL(url))
+	resp, err := c.Complete(context.Background(), "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StopReason != llm.StopToolUse {
+		t.Errorf("stop: got %q want tool_use (recovered)", resp.StopReason)
+	}
+	if !hasToolUse(resp.Content) {
+		t.Fatalf("expected a recovered tool_use block, got %+v", resp.Content)
+	}
+	var tb llm.ContentBlock
+	for _, b := range resp.Content {
+		if b.Type == llm.BlockToolUse {
+			tb = b
+		}
+	}
+	if tb.ToolName != "lookup_item" {
+		t.Errorf("tool name: %q", tb.ToolName)
+	}
+	if !strings.Contains(string(tb.ToolInput), `"id_or_name"`) {
+		t.Errorf("tool input: %s", string(tb.ToolInput))
+	}
+}

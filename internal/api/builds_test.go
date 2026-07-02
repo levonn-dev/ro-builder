@@ -417,3 +417,118 @@ func TestBuildLibrary_NotFoundSentinelMatches(t *testing.T) {
 		t.Errorf("expected ErrNotFound from missing Get; got %v", err)
 	}
 }
+
+func TestAcceptBuild_StampsAndIsIdempotent(t *testing.T) {
+	lib := openTempLibrary(t)
+	cat := loadCatalog(t)
+	id := seedSavedBuild(t, lib)
+	srv := buildsServer(t, lib, cat)
+
+	// Before acceptance, GET /builds/{id} carries no accepted_at.
+	var before map[string]any
+	getListOrBuild(t, srv.URL+"/builds/"+id, &before)
+	if before["accepted_at"] != nil {
+		t.Fatalf("pending build should have null accepted_at, got %v", before["accepted_at"])
+	}
+
+	resp, err := http.Post(srv.URL+"/builds/"+id+"/accept", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST accept: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("accept status: got %d want 200", resp.StatusCode)
+	}
+	var acc struct {
+		ID         string `json:"id"`
+		AcceptedAt string `json:"accepted_at"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&acc); err != nil {
+		t.Fatalf("decode accept: %v", err)
+	}
+	if acc.ID != id || acc.AcceptedAt == "" {
+		t.Fatalf("accept body: %+v", acc)
+	}
+
+	// GET now reflects acceptance.
+	var after map[string]any
+	getListOrBuild(t, srv.URL+"/builds/"+id, &after)
+	if after["accepted_at"] == nil {
+		t.Fatal("expected accepted_at on the build after accept")
+	}
+
+	// Idempotent: a second accept returns the same timestamp.
+	resp2, err := http.Post(srv.URL+"/builds/"+id+"/accept", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST accept 2: %v", err)
+	}
+	defer resp2.Body.Close()
+	var acc2 struct {
+		AcceptedAt string `json:"accepted_at"`
+	}
+	if err := json.NewDecoder(resp2.Body).Decode(&acc2); err != nil {
+		t.Fatalf("decode accept2: %v", err)
+	}
+	if acc2.AcceptedAt != acc.AcceptedAt {
+		t.Fatalf("re-accept changed the timestamp: %q -> %q", acc.AcceptedAt, acc2.AcceptedAt)
+	}
+}
+
+func TestAcceptBuild_NotFound(t *testing.T) {
+	lib := openTempLibrary(t)
+	cat := loadCatalog(t)
+	srv := buildsServer(t, lib, cat)
+	resp, err := http.Post(srv.URL+"/builds/does-not-exist/accept", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: got %d want 404", resp.StatusCode)
+	}
+}
+
+func TestListBuilds_AcceptedFilter(t *testing.T) {
+	lib := openTempLibrary(t)
+	cat := loadCatalog(t)
+	acceptedID := seedSavedBuild(t, lib)
+	pendingID := seedSavedBuild(t, lib)
+	if _, err := lib.Accept(context.Background(), acceptedID); err != nil {
+		t.Fatalf("Accept: %v", err)
+	}
+	srv := buildsServer(t, lib, cat)
+
+	list := func(url string) []map[string]any {
+		var body struct {
+			Builds []map[string]any `json:"builds"`
+		}
+		getListOrBuild(t, url, &body)
+		return body.Builds
+	}
+	if got := list(srv.URL + "/builds?accepted=true"); len(got) != 1 || got[0]["id"] != acceptedID {
+		t.Fatalf("accepted=true should return only the accepted build; got %d: %+v", len(got), got)
+	}
+	if got := list(srv.URL + "/builds?accepted=false"); len(got) != 1 || got[0]["id"] != pendingID {
+		t.Fatalf("accepted=false should return only the pending build; got %d: %+v", len(got), got)
+	}
+	if got := list(srv.URL + "/builds"); len(got) != 2 {
+		t.Fatalf("no filter should return both; got %d", len(got))
+	}
+}
+
+// getListOrBuild issues a GET and decodes the JSON body into out, failing the
+// test on transport, status, or decode errors.
+func getListOrBuild(t *testing.T, url string, out any) {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s: status %d", url, resp.StatusCode)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		t.Fatalf("decode %s: %v", url, err)
+	}
+}

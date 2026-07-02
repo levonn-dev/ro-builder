@@ -34,6 +34,7 @@ authored for them.
 │  └──────────────┘   │   ↪ LLM provider (Claude / OpenAI)   │ │
 │                     │   ↪ Tool registry                    │ │
 │                     │   ↪ Build library (PostgreSQL)        │ │
+│                     │   ↪ Embedding provider (optional)    │ │
 │                     │   ↪ Scoring client → ─────┐          │ │
 │                     └───────────────────────────│──────────┘ │
 └─────────────────────────────────────────────────│────────────┘
@@ -48,6 +49,19 @@ authored for them.
 
 Two deployable units. Both can be run natively, via `docker compose`, or via Helm/Tilt on Kubernetes.
 
+**Embedding provider and RAG.** The build library optionally uses an OpenAI-compatible embedding endpoint (a local LM
+Studio, Ollama, or llama.cpp server, or any hosted `/v1/embeddings` API) to enable semantic retrieval over saved
+builds. When configured, the orchestrator embeds the incoming
+request, searches the pgvector-backed library for semantically similar past builds, and proactively injects the closest
+match as a warm-start for the LLM (Tier A seeding). The LLM can also pull ranked candidates on demand through the
+`get_similar_past_builds` and `get_saved_build` tools (Tier B). When no embedder is configured, retrieval falls back to
+recency ordering and pgvector is not required.
+
+Retrieval only surfaces builds the user has explicitly **accepted**. A generation that passes quality gates is saved and
+fetchable immediately, but it does not seed future generations until you `POST /builds/{id}/accept` — passing gates is
+not the same as being the build you wanted. Un-accepted builds are visible only through the user-facing `GET /builds`
+(filterable with `?accepted=`) and `GET /builds/{id}`, never through the RAG tools.
+
 Directory map:
 
 ```
@@ -57,6 +71,8 @@ cmd/                  one Go binary per directory
   build-rocalc-mapping/ rocalc-id ↔ iRO-id table (one-shot)
   enrich-mapping-rms/   ratemyserver.net lookup helper
   verify-mapping/       spot-check tool
+  backfill-embeddings/  re-embed every saved build after a model change (one-shot)
+  embedding-recall/     HNSW recall quality probe: approx-vs-exact KNN
 internal/
   api/                  HTTP handlers, OpenAPI types
   buildlibrary/         PostgreSQL persistence
@@ -88,6 +104,65 @@ deploy/                 Helm chart + Tilt + sealed-secrets
 scripts/                e2e.sh, generate.sh, docker-e2e.sh, ...
 api/openapi.yaml        the public HTTP contract
 ```
+
+### EMBEDDING_* configuration
+
+| Variable | Meaning |
+|---|---|
+| `EMBEDDING_BASE_URL` | OpenAI-compatible `/v1` root; presence enables the feature. Local default: `http://localhost:1234/v1` (LM Studio); Ollama is `http://localhost:11434/v1`. |
+| `EMBEDDING_MODEL` | Model id, e.g. `text-embedding-nomic-embed-text-v1.5@q8_0` (LM Studio), `nomic-embed-text` (Ollama), `text-embedding-3-large` (OpenAI). |
+| `EMBEDDING_API_KEY` | Optional bearer token (cloud embedders); ignored by local servers. |
+| `EMBEDDING_DIM` | Required when `EMBEDDING_BASE_URL` is set (default 768). Sets the vector column width; must match the model's output dimension. |
+| `EMBEDDING_SEED_MAX_DISTANCE` | Tier A proactive-seed cosine-distance ceiling (default 0.15). Inject the closest saved build only when it is this close to the request. |
+| `EMBEDDING_SIMILAR_MAX_DISTANCE` | Tier B list floor (default 0.5). Drop `get_similar_past_builds` results beyond this cosine distance. |
+| `EMBEDDING_HNSW_M` / `EMBEDDING_HNSW_EF_CONSTRUCTION` | HNSW index build parameters (default pgvector 16 / 64). Baked into the index; changing them needs a reindex. |
+| `EMBEDDING_HNSW_EF_SEARCH` | HNSW query-time candidate-list size (default pgvector 40). Higher = better recall, slower. Applied per query. |
+
+Unset `EMBEDDING_BASE_URL` means recency-only retrieval, no pgvector required.
+
+### Tuning runbooks
+
+**Threshold tuning (after a populated corpus exists).** Enable the per-firing log; each proactive seed records the
+seed `id` and its cosine `distance`. Collect a sample of real requests, read the generated build alongside the log to
+judge usefulness, and look at where genuinely useful matches cluster versus the noise tail. Then set
+`EMBEDDING_SEED_MAX_DISTANCE` just inside the good band (tight enough to avoid seeding bad matches). The Tier B list
+floor `EMBEDDING_SIMILAR_MAX_DISTANCE` (which bounds what `get_similar_past_builds` returns) is set looser than the
+seed ceiling using the same observations. Re-deploy and re-observe. Distances are model-specific and do not transfer
+across a model or dimension change; redo this step after any `EMBEDDING_MODEL`/`EMBEDDING_DIM` swap.
+
+**Model and HNSW index tuning.** Pick a model and dimension (`EMBEDDING_MODEL` / `EMBEDDING_DIM`), then run:
+
+```bash
+# 1. (Re-)embed every saved build with the chosen model.
+#    If EMBEDDING_MODEL or EMBEDDING_DIM changed on a non-empty corpus, clear
+#    existing embeddings first so backfill does not exit early with an error:
+#      UPDATE saved_trajectories SET embedding = NULL;
+#    Then run backfill:
+go run ./cmd/backfill-embeddings
+
+# 2. Check HNSW index recall against exact KNN.
+go run ./cmd/embedding-recall --k 10 --sample 50
+
+# 3a. Recall is low (< 0.95): measure a higher query-time ef_search first, then set it
+#     on the serving path.
+go run ./cmd/embedding-recall --k 10 --sample 50 --ef-search 80
+#     If that helps, set EMBEDDING_HNSW_EF_SEARCH=80 on the API. It is applied per query
+#     (SET LOCAL inside the retrieval transaction); no reindex needed.
+
+# 3b. Still low: raise the build parameters and rebuild the index. Set EMBEDDING_HNSW_M
+#     and/or EMBEDDING_HNSW_EF_CONSTRUCTION on the API, then force a fresh index (the
+#     bootstrap's CREATE INDEX IF NOT EXISTS will not rebuild an existing one):
+#       DROP INDEX saved_trajectories_embedding_idx;
+#     and restart the API. The bootstrap recreates the index WITH (m, ef_construction).
+
+# 4. To switch models entirely: change EMBEDDING_MODEL/EMBEDDING_DIM, clear embeddings
+#     (step 1 above), re-run backfill-embeddings, re-run embedding-recall, then
+#     re-tune the thresholds from the previous runbook.
+```
+
+`cmd/embedding-recall` reports `recall@k` = `|approx_topk intersect exact_topk| / k`. A value >= 0.98 means
+the defaults are fine; below 0.85 means the index parameters need raising. Run it against a populated corpus
+only; an empty corpus always returns perfect recall.
 
 ---
 
@@ -242,8 +317,9 @@ Full OpenAPI 3.0 contract: [`api/openapi.yaml`](api/openapi.yaml). Bruno collect
 | POST   | `/score`            | Direct calc; fully-specified Build → derived stats + optional combat sim |
 | POST   | `/generate`         | LLM-driven; enqueue a generation job; returns `202 + {id}`               |
 | GET    | `/generations/{id}` | Poll status of an enqueued generation                                    |
-| GET    | `/builds`           | Paginated list of saved trajectories                                     |
+| GET    | `/builds`           | Paginated list of saved trajectories (filter with `?accepted=true\|false`) |
 | GET    | `/builds/{id}`      | One full saved trajectory with item / skill names resolved               |
+| POST   | `/builds/{id}/accept` | Accept a build so RAG retrieval can seed future generations from it     |
 
 ### Score a build directly
 
@@ -280,8 +356,11 @@ while :; do
   sleep 30
 done
 
-# 3. Fetch enriched build
+# 3. Fetch enriched build and review it
 curl -s "http://localhost:8080/builds/$ID" | jq .
+
+# 4. Accept it so future generations can seed from it (RAG only sees accepted builds)
+curl -s -X POST "http://localhost:8080/builds/$ID/accept" | jq .
 ```
 
 Or use the convenience wrapper:
@@ -439,9 +518,10 @@ Not yet done, roughly in priority order:
 - [x] Add self-buffs to calc
 - [ ] Add self-buffs to scoring
 - [x] Include skill usage/damage in calc and scoring
-- [ ] Vector search over saved trajectories' reasoning text. Today's `get_similar_past_builds` uses class+scenario
-  lookup.
-- [ ] Add RAG with injecting get_similar_past_builds into initial system prompt
+- [x] Vector search (pgvector) over saved trajectories. `get_similar_past_builds` ranks by cosine distance to the
+  embedded request when an embedder is configured; falls back to recency otherwise.
+- [x] RAG seeding: the orchestrator embeds the incoming request, finds the closest saved build, and injects it as a
+  warm-start when within `EMBEDDING_SEED_MAX_DISTANCE`.
 - [x] Postgres migration for the build library. The API is now stateless; horizontal scaling is supported via the
   lease-based generation queue (SKIP LOCKED claim, requeue with cap), configurable replicas, and HPA/PDB in the Helm chart.
 - [ ] General prompt tuning - less tokens, more progress.

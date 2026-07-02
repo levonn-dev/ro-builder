@@ -294,6 +294,7 @@ func (p *Pool) runJob(logger *slog.Logger, g *buildlibrary.Generation, owner str
 		// MarkCompleted separately; the transaction already did it.
 		saveCtx, saveCfn := detachedCtx()
 		defer saveCfn()
+		saveCtx = logging.WithLogger(saveCtx, jobLog) // carry worker_id/generation_id into the save+embed logs
 		if err := p.cfg.Save(saveCtx, g.ID, owner, req, res); err != nil {
 			ctx, cfn := detachedCtx()
 			defer cfn()

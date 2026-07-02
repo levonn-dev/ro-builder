@@ -61,6 +61,34 @@ See `values.yaml` for the full schema and defaults. Key sections:
 
 The API is stateless and connects to Postgres via `DATABASE_URL`, read
 from the `ro-builder-env` Secret. `postgresql.enabled` (default `true`)
-deploys a bundled in-cluster Postgres StatefulSet. To use a managed
-Postgres instead, set `postgresql.enabled: false` and point `DATABASE_URL`
-at the external host in your sealed secret.
+deploys a bundled in-cluster Postgres StatefulSet using the
+`pgvector/pgvector:pg17` image. To use a managed Postgres instead, set
+`postgresql.enabled: false` and point `DATABASE_URL` at the external host
+in your sealed secret.
+
+## Embeddings (optional)
+
+Semantic retrieval over the saved-build library is optional and off by
+default. When disabled, no pgvector extension is required and no pgvector
+DDL is run. When enabled, the bootstrap creates the vector column and HNSW
+index at startup; pgvector must be installed in the database. The bundled
+`pgvector/pgvector:pg17` image already satisfies this requirement for
+in-cluster Postgres. For managed Postgres, enable the pgvector extension
+through your provider's platform settings before starting the API.
+
+Configure via the `env` ConfigMap block in `values.yaml`:
+
+| Variable | Purpose |
+|---|---|
+| `EMBEDDING_BASE_URL` | OpenAI-compatible embeddings endpoint; presence enables the feature. |
+| `EMBEDDING_MODEL` | Model id (e.g. `text-embedding-nomic-embed-text-v1.5@q8_0`, `nomic-embed-text`, `text-embedding-3-large`). |
+| `EMBEDDING_DIM` | Required when `EMBEDDING_BASE_URL` is set (default 768). Must match the model's output dimension; a mismatch causes a startup failure in `Config.Validate`. |
+| `EMBEDDING_SEED_MAX_DISTANCE` | Tier A proactive-seed cosine-distance ceiling (default 0.15). |
+| `EMBEDDING_SIMILAR_MAX_DISTANCE` | Tier B `get_similar_past_builds` list floor (default 0.5). |
+| `EMBEDDING_HNSW_M` / `EMBEDDING_HNSW_EF_CONSTRUCTION` | HNSW index build params (default 16 / 64; reindex to change). |
+| `EMBEDDING_HNSW_EF_SEARCH` | HNSW query-time candidate list (default 40; higher = better recall, slower). |
+
+`EMBEDDING_API_KEY` (cloud embedders only) goes in the `ro-builder-env`
+Secret alongside `LLM_API_KEY`. See `deploy/k8s/sealed-secrets/`. A pod
+reaching a localhost embedder must use the node/host address, not
+`localhost` (which resolves to the pod itself).

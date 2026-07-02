@@ -71,7 +71,7 @@ cleanup() {
 	if (( code != 0 )); then
 		echo
 		echo "[e2e] FAILED (exit $code); diagnostics follow:"
-		for f in score-response.json enqueue-response.json gen-status.json build-response.json sidecar.log api.log; do
+		for f in score-response.json enqueue-response.json gen-status.json build-response.json sidecar.log api.log api-embedding.log; do
 			if [[ -f "$TMP/$f" ]]; then
 				echo "--- $f (tail) ---"
 				tail -40 "$TMP/$f"
@@ -362,6 +362,207 @@ else
 		exit 1
 	fi
 	echo "[e2e] /generate 503 confirmed (score-only mode)"
+fi
+
+# --- embedding scenario (opt-in; skipped by default) ---
+#
+# Enable with E2E_EMBEDDING=1 and a reachable EMBEDDING_BASE_URL pointing
+# at an OpenAI-compatible /v1 root (e.g. http://localhost:11434/v1 for
+# Ollama). Skipped silently when E2E_EMBEDDING is unset so the default
+# `task e2e` / CI path is unchanged.
+#
+# Example invocation:
+#
+#   E2E_EMBEDDING=1 \
+#   EMBEDDING_BASE_URL=http://localhost:11434/v1 \
+#   EMBEDDING_MODEL=nomic-embed-text \
+#   EMBEDDING_DIM=768 \
+#   task e2e
+#
+# What this scenario proves:
+#   1. API boots with EMBEDDING_* configured; pgvector extension is created;
+#      logs "embeddings enabled".
+#   2. First /generate saves a trajectory WITH an embedding vector; it is then
+#      accepted (POST /builds/{id}/accept) so the RAG surface can see it.
+#   3. Second /generate (similar description) retrieves the accepted build as
+#      the nearest neighbor and the API logs "seed: injecting closest saved
+#      build" -- proves the Tier A seeding pipeline end-to-end.
+#
+# Degradation scenarios (manual; not wired into default CI):
+#
+#   pgvector-uninstallable: set EMBEDDING_* but point DATABASE_URL at a
+#   plain Postgres without pgvector and without superuser rights to
+#   CREATE EXTENSION. The API should boot and serve /score and /generate,
+#   logging "embedding: pgvector extension is unavailable ... running
+#   RECENCY-ONLY". Verify: no panic; /score returns 200; /generate returns
+#   202 (LLM key required).
+#
+#   Model mismatch: run once with MODEL_A/DIM_A to build a corpus, then
+#   restart with MODEL_B/DIM_B. Bootstrap detects the mismatch and logs
+#   "embedding: configured model/dim does not match the embedded corpus;
+#   running RECENCY-ONLY". Verify: second boot succeeds; retrieval falls
+#   back to recency; use cmd/backfill-embeddings to re-embed and restore
+#   semantic mode.
+if [[ "${E2E_EMBEDDING:-0}" == "1" ]]; then
+	if [[ -z "${EMBEDDING_BASE_URL:-}" ]]; then
+		echo "[e2e] WARNING: E2E_EMBEDDING=1 but EMBEDDING_BASE_URL is unset; skipping embedding scenario" >&2
+	else
+		EMBASE="${EMBEDDING_BASE_URL}"
+		EMMODEL="${EMBEDDING_MODEL:-nomic-embed-text}"
+		EMDIM="${EMBEDDING_DIM:-768}"
+
+		echo "[e2e] embedding scenario: checking $EMBASE reachability"
+		if ! curl -sf -o /dev/null --max-time 5 "${EMBASE}/models" 2>/dev/null; then
+			echo "[e2e] WARNING: EMBEDDING_BASE_URL $EMBASE not reachable; skipping embedding scenario" >&2
+		else
+			echo "[e2e] embedding scenario: restarting API with embedding enabled"
+			kill "$API_PID" 2>/dev/null || true
+			wait "$API_PID" 2>/dev/null || true
+
+			# EMBEDDING_SEED_MAX_DISTANCE raised to 0.5 so the seed assertion
+			# is reliable across models; the default 0.15 is intentionally
+			# tight for production but would make this test flaky.
+			(
+				ADDR=":$E2E_API_PORT" \
+					SIDECAR_URL="$SIDECAR_URL" \
+					DATABASE_URL="$E2E_DATABASE_URL" \
+					EMBEDDING_BASE_URL="$EMBASE" \
+					EMBEDDING_MODEL="$EMMODEL" \
+					EMBEDDING_DIM="$EMDIM" \
+					EMBEDDING_SEED_MAX_DISTANCE="0.5" \
+					exec "$TMP/api"
+			) >"$TMP/api-embedding.log" 2>&1 &
+			API_PID=$!
+
+			for _ in $(seq 1 120); do
+				if ! kill -0 "$API_PID" 2>/dev/null; then
+					echo "[e2e] embedding-API process exited before becoming ready; check api-embedding.log" >&2
+					tail -20 "$TMP/api-embedding.log" >&2
+					exit 1
+				fi
+				if curl -sf -o /dev/null -X POST "$API_URL/score" \
+					-H 'content-type: application/json' -d '{}' 2>/dev/null; then
+					break
+				fi
+				sleep 0.5
+			done
+			if ! curl -sf -o /dev/null -X POST "$API_URL/score" \
+				-H 'content-type: application/json' -d '{}' 2>/dev/null; then
+				echo "[e2e] embedding-API did not become ready within 60s" >&2
+				exit 1
+			fi
+
+			if grep -q "embeddings enabled" "$TMP/api-embedding.log" 2>/dev/null; then
+				EMB_MODEL_LOG=$(grep "embeddings enabled" "$TMP/api-embedding.log" | tail -1 || true)
+				echo "[e2e] embedding scenario: confirmed -- $EMB_MODEL_LOG"
+			else
+				echo "[e2e] WARNING: 'embeddings enabled' not found in api-embedding.log; semantic may have degraded to recency-only"
+			fi
+
+			if [[ -z "${LLM_API_KEY:-}" ]]; then
+				echo "[e2e] embedding scenario: LLM_API_KEY not set; /generate pair skipped (boot + enabled check only)"
+			else
+				echo "[e2e] embedding scenario: run 1/2 /generate"
+				EMB_BODY_1='{
+					"class": "taekwon_kid",
+					"server": "uaro",
+					"playstyle": "pvm",
+					"description": "e2e embedding test: taekwon kid star gladiator kick build AGI PvM leveling"
+				}'
+				HTTP_CODE=$(curl -s -o "$TMP/emb-enq-1.json" -w '%{http_code}' \
+					--max-time 30 \
+					-X POST "$API_URL/generate" \
+					-H 'content-type: application/json' \
+					-d "$EMB_BODY_1")
+				if [[ "$HTTP_CODE" != "202" ]]; then
+					echo "[e2e] embedding run 1: /generate returned HTTP $HTTP_CODE (expected 202)" >&2
+					exit 1
+				fi
+				EMB_ID_1="$(jq -r '.id' "$TMP/emb-enq-1.json")"
+
+				EMB_WAIT=900
+				EMB_START=$(date +%s)
+				while :; do
+					curl -sf -o "$TMP/emb-st-1.json" "$API_URL/generations/$EMB_ID_1" 2>/dev/null || true
+					EMB_S1="$(jq -r '.status // "unknown"' "$TMP/emb-st-1.json" 2>/dev/null)"
+					case "$EMB_S1" in
+						completed) break ;;
+						failed)
+							echo "[e2e] embedding run 1 failed: $(jq -r '.error // "(none)"' "$TMP/emb-st-1.json")" >&2
+							exit 1 ;;
+						*)
+							NOW=$(date +%s)
+							if (( NOW - EMB_START >= EMB_WAIT )); then
+								echo "[e2e] embedding run 1 timed out after ${EMB_WAIT}s" >&2
+								exit 1
+							fi
+							sleep 10 ;;
+					esac
+				done
+				echo "[e2e] embedding scenario run 1 completed ($EMB_ID_1)"
+
+				# The RAG surface only sees ACCEPTED builds, so accept run 1
+				# before run 2 (this also exercises POST /builds/{id}/accept).
+				ACC_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+					-X POST "$API_URL/builds/$EMB_ID_1/accept")
+				if [[ "$ACC_CODE" != "200" ]]; then
+					echo "[e2e] accept of run 1 ($EMB_ID_1) returned HTTP $ACC_CODE (expected 200)" >&2
+					exit 1
+				fi
+				echo "[e2e] embedding scenario: accepted run 1 ($EMB_ID_1)"
+
+				echo "[e2e] embedding scenario: run 2/2 /generate (similar description)"
+				EMB_BODY_2='{
+					"class": "taekwon_kid",
+					"server": "uaro",
+					"playstyle": "pvm",
+					"description": "e2e embedding test: taekwon kid star gladiator kick skills AGI-focused PvM farmer"
+				}'
+				HTTP_CODE=$(curl -s -o "$TMP/emb-enq-2.json" -w '%{http_code}' \
+					--max-time 30 \
+					-X POST "$API_URL/generate" \
+					-H 'content-type: application/json' \
+					-d "$EMB_BODY_2")
+				if [[ "$HTTP_CODE" != "202" ]]; then
+					echo "[e2e] embedding run 2: /generate returned HTTP $HTTP_CODE (expected 202)" >&2
+					exit 1
+				fi
+				EMB_ID_2="$(jq -r '.id' "$TMP/emb-enq-2.json")"
+
+				EMB_START=$(date +%s)
+				while :; do
+					curl -sf -o "$TMP/emb-st-2.json" "$API_URL/generations/$EMB_ID_2" 2>/dev/null || true
+					EMB_S2="$(jq -r '.status // "unknown"' "$TMP/emb-st-2.json" 2>/dev/null)"
+					case "$EMB_S2" in
+						completed) break ;;
+						failed)
+							echo "[e2e] embedding run 2 failed: $(jq -r '.error // "(none)"' "$TMP/emb-st-2.json")" >&2
+							exit 1 ;;
+						*)
+							NOW=$(date +%s)
+							if (( NOW - EMB_START >= EMB_WAIT )); then
+								echo "[e2e] embedding run 2 timed out after ${EMB_WAIT}s" >&2
+								exit 1
+							fi
+							sleep 10 ;;
+					esac
+				done
+				echo "[e2e] embedding scenario run 2 completed ($EMB_ID_2)"
+
+				# Assert seed injection: run 2 should find run 1 as the nearest
+				# neighbor (distance threshold raised to 0.5 above).
+				if grep -q "seed: injecting closest saved build" "$TMP/api-embedding.log" 2>/dev/null; then
+					echo "[e2e] embedding scenario: seed injection confirmed in API log"
+				else
+					echo "[e2e] FAIL: 'seed: injecting closest saved build' not found in api-embedding.log" >&2
+					echo "      Run 2 did not seed from run 1. Descriptions may be too dissimilar," >&2
+					echo "      or the embedding server returned unexpected vectors." >&2
+					exit 1
+				fi
+			fi
+			echo "[e2e] embedding scenario complete"
+		fi
+	fi
 fi
 
 echo "[e2e] all checks passed"
