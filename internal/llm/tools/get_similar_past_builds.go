@@ -21,24 +21,29 @@ const getSimilarPastBuildsSchema = `{
 
 type getSimilarPastBuildsTool struct {
 	lib *buildlibrary.Library
+	// maxDistance is the Tier B list floor: semantic results beyond this
+	// cosine distance are dropped so the LLM never sees far-off matches.
+	// 0 = no floor (return the nearest `limit` regardless of distance).
+	maxDistance float64
 }
 
 // NewGetSimilarPastBuilds constructs the get_similar_past_builds tool.
 // lib is required; a nil library here would mean a deployment without
 // persistent build storage, which we treat as a programming error
-// rather than a graceful "no results."
-func NewGetSimilarPastBuilds(lib *buildlibrary.Library) Tool {
+// rather than a graceful "no results." maxDistance is the semantic list
+// floor (EMBEDDING_SIMILAR_MAX_DISTANCE); ignored in recency mode.
+func NewGetSimilarPastBuilds(lib *buildlibrary.Library, maxDistance float64) Tool {
 	if lib == nil {
 		panic("tools.NewGetSimilarPastBuilds: library is required")
 	}
-	return &getSimilarPastBuildsTool{lib: lib}
+	return &getSimilarPastBuildsTool{lib: lib, maxDistance: maxDistance}
 }
 
 func (t *getSimilarPastBuildsTool) Definition() llm.Tool {
 	return llm.Tool{
 		Name: "get_similar_past_builds",
 		Description: "Retrieve summaries of previously generated and quality-gate-validated trajectories matching the given class + server. " +
-			"Returns lightweight records (id, class, server, playstyle, description, gate counts) sorted by recency; at most `limit` (default 5). " +
+			"Returns lightweight records (id, class, server, playstyle, description, gate counts) ranked by similarity to the active request when embeddings are available, otherwise sorted by recency; at most `limit` (default 5). " +
 			"USE THESE AS REFERENCE POINTS, NOT TEMPLATES. Past builds are signals about what's worked under similar constraints; the active build should still be designed from scratch given the current request's class definition, gear pool, scenario, and server profile. Diverging from a past build's choices is fine when the reasoning supports it. " +
 			"Calling without args defaults to filtering by the request's active class + server, which is usually what you want.",
 		InputSchema: json.RawMessage(getSimilarPastBuildsSchema),
@@ -71,10 +76,29 @@ func (t *getSimilarPastBuildsTool) Execute(ctx context.Context, raw json.RawMess
 		// cross-class results from the same server.
 	}
 
+	// RAG retrieval only surfaces user-accepted builds; builds that merely
+	// passed quality gates are not seedable until the user accepts them.
+	acceptedOnly := true
+
+	// Prefer semantic ranking when the orchestrator stamped a query vector
+	// and the library has embeddings; otherwise fall back to recency.
+	if vec, ok := domain.QueryEmbeddingFromContext(ctx); ok && t.lib.SemanticEnabled() {
+		sims, err := t.lib.FindSimilar(ctx, vec, buildlibrary.FindParams{Class: in.Class, Server: in.Server, Limit: in.Limit, MaxDistance: t.maxDistance, Accepted: &acceptedOnly})
+		if err != nil {
+			return nil, fmt.Errorf("library find similar: %w", err)
+		}
+		out, err := json.Marshal(sims)
+		if err != nil {
+			return nil, fmt.Errorf("encode get_similar_past_builds output: %w", err)
+		}
+		return out, nil
+	}
+
 	summaries, err := t.lib.Find(ctx, buildlibrary.FindParams{
-		Class:  in.Class,
-		Server: in.Server,
-		Limit:  in.Limit,
+		Class:    in.Class,
+		Server:   in.Server,
+		Limit:    in.Limit,
+		Accepted: &acceptedOnly,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("library find: %w", err)

@@ -344,6 +344,8 @@ func (s *Server) ListBuilds(ctx context.Context, req oapi.ListBuildsRequestObjec
 		// param parser; passing through is enough.
 		p.Limit = *req.Params.Limit
 	}
+	// nil = all builds; true = accepted only; false = pending (not yet accepted).
+	p.Accepted = req.Params.Accepted
 
 	builds, err := s.library.Find(ctx, p)
 	if err != nil {
@@ -393,6 +395,35 @@ func (s *Server) GetBuild(ctx context.Context, req oapi.GetBuildRequestObject) (
 		return nil, fmt.Errorf("encode enriched build: %w", err)
 	}
 	return oapi.GetBuild200JSONResponse(out), nil
+}
+
+// --- AcceptBuild ---
+
+// AcceptBuild marks a saved trajectory as user-accepted, making it visible to
+// the RAG retrieval surface (proactive seed injection, get_similar_past_builds,
+// get_saved_build). Until accepted, a saved build is fetchable via
+// GET /builds/{id} but never seeds a future generation. Idempotent: accepting
+// an already-accepted build returns its original timestamp.
+//
+// Status codes:
+//
+//	200 - accepted (or already accepted); body {id, accepted_at}
+//	404 - no trajectory with that id
+//	500 - library not configured, or an unexpected library failure
+func (s *Server) AcceptBuild(ctx context.Context, req oapi.AcceptBuildRequestObject) (oapi.AcceptBuildResponseObject, error) {
+	if s.library == nil {
+		return oapi.AcceptBuild500JSONResponse{Error: "build library not configured"}, nil
+	}
+	at, err := s.library.Accept(ctx, req.Id)
+	if errors.Is(err, buildlibrary.ErrNotFound) {
+		return oapi.AcceptBuild404JSONResponse{Error: "no trajectory with id " + req.Id}, nil
+	}
+	if err != nil {
+		logging.From(ctx).Error("AcceptBuild: library accept failed",
+			slog.String("id", req.Id), slog.String("error", err.Error()))
+		return oapi.AcceptBuild500JSONResponse{Error: genericInternalError}, nil
+	}
+	return oapi.AcceptBuild200JSONResponse{Id: req.Id, AcceptedAt: at}, nil
 }
 
 // convertJSON moves data between two JSON-shape-compatible Go types

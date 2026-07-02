@@ -29,11 +29,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/levonn-dev/ro-builder/internal/llm"
+	"github.com/levonn-dev/ro-builder/internal/logging"
 )
 
 func init() {
@@ -180,7 +183,42 @@ func (c *Client) Complete(ctx context.Context, system string, messages []llm.Mes
 	if err := json.Unmarshal(respBytes, &apiResp); err != nil {
 		return llm.Response{}, fmt.Errorf("decode response: %w", err)
 	}
-	return fromAPIResponse(apiResp)
+	llmResp, err := fromAPIResponse(apiResp)
+	if err != nil {
+		return llm.Response{}, err
+	}
+	// When the server returned no structured tool_calls, some reasoning
+	// backends (Qwen3, DeepSeek-R1 via LM Studio/llama.cpp) still emitted the
+	// call as <tool_call>/<function=...> markup inside content or
+	// reasoning_content. Recover it so the tool loop can proceed; otherwise the
+	// turn looks empty and the orchestrator fails with no_submission.
+	if !hasToolUse(llmResp.Content) {
+		msg := apiResp.Choices[0].Message
+		scan := derefStr(msg.Content) + "\n" + msg.ReasoningContent
+		if recovered := recoverToolCalls(scan, apiResp.ID); len(recovered) > 0 {
+			for _, tc := range recovered {
+				llmResp.Content = append(llmResp.Content, llm.ContentBlock{
+					Type:      llm.BlockToolUse,
+					ToolUseID: tc.ID,
+					ToolName:  tc.Function.Name,
+					ToolInput: json.RawMessage(tc.Function.Arguments),
+				})
+			}
+			llmResp.StopReason = llm.StopToolUse // finish_reason was "stop"; the recovered calls make it a tool turn
+			logging.From(ctx).Warn("recovered tool call(s) the server left unparsed in content/reasoning_content; a local reasoning model likely buried them in its thinking -- disable thinking mode or fix the tool-call parser for reliability",
+				slog.Int("recovered", len(recovered)),
+				slog.Int("reasoning_chars", len(msg.ReasoningContent)))
+		} else if len(llmResp.Content) == 0 {
+			hint := ""
+			if strings.TrimSpace(msg.ReasoningContent) != "" {
+				hint = "; the model put output in reasoning_content, which suggests a local reasoning model whose tool call was not parsed into tool_calls -- disable thinking mode or fix the server's tool-call parser/template"
+			}
+			logging.From(ctx).Warn("llm returned an empty turn (no text, no tool calls)"+hint,
+				slog.String("finish_reason", apiResp.Choices[0].FinishReason),
+				slog.Int("reasoning_chars", len(msg.ReasoningContent)))
+		}
+	}
+	return llmResp, nil
 }
 
 // --- Wire types ---
@@ -203,6 +241,12 @@ type apiMessage struct {
 	ToolCalls  []apiToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string        `json:"tool_call_id,omitempty"` // role=tool only
 	Name       string        `json:"name,omitempty"`         // tool name on role=tool (optional but some backends want it)
+	// ReasoningContent is the thinking channel some backends (LM Studio,
+	// vLLM) expose for reasoning models (Qwen3, DeepSeek-R1). We never send it
+	// (omitempty keeps it out of requests); on responses it lets us diagnose
+	// the case where a model buried its tool call in reasoning instead of
+	// emitting structured tool_calls. See the empty-turn check in Complete.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
 }
 
 type apiToolCall struct {
@@ -394,6 +438,97 @@ func fromAPIResponse(r apiResponse) (llm.Response, error) {
 		})
 	}
 	return resp, nil
+}
+
+func hasToolUse(blocks []llm.ContentBlock) bool {
+	for _, b := range blocks {
+		if b.Type == llm.BlockToolUse {
+			return true
+		}
+	}
+	return false
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// Tool-call recovery for non-compliant servers.
+//
+// Some OpenAI-compatible backends (LM Studio, llama.cpp) serving reasoning
+// models (Qwen3, DeepSeek-R1) fail to hoist a model's tool call into the
+// structured tool_calls array, leaving it as markup in content or
+// reasoning_content while tool_calls stays empty. recoverToolCalls salvages
+// those so the orchestrator's tool loop proceeds. It runs only on the
+// already-broken path (no structured tool_calls), so compliant servers are
+// untouched. Two markup dialects are handled:
+//
+//	Qwen XML:  <function=NAME><parameter=KEY>VALUE</parameter>...</function>
+//	Hermes:    <tool_call>{"name":"NAME","arguments":{...}}</tool_call>
+var (
+	reRecoverFunc   = regexp.MustCompile(`(?s)<function=([^>\s]+)\s*>(.*?)</function>`)
+	reRecoverParam  = regexp.MustCompile(`(?s)<parameter=([^>\s]+)\s*>(.*?)</parameter>`)
+	reRecoverHermes = regexp.MustCompile(`(?s)<tool_call>\s*(\{.*?\})\s*</tool_call>`)
+)
+
+func recoverToolCalls(text, idPrefix string) []apiToolCall {
+	if idPrefix == "" {
+		idPrefix = "recovered"
+	}
+	var calls []apiToolCall
+	// Qwen XML function/parameter form.
+	for _, fm := range reRecoverFunc.FindAllStringSubmatch(text, -1) {
+		args := map[string]json.RawMessage{}
+		for _, pm := range reRecoverParam.FindAllStringSubmatch(fm[2], -1) {
+			args[pm[1]] = jsonValueOrString(strings.TrimSpace(pm[2]))
+		}
+		argsJSON, err := json.Marshal(args)
+		if err != nil {
+			continue
+		}
+		calls = append(calls, apiToolCall{
+			ID:       fmt.Sprintf("%s_rtc_%d", idPrefix, len(calls)),
+			Type:     "function",
+			Function: apiToolCallFunc{Name: fm[1], Arguments: string(argsJSON)},
+		})
+	}
+	if len(calls) > 0 {
+		return calls
+	}
+	// Hermes JSON form.
+	for _, hm := range reRecoverHermes.FindAllStringSubmatch(text, -1) {
+		var h struct {
+			Name      string          `json:"name"`
+			Arguments json.RawMessage `json:"arguments"`
+		}
+		if json.Unmarshal([]byte(hm[1]), &h) != nil || h.Name == "" {
+			continue
+		}
+		args := string(h.Arguments)
+		if args == "" {
+			args = "{}"
+		}
+		calls = append(calls, apiToolCall{
+			ID:       fmt.Sprintf("%s_rtc_%d", idPrefix, len(calls)),
+			Type:     "function",
+			Function: apiToolCallFunc{Name: h.Name, Arguments: args},
+		})
+	}
+	return calls
+}
+
+// jsonValueOrString returns v as raw JSON when it already is valid JSON (an
+// object, array, number, bool, or quoted string), else JSON-encodes it as a
+// string so a bare parameter value like `roundhouse` becomes "roundhouse".
+func jsonValueOrString(v string) json.RawMessage {
+	if v != "" && json.Valid([]byte(v)) {
+		return json.RawMessage(v)
+	}
+	b, _ := json.Marshal(v)
+	return json.RawMessage(b)
 }
 
 func mapFinishReason(r string) llm.StopReason {

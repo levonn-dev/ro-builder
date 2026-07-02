@@ -34,14 +34,75 @@ var migrationsFS embed.FS
 // with Close. Methods are safe for concurrent use.
 type Library struct {
 	db *sql.DB
+
+	// embedding config resolved at Open; semanticEnabled gates all vector
+	// reads/writes. embeddingDim is the column dimension. embeddingModelID
+	// is the (model@tier) identity compared against the stamped config.
+	semanticEnabled  bool
+	embeddingDim     int
+	embeddingModelID string
+
+	// HNSW tuning knobs (0 = pgvector default). hnswM / hnswEfConstruction
+	// are build-time (baked into the index at bootstrap); hnswEfSearch is
+	// query-time (SET LOCAL per FindSimilar call).
+	hnswM              int
+	hnswEfConstruction int
+	hnswEfSearch       int
 }
+
+// Option configures Open.
+type Option func(*openOptions)
+
+type openOptions struct {
+	embeddingDim       int
+	embeddingModelID   string
+	hnswM              int
+	hnswEfConstruction int
+	hnswEfSearch       int
+}
+
+// WithEmbedding declares the embedding dimension and model identity for
+// this deployment. When set (dim>0 and modelID!=""), Open runs the
+// config-driven bootstrap that materializes the pgvector column + index.
+// Omit it for recency-only deployments.
+func WithEmbedding(dim int, modelID string) Option {
+	return func(o *openOptions) {
+		o.embeddingDim = dim
+		o.embeddingModelID = modelID
+	}
+}
+
+// WithHNSW overrides the HNSW index tuning knobs. Any argument <= 0 keeps
+// pgvector's default (m=16, ef_construction=64, ef_search=40). m and
+// efConstruction are baked into the index at bootstrap and only take effect
+// on a fresh build (changing them on an existing index requires a reindex).
+// efSearch is applied per query via SET LOCAL. Effective only alongside
+// WithEmbedding.
+func WithHNSW(m, efConstruction, efSearch int) Option {
+	return func(o *openOptions) {
+		o.hnswM = m
+		o.hnswEfConstruction = efConstruction
+		o.hnswEfSearch = efSearch
+	}
+}
+
+// SemanticEnabled reports whether vector storage/retrieval is active.
+func (l *Library) SemanticEnabled() bool { return l != nil && l.semanticEnabled }
+
+// EmbeddingDim is the configured vector dimension (0 when disabled).
+func (l *Library) EmbeddingDim() int { return l.embeddingDim }
 
 // Open connects to the Postgres database at dsn, verifies the connection,
 // and applies embedded migrations. dsn "" is rejected; callers must supply
-// an explicit connection string.
-func Open(ctx context.Context, dsn string) (*Library, error) {
+// an explicit connection string. Variadic opts configure optional features;
+// callers that pass no opts get a recency-only library (no vector search).
+func Open(ctx context.Context, dsn string, opts ...Option) (*Library, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("buildlibrary.Open: dsn is required")
+	}
+	var o openOptions
+	for _, opt := range opts {
+		opt(&o)
 	}
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -58,7 +119,21 @@ func Open(ctx context.Context, dsn string) (*Library, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	return &Library{db: db}, nil
+	lib := &Library{
+		db:                 db,
+		embeddingDim:       o.embeddingDim,
+		embeddingModelID:   o.embeddingModelID,
+		hnswM:              o.hnswM,
+		hnswEfConstruction: o.hnswEfConstruction,
+		hnswEfSearch:       o.hnswEfSearch,
+	}
+	if o.embeddingDim > 0 && o.embeddingModelID != "" {
+		if err := lib.bootstrapEmbedding(ctx); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("embedding bootstrap: %w", err)
+		}
+	}
+	return lib, nil
 }
 
 // runMigrations applies embedded migrations using the app's *sql.DB.
@@ -128,6 +203,9 @@ type SavedTrajectory struct {
 	GateSummary    GateSummary         `json:"gate_summary"`
 	CalcVersion    string              `json:"calc_version,omitempty"`
 	CatalogVersion int                 `json:"catalog_version,omitempty"`
+	// AcceptedAt is nil until the user accepts the build. RAG retrieval only
+	// surfaces accepted builds; the user-facing GET /builds paths show all.
+	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
 }
 
 // GateSummary aggregates per-snapshot gate counts so retrieval queries
@@ -151,4 +229,5 @@ type Summary struct {
 	Playstyle   string      `json:"playstyle"`
 	Description string      `json:"description,omitempty"`
 	GateSummary GateSummary `json:"gate_summary"`
+	AcceptedAt  *time.Time  `json:"accepted_at,omitempty"`
 }

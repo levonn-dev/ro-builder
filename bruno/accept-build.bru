@@ -1,0 +1,48 @@
+meta {
+  name: accept-build
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/builds/{{savedBuildId}}/accept
+  body: none
+  auth: inherit
+}
+
+docs {
+  Accept a saved trajectory so the RAG retrieval surface can seed future
+  generations from it. Until accepted, a build that passed quality gates
+  is fetchable via `get-saved-build` but is invisible to proactive seed
+  injection, `get_similar_past_builds`, and `get_saved_build` -- passing
+  the quality gates is not the same as being the build you wanted.
+
+  `savedBuildId` is set by the `generate` request's post-response script;
+  run this after reviewing the build with `get-saved-build`. Idempotent:
+  accepting an already-accepted build returns the original `accepted_at`.
+  404 if no build has that id.
+
+  Typical flow: generate -> generation-status -> get-saved-build (review)
+  -> accept-build.
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("id present", function() {
+    expect(res.getBody().id).to.be.a("string").and.not.empty;
+  });
+  test("accepted_at present", function() {
+    expect(res.getBody().accepted_at).to.be.a("string").and.not.empty;
+  });
+}
+
+script:post-response {
+  const data = res.getBody() || {};
+  console.log("");
+  console.log("Build accepted: " + (data.id || "?"));
+  console.log("  accepted_at: " + (data.accepted_at || "?"));
+  console.log("");
+  console.log("It is now visible to RAG retrieval and can seed future generations.");
+}

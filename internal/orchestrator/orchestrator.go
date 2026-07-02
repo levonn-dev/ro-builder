@@ -52,6 +52,12 @@ import (
 // loop if the model gets confused.
 const defaultMaxIters = 60
 
+// defaultSeedMaxDistance is the cosine-distance ceiling below which a
+// saved build is injected as a warm-start reference. 0.15 is tight enough
+// to avoid injecting unrelated builds while still catching near-identical
+// requests (same class/playstyle/scenario).
+const defaultSeedMaxDistance = 0.15
+
 // systemPrompt is the briefing the LLM receives once per request. Kept
 // short and direct; verbose system prompts encourage the model to ramble
 // in their responses. The "never fabricate numbers" instruction is the
@@ -215,19 +221,23 @@ type ScoringClient interface {
 // for every snapshot); useful in tests that don't need it. Production
 // wiring sets it via WithScoringClient.
 type Orchestrator struct {
-	provider      llm.Provider
-	registry      *tools.Registry
-	maxIters      int
-	profiles      map[string]*domain.ServerProfile
-	scoringClient ScoringClient
-	catalog       *catalog.Catalog
+	provider        llm.Provider
+	registry        *tools.Registry
+	maxIters        int
+	profiles        map[string]*domain.ServerProfile
+	scoringClient   ScoringClient
+	catalog         *catalog.Catalog
+	embedder        QueryEmbedder
+	seeder          BuildSeeder
+	seedMaxDistance float64
 }
 
 func New(provider llm.Provider, registry *tools.Registry) *Orchestrator {
 	return &Orchestrator{
-		provider: provider,
-		registry: registry,
-		maxIters: defaultMaxIters,
+		provider:        provider,
+		registry:        registry,
+		maxIters:        defaultMaxIters,
+		seedMaxDistance: defaultSeedMaxDistance,
 	}
 }
 
@@ -267,6 +277,23 @@ func (o *Orchestrator) WithCatalog(cat *catalog.Catalog) *Orchestrator {
 	return o
 }
 
+// WithEmbedder enables query embedding for proactive seeding and semantic
+// retrieval. nil leaves the orchestrator recency-only.
+func (o *Orchestrator) WithEmbedder(e QueryEmbedder) *Orchestrator { o.embedder = e; return o }
+
+// WithSeeder supplies the saved-build similarity source (production: the
+// *buildlibrary.Library). Required alongside WithEmbedder for Tier-A seeding.
+func (o *Orchestrator) WithSeeder(s BuildSeeder) *Orchestrator { o.seeder = s; return o }
+
+// WithSeedMaxDistance overrides the proactive-seed cosine-distance ceiling.
+// Values <= 0 are ignored; the default ceiling is retained.
+func (o *Orchestrator) WithSeedMaxDistance(d float64) *Orchestrator {
+	if d > 0 {
+		o.seedMaxDistance = d
+	}
+	return o
+}
+
 // Generate runs the full tool-use loop for one request.
 //
 // Returns (*GenerateResult, nil) on success: end_turn with an accepted
@@ -292,6 +319,8 @@ func (o *Orchestrator) Generate(ctx context.Context, req GenerateRequest) (*Gene
 
 	sess := &Session{}
 	ctx = WithSession(ctx, sess)
+
+	ctx, seedBlock := o.maybeSeed(ctx, req)
 
 	// Build a per-request submit_trajectory tool: it closes over the
 	// session's Accept callback, the resolved profile, and the request's
@@ -350,10 +379,11 @@ func (o *Orchestrator) Generate(ctx context.Context, req GenerateRequest) (*Gene
 	baseLevel, jobLevel, _ := o.fetchClassMaxLevelsForPrompt(profile, req.Class)
 	skillBudget := o.fetchSkillPointBudget(req.Class)
 
-	messages := []llm.Message{{
-		Role:    llm.RoleUser,
-		Content: []llm.ContentBlock{{Type: llm.BlockText, Text: formatUserPrompt(req, profile, classSkills, classBuffs, baseLevel, jobLevel, skillBudget)}},
-	}}
+	userBlocks := []llm.ContentBlock{{Type: llm.BlockText, Text: formatUserPrompt(req, profile, classSkills, classBuffs, baseLevel, jobLevel, skillBudget)}}
+	if seedBlock != "" {
+		userBlocks = append(userBlocks, llm.ContentBlock{Type: llm.BlockText, Text: seedBlock})
+	}
+	messages := []llm.Message{{Role: llm.RoleUser, Content: userBlocks}}
 	toolDefs := reg.Definitions()
 
 	logger.Info("generation started",

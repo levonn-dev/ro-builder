@@ -78,6 +78,7 @@ type EnrichedBuild struct {
 	GateSummary    buildlibrary.GateSummary `json:"gate_summary"`
 	CalcVersion    string                   `json:"calc_version,omitempty"`
 	CatalogVersion int                      `json:"catalog_version,omitempty"`
+	AcceptedAt     *time.Time               `json:"accepted_at,omitempty"`
 }
 
 // enrichSavedTrajectory transforms a SavedTrajectory into its wire form
@@ -99,6 +100,7 @@ func enrichSavedTrajectory(st *buildlibrary.SavedTrajectory, cat *catalog.Catalo
 		GateSummary:    st.GateSummary,
 		CalcVersion:    st.CalcVersion,
 		CatalogVersion: st.CatalogVersion,
+		AcceptedAt:     st.AcceptedAt,
 		Primary:        enrichTrajectory(st.Primary, cat),
 	}
 	if len(st.Alternatives) > 0 {

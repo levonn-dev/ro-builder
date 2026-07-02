@@ -1,7 +1,7 @@
 meta {
   name: list-builds
   type: http
-  seq: 5
+  seq: 6
 }
 
 get {
@@ -14,6 +14,7 @@ params:query {
   limit: 10
   ~class: taekwon_kid
   ~server: uaro
+  ~accepted: true
 }
 
 docs {
@@ -22,6 +23,9 @@ docs {
     - `class`; restrict to one class
     - `server`; restrict to one server profile
     - `limit`; 1..50, default 5
+    - `accepted`; `true` = user-accepted (RAG-visible) only, `false` =
+      pending review only, omitted = all. Each row carries `accepted_at`
+      (absent = pending). See `accept-build`.
 }
 
 tests {
