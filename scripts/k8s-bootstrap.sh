@@ -7,6 +7,7 @@
 
 set -euo pipefail
 
+# Keep in sync with SEALED_SECRETS_VERSION in k8s-teardown.sh.
 readonly SEALED_SECRETS_VERSION="v0.27.0"
 readonly SEALED_SECRETS_URL="https://github.com/bitnami-labs/sealed-secrets/releases/download/${SEALED_SECRETS_VERSION}/controller.yaml"
 readonly NAMESPACE="ro-builder"

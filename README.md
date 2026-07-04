@@ -298,13 +298,20 @@ The sidecar's calc backend defaults to rocalc. Set `CALC_BACKEND=stub` in your s
 ### Kubernetes via Tilt (live-reload k8s)
 
 ```bash
-task tilt:bootstrap   # one-shot: install sealed-secrets controller, create namespace
-task tilt:seal        # encrypt LLM_API_KEY from .env into a SealedSecret
-task tilt:up          # start the full stack under Tilt (Ctrl-C to stop)
+task tilt:bootstrap       # one-shot: install sealed-secrets controller, create namespace
+task tilt:seal            # encrypt LLM_API_KEY from .env into a SealedSecret
+task tilt:up              # start the full stack under Tilt (Ctrl-C to stop)
+task tilt:down            # stop Tilt-managed resources; the Postgres PVC survives
+task tilt:nuke            # tilt down + delete the ro-builder namespace (drops the PVC)
+task tilt:bootstrap:down  # remove the sealed-secrets controller + sealing keys from kube-system
 ```
 
 The chart's `sidecar.calcBackend` value defaults to `rocalc`. Override via `values.local.yaml` or `--set` for
 stub-backed local runs.
+
+`tilt:bootstrap:down` (run `tilt:nuke` first) deletes the controller's generated sealing keys, so the
+gitignored `local.sealed-secret.yaml` can no longer be decrypted; the next `task tilt:bootstrap` reinstalls
+the controller and re-seals from `.env` (or run `task tilt:seal` manually).
 
 ---
 

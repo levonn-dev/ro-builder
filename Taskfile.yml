@@ -342,6 +342,9 @@ tasks:
   # controller, creates namespace), then `task tilt:seal` (encrypts your
   # .env's LLM_API_KEY and Postgres creds), then `task tilt:up`.
   #
+  # Teardown tiers: tilt:down (stop; PVC survives), tilt:nuke (namespace +
+  # PVC), tilt:bootstrap:down (sealed-secrets controller + sealing keys).
+  #
   # The compose path (docker:*) is intact and remains the CI test target.
 
   tilt:bootstrap:
@@ -370,6 +373,11 @@ tasks:
     cmds:
       - tilt down
       - kubectl delete namespace ro-builder --ignore-not-found
+
+  tilt:bootstrap:down:
+    desc: 'Remove the sealed-secrets controller + its sealing keys from kube-system (run tilt:nuke first). local.sealed-secret.yaml goes stale; the next bootstrap re-seals from .env.'
+    cmds:
+      - ./scripts/k8s-teardown.sh
 
   tilt:lint:
     desc: 'helm lint the chart standalone (subset of `task check`).'
